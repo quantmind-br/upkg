@@ -108,8 +108,8 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	}
 
 	// Normalize name
-	binName := normalizeFilename(appName)
-	installID := generateInstallID(binName)
+	binName := helpers.NormalizeFilename(appName)
+	installID := helpers.GenerateInstallID(binName)
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -123,7 +123,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	}
 
 	destPath := filepath.Join(binDir, binName+".appimage")
-	if err := copyFile(packagePath, destPath); err != nil {
+	if err := helpers.CopyFile(packagePath, destPath); err != nil {
 		return nil, fmt.Errorf("failed to copy AppImage: %w", err)
 	}
 
@@ -425,9 +425,21 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 		entry.Categories = []string{"Utility"}
 	}
 
-	// Inject Wayland environment variables
-	if a.cfg.Desktop.WaylandEnvVars {
+	// Detect Tauri apps (they use WebKitGTK and require specific environment handling)
+	isTauriApp := strings.Contains(strings.ToLower(entry.StartupWMClass), "tauri")
+
+	// Inject Wayland environment variables (skip for Tauri apps or if explicitly disabled)
+	if a.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv && !isTauriApp {
 		desktop.InjectWaylandEnvVars(entry, a.cfg.Desktop.CustomEnvVars)
+	} else if isTauriApp {
+		a.logger.Info().
+			Str("app", appName).
+			Str("wm_class", entry.StartupWMClass).
+			Msg("detected Tauri app, skipping Wayland environment injection")
+	} else if opts.SkipWaylandEnv {
+		a.logger.Info().
+			Str("app", appName).
+			Msg("skipping Wayland environment injection per user request")
 	}
 
 	// Write desktop file
@@ -451,7 +463,7 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 	return desktopFilePath, nil
 }
 
-// Helper types and functions
+// Helper types
 
 type appImageMetadata struct {
 	appName     string
@@ -460,42 +472,4 @@ type appImageMetadata struct {
 	icon        string
 	categories  []string
 	desktopFile string
-}
-
-func normalizeFilename(name string) string {
-	name = strings.ToLower(name)
-	name = strings.ReplaceAll(name, " ", "-")
-
-	var result strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-func generateInstallID(name string) string {
-	return fmt.Sprintf("%s-%d", name, time.Now().Unix())
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	if _, err := destFile.ReadFrom(sourceFile); err != nil {
-		return err
-	}
-
-	return nil
 }

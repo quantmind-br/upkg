@@ -83,8 +83,8 @@ func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.
 		}
 	}
 
-	normalizedName := normalizeFilename(pkgName)
-	installID := generateInstallID(normalizedName)
+	normalizedName := helpers.NormalizeFilename(pkgName)
+	installID := helpers.GenerateInstallID(normalizedName)
 
 	// Check if rpmextract.sh is available (preferred method)
 	if helpers.CommandExists("rpmextract.sh") {
@@ -381,7 +381,7 @@ func (r *RpmBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 
 // uninstallPacman removes RPM installed via pacman
 func (r *RpmBackend) uninstallPacman(ctx context.Context, record *core.InstallRecord) error {
-	normalizedName := normalizeFilename(record.Name)
+	normalizedName := helpers.NormalizeFilename(record.Name)
 
 	// Check if still installed
 	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -818,24 +818,7 @@ func extractRpmBaseName(filename string) string {
 	return parts[0]
 }
 
-func normalizeFilename(name string) string {
-	name = strings.ToLower(name)
-	name = strings.ReplaceAll(name, " ", "-")
-	name = strings.ReplaceAll(name, "_", "-")
-
-	var result strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-func generateInstallID(name string) string {
-	return fmt.Sprintf("%s-%d", name, time.Now().Unix())
-}
+// No local helper functions - using shared helpers from internal/helpers/common.go
 
 // formatDisplayName converts a normalized package name to a human-readable display name
 // Examples:
@@ -906,6 +889,33 @@ func copyDir(src, dst string) error {
 				// Skip broken symlinks
 				return nil
 			}
+
+			// Validate symlink doesn't escape destination directory
+			linkDir := filepath.Dir(dstPath)
+			resolvedTarget := filepath.Join(linkDir, linkTarget)
+
+			// Get absolute paths
+			absDst, err := filepath.Abs(dst)
+			if err != nil {
+				return fmt.Errorf("failed to resolve destination: %w", err)
+			}
+
+			absTarget, err := filepath.Abs(resolvedTarget)
+			if err != nil {
+				return fmt.Errorf("failed to resolve symlink target: %w", err)
+			}
+
+			// Check if symlink target is within destination
+			rel, err := filepath.Rel(absDst, absTarget)
+			if err != nil {
+				return fmt.Errorf("failed to compute relative path: %w", err)
+			}
+
+			if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+				// Skip symlinks that escape destination
+				return nil
+			}
+
 			// Create symlink at destination
 			return os.Symlink(linkTarget, dstPath)
 		}

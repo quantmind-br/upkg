@@ -165,9 +165,10 @@ func TestValidateFilePath(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "valid absolute path",
-			path:    "/usr/bin/app",
-			wantErr: false,
+			name:      "absolute path to /usr/bin (not allowed for writes)",
+			path:      "/usr/bin/app",
+			wantErr:   true,
+			errSubstr: "suspicious absolute path",
 		},
 		{
 			name:      "path traversal attempt",
@@ -189,7 +190,7 @@ func TestValidateFilePath(t *testing.T) {
 		},
 		{
 			name:      "path too long",
-			path:      string(make([]byte, 1000)),
+			path:      string(make([]byte, 4096)),
 			wantErr:   true,
 			errSubstr: "too long",
 		},
@@ -225,11 +226,11 @@ func TestValidateFilePath(t *testing.T) {
 
 func TestIsPathWithinDirectory(t *testing.T) {
 	tests := []struct {
-		name         string
-		path         string
-		directory    string
-		wantResult   bool
-		wantErr      bool
+		name       string
+		path       string
+		directory  string
+		wantResult bool
+		wantErr    bool
 	}{
 		{
 			name:       "file within directory",

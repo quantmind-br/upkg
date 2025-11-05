@@ -101,7 +101,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		}
 	}
 
-	normalizedName := normalizeFilename(pkgName)
+	normalizedName := helpers.NormalizeFilename(pkgName)
 	pacmanPkgName := normalizedName
 	var pkgMeta *packageInfo
 
@@ -147,7 +147,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 			Msg("resolved pacman package name from archive metadata")
 	}
 
-	installID := generateInstallID(pacmanPkgName)
+	installID := helpers.GenerateInstallID(pacmanPkgName)
 
 	// Install the converted package with pacman
 	d.logger.Info().Msg("installing converted package with pacman...")
@@ -266,7 +266,7 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 
 	// Extract package name from InstallPath metadata
 	pkgName := record.Name
-	normalizedName := normalizeFilename(pkgName)
+	normalizedName := helpers.NormalizeFilename(pkgName)
 
 	// Check if package is still installed
 	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -664,23 +664,7 @@ func isDebtapInitialized() bool {
 	return foundCount >= 2
 }
 
-func normalizeFilename(name string) string {
-	name = strings.ToLower(name)
-	name = strings.ReplaceAll(name, " ", "-")
-
-	var result strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-func generateInstallID(name string) string {
-	return fmt.Sprintf("%s-%d", name, time.Now().Unix())
-}
+// No local helper functions - using shared helpers from internal/helpers/common.go
 
 // extractPackageInfoFromArchive reads .PKGINFO from an Arch package archive
 // to discover the package name and version that pacman will register.

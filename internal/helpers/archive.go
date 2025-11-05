@@ -3,6 +3,7 @@ package helpers
 import (
 	"archive/tar"
 	"archive/zip"
+	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -10,10 +11,62 @@ import (
 	"path/filepath"
 
 	"github.com/diogo/pkgctl/internal/security"
+	"github.com/ulikunitz/xz"
 )
+
+// Extraction limits to prevent archive bombs
+const (
+	MaxExtractedSize     = 10 * 1024 * 1024 * 1024 // 10GB
+	MaxFileCount         = 100000                   // 100k files
+	MaxCompressionRatio  = 1000                     // 1000:1 ratio
+	MaxIndividualFileSize = 5 * 1024 * 1024 * 1024 // 5GB per file
+)
+
+// extractionLimiter tracks extraction metrics to prevent bombs
+type extractionLimiter struct {
+	totalBytes   int64
+	fileCount    int
+	originalSize int64
+}
+
+func newExtractionLimiter(originalSize int64) *extractionLimiter {
+	return &extractionLimiter{
+		originalSize: originalSize,
+	}
+}
+
+func (e *extractionLimiter) checkLimits(fileSize int64) error {
+	e.totalBytes += fileSize
+	e.fileCount++
+
+	if e.totalBytes > MaxExtractedSize {
+		return fmt.Errorf("extraction size limit exceeded: %d bytes (max %d)", e.totalBytes, MaxExtractedSize)
+	}
+
+	if e.fileCount > MaxFileCount {
+		return fmt.Errorf("file count limit exceeded: %d files (max %d)", e.fileCount, MaxFileCount)
+	}
+
+	if fileSize > MaxIndividualFileSize {
+		return fmt.Errorf("individual file too large: %d bytes (max %d)", fileSize, MaxIndividualFileSize)
+	}
+
+	if e.originalSize > 0 && e.totalBytes > e.originalSize*MaxCompressionRatio {
+		return fmt.Errorf("compression ratio too high: %d:1 (possible archive bomb, max %d:1)",
+			e.totalBytes/e.originalSize, MaxCompressionRatio)
+	}
+
+	return nil
+}
 
 // ExtractTarGz extracts a .tar.gz archive with security checks
 func ExtractTarGz(archivePath, destDir string) error {
+	// Get original file size for compression ratio check
+	info, err := os.Stat(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat archive: %w", err)
+	}
+
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
@@ -26,21 +79,71 @@ func ExtractTarGz(archivePath, destDir string) error {
 	}
 	defer gzr.Close()
 
-	return extractTar(gzr, destDir)
+	limiter := newExtractionLimiter(info.Size())
+	return extractTar(gzr, destDir, limiter)
 }
 
 // ExtractTar extracts a .tar archive with security checks
 func ExtractTar(archivePath, destDir string) error {
+	info, err := os.Stat(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat archive: %w", err)
+	}
+
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
 	}
 	defer file.Close()
 
-	return extractTar(file, destDir)
+	limiter := newExtractionLimiter(info.Size())
+	return extractTar(file, destDir, limiter)
 }
 
-func extractTar(r io.Reader, destDir string) error {
+// ExtractTarXz extracts a .tar.xz archive with security checks
+func ExtractTarXz(archivePath, destDir string) error {
+	info, err := os.Stat(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat archive: %w", err)
+	}
+
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %w", err)
+	}
+	defer file.Close()
+
+	// Use xz decompressor
+	xzr, err := xz.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("failed to create xz reader: %w", err)
+	}
+
+	limiter := newExtractionLimiter(info.Size())
+	return extractTar(xzr, destDir, limiter)
+}
+
+// ExtractTarBz2 extracts a .tar.bz2 archive with security checks
+func ExtractTarBz2(archivePath, destDir string) error {
+	info, err := os.Stat(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat archive: %w", err)
+	}
+
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %w", err)
+	}
+	defer file.Close()
+
+	// Use bzip2 decompressor
+	bzr := bzip2.NewReader(file)
+
+	limiter := newExtractionLimiter(info.Size())
+	return extractTar(bzr, destDir, limiter)
+}
+
+func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 	tr := tar.NewReader(r)
 
 	for {
@@ -66,6 +169,11 @@ func extractTar(r io.Reader, destDir string) error {
 			}
 
 		case tar.TypeReg:
+			// Check extraction limits before extracting file
+			if err := limiter.checkLimits(header.Size); err != nil {
+				return fmt.Errorf("archive bomb protection triggered: %w", err)
+			}
+
 			if err := extractFile(tr, target, header.Mode); err != nil {
 				return fmt.Errorf("failed to extract file %s: %w", header.Name, err)
 			}
@@ -122,11 +230,18 @@ func extractFile(r io.Reader, target string, mode int64) error {
 
 // ExtractZip extracts a .zip archive with security checks
 func ExtractZip(archivePath, destDir string) error {
+	info, err := os.Stat(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat archive: %w", err)
+	}
+
 	r, err := zip.OpenReader(archivePath)
 	if err != nil {
 		return fmt.Errorf("failed to open zip: %w", err)
 	}
 	defer r.Close()
+
+	limiter := newExtractionLimiter(info.Size())
 
 	for _, f := range r.File {
 		// Security: Validate path
@@ -141,6 +256,11 @@ func ExtractZip(archivePath, destDir string) error {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
 			continue
+		}
+
+		// Check extraction limits before extracting file
+		if err := limiter.checkLimits(int64(f.UncompressedSize64)); err != nil {
+			return fmt.Errorf("archive bomb protection triggered: %w", err)
 		}
 
 		if err := extractZipFile(f, target); err != nil {

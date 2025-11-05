@@ -19,10 +19,11 @@ type Installer interface {
 
 // InstallOptions contains options for package installation
 type InstallOptions struct {
-	Force          bool     // Force installation even if already installed
-	SkipDesktop    bool     // Skip desktop integration
-	CustomName     string   // Custom application name
-	WaylandEnvVars []string // Additional Wayland environment variables
+	Force           bool     // Force installation even if already installed
+	SkipDesktop     bool     // Skip desktop integration
+	CustomName      string   // Custom application name
+	WaylandEnvVars  []string // Additional Wayland environment variables
+	SkipWaylandEnv  bool     // Skip Wayland environment variable injection
 }
 
 // DatabaseStore defines the interface for database operations

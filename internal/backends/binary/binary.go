@@ -82,8 +82,8 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 	}
 
 	// Normalize name for filesystem
-	binName := normalizeFilename(appName)
-	installID := generateInstallID(binName)
+	binName := helpers.NormalizeFilename(appName)
+	installID := helpers.GenerateInstallID(binName)
 
 	// Create ~/.local/bin directory
 	homeDir, err := os.UserHomeDir()
@@ -98,7 +98,7 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 
 	// Copy binary to ~/.local/bin/
 	destPath := filepath.Join(binDir, binName)
-	if err := copyFile(packagePath, destPath); err != nil {
+	if err := helpers.CopyFile(packagePath, destPath); err != nil {
 		return nil, fmt.Errorf("failed to copy binary: %w", err)
 	}
 
@@ -257,46 +257,4 @@ func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opt
 	return desktopFilePath, nil
 }
 
-// Helper functions
-
-func normalizeFilename(name string) string {
-	// Convert to lowercase
-	name = strings.ToLower(name)
-
-	// Replace spaces with hyphens
-	name = strings.ReplaceAll(name, " ", "-")
-
-	// Remove special characters except alphanumeric, hyphens, underscores, and dots
-	var result strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-func generateInstallID(name string) string {
-	return fmt.Sprintf("%s-%d", name, time.Now().Unix())
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	if _, err := destFile.ReadFrom(sourceFile); err != nil {
-		return err
-	}
-
-	return nil
-}
+// No local helper functions - using shared helpers from internal/helpers/common.go

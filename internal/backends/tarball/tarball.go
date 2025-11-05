@@ -52,8 +52,10 @@ func (t *TarballBackend) Detect(ctx context.Context, packagePath string) (bool, 
 		return false, err
 	}
 
-	// Accept tar.gz, tar, zip
+	// Accept tar.gz, tar.xz, tar.bz2, tar, zip
 	return fileType == helpers.FileTypeTarGz ||
+		fileType == helpers.FileTypeTarXz ||
+		fileType == helpers.FileTypeTarBz2 ||
 		fileType == helpers.FileTypeTar ||
 		fileType == helpers.FileTypeZip, nil
 }
@@ -90,8 +92,8 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 	}
 
 	// Normalize name
-	normalizedName := normalizeFilename(appName)
-	installID := generateInstallID(normalizedName)
+	normalizedName := helpers.NormalizeFilename(appName)
+	installID := helpers.GenerateInstallID(normalizedName)
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -265,8 +267,12 @@ func (t *TarballBackend) Uninstall(ctx context.Context, record *core.InstallReco
 // extractArchive extracts an archive to a directory
 func (t *TarballBackend) extractArchive(archivePath, destDir, archiveType string) error {
 	switch archiveType {
-	case "tar.gz", "tar.bz2", "tar.xz":
+	case "tar.gz":
 		return helpers.ExtractTarGz(archivePath, destDir)
+	case "tar.xz":
+		return helpers.ExtractTarXz(archivePath, destDir)
+	case "tar.bz2":
+		return helpers.ExtractTarBz2(archivePath, destDir)
 	case "tar":
 		return helpers.ExtractTar(archivePath, destDir)
 	case "zip":
@@ -496,14 +502,20 @@ func (t *TarballBackend) createWrapper(wrapperPath, execPath string) error {
 	var content string
 	if isElectron {
 		// Electron apps need to run from their own directory
-		// and may need --no-sandbox flag
 		execDir := filepath.Dir(execPath)
 		execName := filepath.Base(execPath)
+
+		// Only add --no-sandbox if explicitly configured (security risk)
+		sandboxFlag := ""
+		if t.cfg.Desktop.ElectronDisableSandbox {
+			sandboxFlag = " --no-sandbox"
+		}
+
 		content = fmt.Sprintf(`#!/bin/bash
 # pkgctl wrapper script for Electron app
 cd "%s"
-exec "./%s" --no-sandbox "$@"
-`, execDir, execName)
+exec "./%s"%s "$@"
+`, execDir, execName, sandboxFlag)
 	} else {
 		// Standard wrapper
 		content = fmt.Sprintf(`#!/bin/bash
@@ -529,14 +541,20 @@ func (t *TarballBackend) isElectronApp(execPath string) bool {
 		return true
 	}
 
-	// Check for *.asar in parent directory
+	// Check for *.asar in parent directory and subdirectories
 	parentDir := filepath.Dir(execDir)
-	matches, _ := filepath.Glob(filepath.Join(parentDir, "**/*.asar"))
-	if len(matches) > 0 {
-		return true
-	}
-
-	return false
+	var asarFound bool
+	filepath.Walk(parentDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Continue on errors
+		}
+		if !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".asar") {
+			asarFound = true
+			return filepath.SkipAll // Found one, stop walking
+		}
+		return nil
+	})
+	return asarFound
 }
 
 // installIcons installs icons from the extracted directory
@@ -676,20 +694,28 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 }
 
 // copyFile is a helper to copy files
-func (t *TarballBackend) copyFile(src, dst string) error {
+func (t *TarballBackend) copyFile(src, dst string) (err error) {
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() {
+		if cerr := sourceFile.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() {
+		if cerr := destFile.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
-	if _, err := io.Copy(destFile, sourceFile); err != nil {
+	if _, err = io.Copy(destFile, sourceFile); err != nil {
 		return err
 	}
 
@@ -781,22 +807,4 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 	return desktopFilePath, nil
 }
 
-// Helper functions
-
-func normalizeFilename(name string) string {
-	name = strings.ToLower(name)
-	name = strings.ReplaceAll(name, " ", "-")
-
-	var result strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-func generateInstallID(name string) string {
-	return fmt.Sprintf("%s-%d", name, time.Now().Unix())
-}
+// No local helper functions - using shared helpers from internal/helpers/common.go

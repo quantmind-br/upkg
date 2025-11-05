@@ -21,6 +21,8 @@ const (
 	FileTypeDEB      FileType = "deb"
 	FileTypeRPM      FileType = "rpm"
 	FileTypeTarGz    FileType = "tar.gz"
+	FileTypeTarXz    FileType = "tar.xz"
+	FileTypeTarBz2   FileType = "tar.bz2"
 	FileTypeTar      FileType = "tar"
 	FileTypeZip      FileType = "zip"
 	FileTypeUnknown  FileType = "unknown"
@@ -49,6 +51,16 @@ func DetectFileType(filePath string) (FileType, error) {
 	if strings.HasSuffix(strings.ToLower(filePath), ".tar.gz") ||
 		strings.HasSuffix(strings.ToLower(filePath), ".tgz") {
 		return FileTypeTarGz, nil
+	}
+
+	if strings.HasSuffix(strings.ToLower(filePath), ".tar.xz") ||
+		strings.HasSuffix(strings.ToLower(filePath), ".txz") {
+		return FileTypeTarXz, nil
+	}
+
+	if strings.HasSuffix(strings.ToLower(filePath), ".tar.bz2") ||
+		strings.HasSuffix(strings.ToLower(filePath), ".tbz2") {
+		return FileTypeTarBz2, nil
 	}
 
 	if ext == ".tar" {
@@ -104,6 +116,16 @@ func DetectFileType(filePath string) (FileType, error) {
 		return FileTypeTarGz, nil
 	}
 
+	// XZ magic: 0xFD '7' 'z' 'X' 'Z' 0x00
+	if len(header) >= 6 && bytes.Equal(header[:6], []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}) {
+		return FileTypeTarXz, nil
+	}
+
+	// BZ2 magic: 'B' 'Z' 'h'
+	if len(header) >= 3 && bytes.Equal(header[:3], []byte{'B', 'Z', 'h'}) {
+		return FileTypeTarBz2, nil
+	}
+
 	// ZIP magic: "PK"
 	if len(header) >= 2 && bytes.Equal(header[:2], []byte{'P', 'K'}) {
 		return FileTypeZip, nil
@@ -149,7 +171,7 @@ func hasSquashFS(f *os.File) (bool, error) {
 	// Scan incrementally from start to 2MB (covers most AppImage layouts)
 	// Read chunks and search within each chunk to avoid missing misaligned signatures
 	const maxScan = 2 * 1024 * 1024 // 2MB
-	const chunkSize = 8192           // 8KB chunks for better coverage
+	const chunkSize = 8192          // 8KB chunks for better coverage
 
 	buf := make([]byte, chunkSize)
 	magicLE := []byte{'h', 's', 'q', 's'} // Little-endian

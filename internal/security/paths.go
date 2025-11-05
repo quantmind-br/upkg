@@ -36,9 +36,15 @@ func ValidateExtractPath(targetDir, extractedPath string) error {
 		return fmt.Errorf("failed to resolve destination path: %w", err)
 	}
 
-	// Ensure target is under destDir
-	if !strings.HasPrefix(cleanTarget, cleanDest+string(filepath.Separator)) &&
-		cleanTarget != cleanDest {
+	// Use filepath.Rel to properly check if path is within directory
+	// This prevents false negatives like /usrXXX having prefix /usr
+	rel, err := filepath.Rel(cleanDest, cleanTarget)
+	if err != nil {
+		return fmt.Errorf("failed to compute relative path: %w", err)
+	}
+
+	// If relative path starts with "..", the target is outside the destination
+	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
 		return fmt.Errorf("path escapes destination directory: %s", extractedPath)
 	}
 

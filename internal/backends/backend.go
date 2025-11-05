@@ -2,6 +2,7 @@ package backends
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -114,7 +115,7 @@ func (r *Registry) createDetectionError(packagePath string) error {
 		errorMsg += "\nWorkaround: Package your script in a tarball (.tar.gz) with any required assets."
 	}
 
-	return fmt.Errorf(errorMsg)
+	return errors.New(errorMsg)
 }
 
 // detectFileType attempts to detect the file type

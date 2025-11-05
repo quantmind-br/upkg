@@ -25,6 +25,7 @@ var (
 		";",
 		"\n",
 		"\r",
+		"\x00",
 	}
 )
 
@@ -66,17 +67,34 @@ func ValidatePackageName(name string) error {
 
 // ValidateVersion validates a version string
 func ValidateVersion(version string) error {
+	// 1. Rejeitar string vazia
 	if version == "" {
-		// Empty version is allowed (optional field)
-		return nil
+		return fmt.Errorf("invalid version: version cannot be empty")
 	}
 
-	if len(version) > 100 {
+	// 2. Limitar comprimento (verificar ANTES de processar conteúdo)
+	if len(version) >= 100 {
 		return fmt.Errorf("version string too long (max 100 characters)")
 	}
 
+	// 3. Detectar null byte
+	if strings.Contains(version, "\x00") {
+		return fmt.Errorf("invalid version: contains null byte")
+	}
+
+	// 4. Detectar caracteres perigosos (path traversal, command injection)
+	dangerousPatterns := []string{
+		"..", "/", "\\", ";", "&", "|", "`", "$", "\n", "\r",
+	}
+	for _, pattern := range dangerousPatterns {
+		if strings.Contains(version, pattern) {
+			return fmt.Errorf("invalid version: contains dangerous pattern: %s", pattern)
+		}
+	}
+
+	// 5. Validar formato com regex
 	if !ValidVersionRegex.MatchString(version) {
-		return fmt.Errorf("invalid version format")
+		return fmt.Errorf("invalid version format: must be alphanumeric with dots, dashes, or plus signs")
 	}
 
 	return nil
@@ -84,36 +102,83 @@ func ValidateVersion(version string) error {
 
 // ValidateFilePath validates a file path for dangerous patterns
 func ValidateFilePath(path string) error {
+	// 1. Validar não-vazio
 	if path == "" {
 		return fmt.Errorf("file path cannot be empty")
 	}
 
-	// Clean the path first
+	// 2. Limitar comprimento (verificar ANTES de processar conteúdo)
+	if len(path) >= 4096 {
+		return fmt.Errorf("file path too long (max 4096 characters)")
+	}
+
+	// 3. Detectar null byte (ataque de path truncation)
+	if strings.Contains(path, "\x00") {
+		return fmt.Errorf("file path contains null byte")
+	}
+
+	// 4. Limpar e normalizar o caminho
 	cleanPath := filepath.Clean(path)
 
-	// Check for dangerous patterns
+	// 5. Detectar arquivos/diretórios ocultos (iniciam com .)
+	parts := strings.Split(cleanPath, string(filepath.Separator))
+	for _, part := range parts {
+		if part != "" && part != "." && part != ".." && strings.HasPrefix(part, ".") {
+			return fmt.Errorf("file path contains hidden file or directory: %s", part)
+		}
+	}
+
+	// 6. Verificar padrões perigosos (path traversal, command injection)
 	for _, pattern := range DangerousPathPatterns {
 		if strings.Contains(path, pattern) && pattern != "." && pattern != "-" {
 			return fmt.Errorf("file path contains dangerous pattern: %s", pattern)
 		}
 	}
 
-	// Ensure no absolute paths in user input (except for install operations where it's expected)
-	// This check is contextual and should be used carefully
-	if filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "/home/") && !strings.HasPrefix(cleanPath, "/tmp/") {
-		// Allow /home/ and /tmp/ but warn about other absolute paths
-		return fmt.Errorf("suspicious absolute path: %s", cleanPath)
+	// 7. Detectar caminhos sensíveis do sistema
+	sensitivePaths := []string{
+		"/etc/", "/bin/", "/sbin/", "/usr/sbin/",
+		"/root/", "/boot/", "/sys/", "/proc/",
+		"/dev/", "/lib/", "/lib64/",
+	}
+
+	if filepath.IsAbs(cleanPath) {
+		for _, sensitive := range sensitivePaths {
+			if strings.HasPrefix(cleanPath, sensitive) {
+				return fmt.Errorf("file path points to sensitive system path: %s", sensitive)
+			}
+		}
+
+		// Permitir caminhos seguros absolutos (para instalações)
+		// Note: /usr/bin/ removido para prevenir sobrescrita de binários do sistema
+		safeWritePaths := []string{"/home/", "/tmp/", "/var/tmp/", "/usr/local/", "/opt/"}
+		isSafe := false
+		for _, safe := range safeWritePaths {
+			if strings.HasPrefix(cleanPath, safe) {
+				isSafe = true
+				break
+			}
+		}
+
+		if !isSafe {
+			return fmt.Errorf("suspicious absolute path: %s", cleanPath)
+		}
 	}
 
 	return nil
 }
 
-// SanitizeString removes potentially dangerous characters from a string
+// SanitizeString removes potentially dangerous characters and normalizes the string
+// - Removes null bytes and control characters
+// - Replaces spaces and special characters with hyphens
+// - Preserves: alphanumeric, underscores, dots, hyphens
+// - Normalizes multiple hyphens to single hyphen
+// - Trims leading/trailing whitespace and hyphens
 func SanitizeString(input string) string {
-	// Remove null bytes
+	// 1. Remove null bytes
 	result := strings.ReplaceAll(input, "\x00", "")
 
-	// Remove other control characters
+	// 2. Remove control characters (except newline, tab, carriage return - which will be handled next)
 	result = strings.Map(func(r rune) rune {
 		if r < 32 && r != '\n' && r != '\r' && r != '\t' {
 			return -1 // Drop character
@@ -121,7 +186,38 @@ func SanitizeString(input string) string {
 		return r
 	}, result)
 
-	return strings.TrimSpace(result)
+	// 3. Trim leading/trailing whitespace
+	result = strings.TrimSpace(result)
+
+	// 4. Build sanitized string: replace special chars/spaces with hyphens
+	var builder strings.Builder
+	for _, r := range result {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '.' {
+			// Keep: alphanumeric, underscore, dot
+			builder.WriteRune(r)
+		} else if r == '-' {
+			// Keep hyphen as-is
+			builder.WriteRune(r)
+		} else if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			// Replace whitespace with hyphen
+			builder.WriteRune('-')
+		} else {
+			// Replace special characters with hyphen
+			// (This includes: @#$%^&*()+=[]{}|;:'",<>?/\)
+			builder.WriteRune('-')
+		}
+	}
+	result = builder.String()
+
+	// 5. Normalize multiple consecutive hyphens to single hyphen
+	for strings.Contains(result, "--") {
+		result = strings.ReplaceAll(result, "--", "-")
+	}
+
+	// 6. Trim leading/trailing hyphens
+	result = strings.Trim(result, "-")
+
+	return result
 }
 
 // ValidateCommandArg validates a command-line argument for safety
@@ -181,29 +277,38 @@ func ValidateInstallID(id string) error {
 	return nil
 }
 
-// IsPathWithinDirectory checks if a path is within a given directory (additional validation)
-func IsPathWithinDirectory(basePath, targetPath string) (bool, error) {
-	// Clean both paths
-	cleanBase, err := filepath.Abs(filepath.Clean(basePath))
-	if err != nil {
-		return false, fmt.Errorf("failed to resolve base path: %w", err)
+// IsPathWithinDirectory checks if a target path is within a given base directory
+// Parameters:
+//   - targetPath: the file/directory path to check (e.g., "/home/user/app/file.txt")
+//   - basePath: the base directory to check against (e.g., "/home/user/app")
+//
+// Returns:
+//   - bool: true if targetPath is within basePath
+//   - error: non-nil if paths cannot be resolved or if relative paths are used
+func IsPathWithinDirectory(targetPath, basePath string) (bool, error) {
+	// 1. Validar que ambos os caminhos são absolutos
+	if !filepath.IsAbs(targetPath) {
+		return false, fmt.Errorf("target path must be absolute, got relative path: %s", targetPath)
+	}
+	if !filepath.IsAbs(basePath) {
+		return false, fmt.Errorf("base path must be absolute, got relative path: %s", basePath)
 	}
 
-	cleanTarget, err := filepath.Abs(filepath.Clean(targetPath))
-	if err != nil {
-		return false, fmt.Errorf("failed to resolve target path: %w", err)
-	}
+	// 2. Limpar e normalizar ambos os caminhos
+	cleanBase := filepath.Clean(basePath)
+	cleanTarget := filepath.Clean(targetPath)
 
-	// Check if target starts with base
+	// 3. Verificar se target começa com base
 	rel, err := filepath.Rel(cleanBase, cleanTarget)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to compute relative path: %w", err)
 	}
 
-	// If rel starts with "..", it's outside the directory
+	// 4. Se rel começa com "..", o target está fora do base
 	if strings.HasPrefix(rel, "..") {
 		return false, nil
 	}
 
+	// 5. Se rel é ".", o target é exatamente o base (considerado "dentro")
 	return true, nil
 }

@@ -73,10 +73,9 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			// Install package
 			color.Cyan("→ Installing package...")
 			installOpts := core.InstallOptions{
-				Force:          force,
-				SkipDesktop:    skipDesktop,
-				CustomName:     customName,
-				SkipWaylandEnv: skipWaylandEnv,
+				Force:       force,
+				SkipDesktop: skipDesktop,
+				CustomName:  customName,
 			}
 
 			record, err := backend.Install(ctx, packagePath, installOpts)

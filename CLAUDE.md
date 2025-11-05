@@ -20,8 +20,9 @@ make install            # Install to $GOBIN or $GOPATH/bin
 make test               # Run all tests with race detection
 make test-coverage      # Generate coverage report (coverage.html)
 make coverage           # Generate and display coverage statistics
-go test -v ./internal/package/...  # Run tests for specific package
-go test -v -run TestFunctionName ./internal/package/  # Run single test
+go test -v ./...                  # Run all tests
+go test -v ./internal/backends/appimage/  # Run tests for specific backend
+go test -v -run TestFunctionName  # Run single test
 ```
 
 ### Code Quality
@@ -109,7 +110,7 @@ cmd/pkgctl/         # Main entry point
 ### Adding a New Package Format
 1. Create new backend in `internal/backends/<format>/`
 2. Implement the Backend interface (Name, Detect, Install, Uninstall)
-3. Add to Registry in `internal/backends/backend.go` in the correct priority order
+3. Register backend in `internal/backends/backend.go` NewRegistry() function in the correct priority order
 4. Add comprehensive tests (use afero for filesystem mocking)
 5. Update documentation
 

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Test Application
+Comment=A test application for pkgctl
+Exec=/usr/bin/test-app %f
+Icon=test-app
+Terminal=false
+Categories=Utility;Development;
+StartupWMClass=TestApp

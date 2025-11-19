@@ -7,7 +7,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// Color scheme for pkgctl
+// Color scheme for upkg
 var (
 	// Primary actions
 	Success = color.New(color.FgGreen)

@@ -117,7 +117,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	}
 
 	// Create temp directory for extraction
-	tmpDir, err := os.MkdirTemp("", "pkgctl-rpm-*")
+	tmpDir, err := os.MkdirTemp("", "upkg-rpm-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -146,7 +146,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	r.logger.Debug().Msg("RPM extracted successfully")
 
 	// Create installation directory
-	appsDir := filepath.Join(homeDir, ".local", "share", "pkgctl", "apps")
+	appsDir := filepath.Join(homeDir, ".local", "share", "upkg", "apps")
 	installDir := filepath.Join(appsDir, normalizedName)
 
 	if _, err := os.Stat(installDir); err == nil {
@@ -265,7 +265,7 @@ func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normali
 	}
 
 	// Create temp directory
-	tmpDir, err := os.MkdirTemp("", "pkgctl-rpm-debtap-*")
+	tmpDir, err := os.MkdirTemp("", "upkg-rpm-debtap-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -582,7 +582,7 @@ func (r *RpmBackend) scoreExecutable(execPath, baseName, installDir string) int 
 
 func (r *RpmBackend) createWrapper(wrapperPath, execPath string) error {
 	content := fmt.Sprintf(`#!/bin/bash
-# pkgctl wrapper script
+# upkg wrapper script
 exec "%s" "$@"
 `, execPath)
 

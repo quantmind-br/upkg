@@ -135,7 +135,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		Msg("package name determined")
 
 	// Create temp directory for conversion
-	tmpDir, err := os.MkdirTemp("", "pkgctl-deb-*")
+	tmpDir, err := os.MkdirTemp("", "upkg-deb-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
@@ -622,7 +622,7 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	}
 
 	// Write back (need sudo for system files)
-	tmpFile, err := os.CreateTemp("", "pkgctl-desktop-*.desktop")
+	tmpFile, err := os.CreateTemp("", "upkg-desktop-*.desktop")
 	if err != nil {
 		return err
 	}
@@ -752,7 +752,7 @@ func extractPackageInfoFromArchive(pkgPath string) (*packageInfo, error) {
 // This addresses issues where epoch versions (like 2:1.4.99.1) cause name mangling
 func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 	// Extract the package to a temp directory
-	tmpDir, err := os.MkdirTemp("", "pkgctl-fix-deps-*")
+	tmpDir, err := os.MkdirTemp("", "upkg-fix-deps-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}

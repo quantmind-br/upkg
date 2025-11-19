@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Test Application
-Comment=A test application for pkgctl
+Comment=A test application for upkg
 Exec=/usr/bin/test-app %f
 Icon=test-app
 Terminal=false

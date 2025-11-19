@@ -70,7 +70,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	}
 
 	// Create temp directory for extraction
-	tmpDir, err := os.MkdirTemp("", "pkgctl-appimage-*")
+	tmpDir, err := os.MkdirTemp("", "upkg-appimage-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}

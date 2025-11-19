@@ -99,7 +99,7 @@ func TestHasSquashFS(t *testing.T) {
 
 func TestDetectFileType(t *testing.T) {
 	// Test with real AppImage that has squashfs at 0x2f4c0
-	appImagePath := filepath.Join("/home/diogo/dev/pkgctl/pkg-test", "MasterPDFEditor-4.3.89-x86_64-1_JB.AppImage")
+	appImagePath := filepath.Join("/home/diogo/dev/upkg/pkg-test", "MasterPDFEditor-4.3.89-x86_64-1_JB.AppImage")
 
 	if _, err := os.Stat(appImagePath); err == nil {
 		t.Run("real AppImage detection", func(t *testing.T) {
@@ -132,7 +132,7 @@ func TestDetectFileType(t *testing.T) {
 
 func TestIsAppImage(t *testing.T) {
 	// Test with real AppImage
-	appImagePath := filepath.Join("/home/diogo/dev/pkgctl/pkg-test", "MasterPDFEditor-4.3.89-x86_64-1_JB.AppImage")
+	appImagePath := filepath.Join("/home/diogo/dev/upkg/pkg-test", "MasterPDFEditor-4.3.89-x86_64-1_JB.AppImage")
 
 	if _, err := os.Stat(appImagePath); err == nil {
 		t.Run("real AppImage check", func(t *testing.T) {

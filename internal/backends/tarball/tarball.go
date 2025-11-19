@@ -102,8 +102,8 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// Create installation directory in ~/.local/share/pkgctl/apps/
-	appsDir := filepath.Join(homeDir, ".local", "share", "pkgctl", "apps")
+	// Create installation directory in ~/.local/share/upkg/apps/
+	appsDir := filepath.Join(homeDir, ".local", "share", "upkg", "apps")
 	installDir := filepath.Join(appsDir, normalizedName)
 
 	// Check if already exists
@@ -669,14 +669,14 @@ func (t *TarballBackend) createWrapper(wrapperPath, execPath string) error {
 		}
 
 		content = fmt.Sprintf(`#!/bin/bash
-# pkgctl wrapper script for Electron app
+# upkg wrapper script for Electron app
 cd "%s"
 exec "./%s"%s "$@"
 `, execDir, execName, sandboxFlag)
 	} else {
 		// Standard wrapper
 		content = fmt.Sprintf(`#!/bin/bash
-# pkgctl wrapper script
+# upkg wrapper script
 exec "%s" "$@"
 `, execPath)
 	}
@@ -780,7 +780,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 	}
 
 	// Create temporary directory for extracted icons
-	tempDir, err := os.MkdirTemp("", "pkgctl-asar-icons-*")
+	tempDir, err := os.MkdirTemp("", "upkg-asar-icons-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
@@ -881,7 +881,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 	var allIcons []core.IconFile
 	for _, icon := range discoveredIcons {
 		// Create subdirectory for asar-extracted icons
-		asarIconsDir := filepath.Join(installDir, ".pkgctl-asar-icons")
+		asarIconsDir := filepath.Join(installDir, ".upkg-asar-icons")
 		if err := os.MkdirAll(asarIconsDir, 0755); err != nil {
 			continue
 		}
@@ -963,7 +963,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 			Msg("attempting to extract icons using npx fallback")
 
 		// Create temporary directory for extraction
-		tempDir, err := os.MkdirTemp("", "pkgctl-asar-*")
+		tempDir, err := os.MkdirTemp("", "upkg-asar-*")
 		if err != nil {
 			t.logger.Warn().Err(err).Msg("failed to create temp dir for asar extraction")
 			continue
@@ -996,7 +996,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		// Copy icons to a permanent location in installDir before temp cleanup
 		for _, icon := range discoveredIcons {
 			// Create a subdirectory for asar-extracted icons
-			asarIconsDir := filepath.Join(installDir, ".pkgctl-asar-icons")
+			asarIconsDir := filepath.Join(installDir, ".upkg-asar-icons")
 			if err := os.MkdirAll(asarIconsDir, 0755); err != nil {
 				continue
 			}

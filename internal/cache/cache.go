@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diogo/pkgctl/internal/helpers"
+	"github.com/diogo/upkg/internal/helpers"
 	"github.com/rs/zerolog"
 )
 

@@ -1,9 +1,9 @@
 .PHONY: build test lint install clean fmt vet coverage help
 
 # Build variables
-BINARY_NAME=pkgctl
+BINARY_NAME=upkg
 BUILD_DIR=bin
-CMD_DIR=cmd/pkgctl
+CMD_DIR=cmd/upkg
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 

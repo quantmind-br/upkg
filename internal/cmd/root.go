@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/diogo/pkgctl/internal/config"
+	"github.com/diogo/upkg/internal/config"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -9,7 +9,7 @@ import (
 // NewRootCmd creates the root command
 func NewRootCmd(cfg *config.Config, log *zerolog.Logger, version string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "pkgctl",
+		Use:          "upkg",
 		Short:        "Package control utility",
 		Long:         `A modern package manager for Linux supporting AppImage, DEB, RPM, Tarball, and Binary packages.`,
 		SilenceUsage: true,

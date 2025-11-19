@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diogo/pkgctl/internal/backends"
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/core"
-	"github.com/diogo/pkgctl/internal/db"
-	"github.com/diogo/pkgctl/internal/ui"
+	"github.com/diogo/upkg/internal/backends"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/core"
+	"github.com/diogo/upkg/internal/db"
+	"github.com/diogo/upkg/internal/ui"
 	"github.com/fatih/color"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -71,7 +71,7 @@ func runInteractiveUninstall(ctx context.Context, database *db.DB, registry *bac
 	}
 
 	if len(installs) == 0 {
-		color.Yellow("No packages are currently tracked by pkgctl.")
+		color.Yellow("No packages are currently tracked by upkg.")
 		return nil
 	}
 
@@ -213,7 +213,7 @@ func runSingleUninstall(ctx context.Context, database *db.DB, registry *backends
 
 	if dbRecord == nil {
 		color.Red("Error: package not found: %s", identifier)
-		color.Yellow("  Use 'pkgctl list' to see installed packages")
+		color.Yellow("  Use 'upkg list' to see installed packages")
 		return fmt.Errorf("package not found")
 	}
 

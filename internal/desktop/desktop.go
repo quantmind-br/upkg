@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/diogo/pkgctl/internal/core"
+	"github.com/diogo/upkg/internal/core"
 )
 
 // Parse parses a .desktop file from a reader

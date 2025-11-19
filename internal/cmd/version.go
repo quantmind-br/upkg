@@ -12,7 +12,7 @@ func NewVersionCmd(version string) *cobra.Command {
 		Use:   "version",
 		Short: "Show version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("pkgctl version %s\n", version)
+			fmt.Printf("upkg version %s\n", version)
 		},
 	}
 

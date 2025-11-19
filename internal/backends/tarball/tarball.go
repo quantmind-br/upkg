@@ -10,13 +10,14 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
-	"github.com/diogo/pkgctl/internal/cache"
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/core"
-	"github.com/diogo/pkgctl/internal/desktop"
-	"github.com/diogo/pkgctl/internal/helpers"
-	"github.com/diogo/pkgctl/internal/icons"
+	"github.com/diogo/upkg/internal/cache"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/core"
+	"github.com/diogo/upkg/internal/desktop"
+	"github.com/diogo/upkg/internal/helpers"
+	"github.com/diogo/upkg/internal/icons"
 	"github.com/rs/zerolog"
 	"layeh.com/asar"
 )
@@ -298,6 +299,13 @@ func (t *TarballBackend) findExecutables(dir string) ([]string, error) {
 
 		// Check if file is executable
 		if info.Mode()&0111 != 0 {
+			// Exclude shared libraries (.so files)
+			// .so, .so.X, .so.X.Y, .so.X.Y.Z patterns
+			baseName := filepath.Base(path)
+			if strings.HasSuffix(baseName, ".so") || strings.Contains(baseName, ".so.") {
+				return nil
+			}
+
 			// Check if it's an ELF binary
 			isElf, _ := helpers.IsELF(path)
 			if isElf {
@@ -355,6 +363,7 @@ func (t *TarballBackend) scoreExecutable(execPath, baseName, installDir string) 
 	score := 0
 	filename := strings.ToLower(filepath.Base(execPath))
 	normalizedBase := strings.ToLower(baseName)
+	nameVariants := generateNameVariants(normalizedBase)
 
 	// Calculate relative path and depth
 	relPath := strings.TrimPrefix(execPath, installDir)
@@ -368,14 +377,28 @@ func (t *TarballBackend) scoreExecutable(execPath, baseName, installDir string) 
 		score -= 50 // Very deep, probably not the main executable
 	}
 
-	// Strong match: filename exactly matches base name
-	if filename == normalizedBase || filename == normalizedBase+".exe" {
-		score += 100
+	// Strong match: filename exactly matches any base variant
+exactMatchLoop:
+	for _, variant := range nameVariants {
+		if variant == "" {
+			continue
+		}
+		if filename == variant || filename == variant+".exe" {
+			score += 120
+			break exactMatchLoop
+		}
 	}
 
-	// Partial match: filename contains base name
-	if strings.Contains(filename, normalizedBase) {
-		score += 50
+	// Partial match: filename contains any of the variants
+partialMatchLoop:
+	for _, variant := range nameVariants {
+		if variant == "" || len(variant) < 3 {
+			continue
+		}
+		if strings.Contains(filename, variant) {
+			score += 60
+			break partialMatchLoop
+		}
 	}
 
 	// Bonus for known main executable patterns
@@ -407,6 +430,15 @@ func (t *TarballBackend) scoreExecutable(execPath, baseName, installDir string) 
 		if strings.Contains(filename, pattern) {
 			score -= 200 // Heavy penalty for utility executables
 		}
+	}
+
+	// Strongly penalize shared libraries and lib-prefixed files that slip through
+	if strings.HasPrefix(filename, "lib") {
+		score -= 80
+	}
+	if strings.HasSuffix(filename, ".so") || strings.Contains(filename, ".so.") ||
+		strings.HasSuffix(filename, ".dylib") || strings.HasSuffix(filename, ".dll") {
+		score -= 400
 	}
 
 	// Check file size (main executables are usually larger)
@@ -492,6 +524,130 @@ func (t *TarballBackend) isInvalidWrapperScript(execPath, installDir string) boo
 		}
 	}
 
+	return false
+}
+
+// generateNameVariants produces different normalized variants for matching executable names
+var (
+	archSuffixTokens = map[string]struct{}{
+		"x86": {}, "x64": {}, "x86_64": {}, "x86-64": {}, "amd64": {},
+		"arm": {}, "arm64": {}, "aarch64": {}, "armhf": {}, "armv7": {},
+		"armv7l": {}, "armv6": {}, "armel": {}, "riscv64": {}, "ppc64le": {},
+		"s390x": {}, "i386": {}, "i686": {}, "ia32": {}, "sparc": {},
+	}
+	platformSuffixTokens = map[string]struct{}{
+		"linux": {}, "win": {}, "windows": {}, "mac": {}, "macos": {}, "osx": {},
+		"darwin": {}, "unix": {}, "gnu": {}, "glibc": {}, "musl": {}, "appimage": {},
+		"portable": {}, "release": {}, "cli": {}, "gtk": {}, "qt": {}, "flatpak": {},
+		"tarball": {}, "tar": {},
+	}
+	releaseSuffixPrefixes = []string{"rc", "beta", "alpha", "nightly", "snapshot", "preview"}
+)
+
+func generateNameVariants(baseName string) []string {
+	normalized := strings.Trim(strings.ToLower(baseName), "-_.")
+	if normalized == "" {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var variants []string
+
+	addVariant := func(v string) {
+		v = strings.Trim(v, "-_.")
+		if v == "" {
+			return
+		}
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			variants = append(variants, v)
+		}
+	}
+
+	addVariant(normalized)
+
+	// Iteratively trim suffix tokens like version numbers, platforms, arches
+	tokens := strings.Split(normalized, "-")
+	for len(tokens) > 1 {
+		last := strings.Trim(tokens[len(tokens)-1], "-_.")
+		if !isSuffixToken(last) {
+			break
+		}
+		tokens = tokens[:len(tokens)-1]
+		addVariant(strings.Join(tokens, "-"))
+	}
+
+	// Add compact variants without separators for binaries named without dashes
+	originalVariants := append([]string(nil), variants...)
+	for _, v := range originalVariants {
+		compact := strings.ReplaceAll(v, "-", "")
+		addVariant(compact)
+	}
+
+	return variants
+}
+
+func isSuffixToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	token = strings.Trim(token, "-_.")
+	if token == "" {
+		return false
+	}
+	return isVersionToken(token) || isArchToken(token) || isPlatformToken(token) || isReleaseToken(token)
+}
+
+func isVersionToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	if token[0] == 'v' && len(token) > 1 && looksNumeric(token[1:]) {
+		return true
+	}
+	return looksNumeric(token)
+}
+
+func looksNumeric(token string) bool {
+	hasDigit := false
+	for _, r := range token {
+		if unicode.IsDigit(r) {
+			hasDigit = true
+			continue
+		}
+		if r == '.' {
+			continue
+		}
+		return false
+	}
+	return hasDigit
+}
+
+func isArchToken(token string) bool {
+	if _, ok := archSuffixTokens[token]; ok {
+		return true
+	}
+
+	// Tokens like "armhf.tar" should already be trimmed, but keep a fallback
+	token = strings.ReplaceAll(token, "_", "-")
+	if _, ok := archSuffixTokens[token]; ok {
+		return true
+	}
+
+	return false
+}
+
+func isPlatformToken(token string) bool {
+	_, ok := platformSuffixTokens[token]
+	return ok
+}
+
+func isReleaseToken(token string) bool {
+	for _, prefix := range releaseSuffixPrefixes {
+		if token == prefix || strings.HasPrefix(token, prefix) {
+			return true
+		}
+	}
 	return false
 }
 

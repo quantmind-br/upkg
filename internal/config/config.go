@@ -44,7 +44,7 @@ func Load() (*Config, error) {
 	// Add config paths
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
-		viper.AddConfigPath(filepath.Join(homeDir, ".config", "pkgctl"))
+		viper.AddConfigPath(filepath.Join(homeDir, ".config", "upkg"))
 	}
 	viper.AddConfigPath(".")
 
@@ -52,7 +52,7 @@ func Load() (*Config, error) {
 	setDefaults()
 
 	// Environment variable overrides
-	viper.SetEnvPrefix("PKGCTL")
+	viper.SetEnvPrefix("UPKG")
 	viper.AutomaticEnv()
 
 	// Read config file
@@ -80,9 +80,9 @@ func Load() (*Config, error) {
 func setDefaults() {
 	homeDir, _ := os.UserHomeDir()
 
-	viper.SetDefault("paths.data_dir", filepath.Join(homeDir, ".local", "share", "pkgctl"))
-	viper.SetDefault("paths.db_file", filepath.Join(homeDir, ".local", "share", "pkgctl", "installed.db"))
-	viper.SetDefault("paths.log_file", filepath.Join(homeDir, ".local", "share", "pkgctl", "pkgctl.log"))
+	viper.SetDefault("paths.data_dir", filepath.Join(homeDir, ".local", "share", "upkg"))
+	viper.SetDefault("paths.db_file", filepath.Join(homeDir, ".local", "share", "upkg", "installed.db"))
+	viper.SetDefault("paths.log_file", filepath.Join(homeDir, ".local", "share", "upkg", "upkg.log"))
 
 	viper.SetDefault("desktop.wayland_env_vars", true)
 	viper.SetDefault("desktop.custom_env_vars", []string{})

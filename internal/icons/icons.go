@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/diogo/pkgctl/internal/core"
+	"github.com/diogo/upkg/internal/core"
 	"github.com/spf13/afero"
 )
 

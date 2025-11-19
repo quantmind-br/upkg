@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diogo/pkgctl/internal/cache"
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/core"
-	"github.com/diogo/pkgctl/internal/desktop"
-	"github.com/diogo/pkgctl/internal/helpers"
-	"github.com/diogo/pkgctl/internal/ui"
+	"github.com/diogo/upkg/internal/cache"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/core"
+	"github.com/diogo/upkg/internal/desktop"
+	"github.com/diogo/upkg/internal/helpers"
+	"github.com/diogo/upkg/internal/ui"
 	"github.com/rs/zerolog"
 )
 
@@ -65,12 +65,12 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 
 	// Define installation phases with weights
 	phases := []ui.InstallationPhase{
-		{"Validating package", 5, true},
-		{"Extracting metadata", 5, true},
-		{"Converting DEB to Arch", 60, false}, // Indeterminate - uses spinner
-		{"Fixing dependencies", 5, true},
-		{"Installing with pacman", 20, false}, // Indeterminate - uses spinner
-		{"Configuring desktop", 5, true},
+		{Name: "Validating package", Weight: 5, Deterministic: true},
+		{Name: "Extracting metadata", Weight: 5, Deterministic: true},
+		{Name: "Converting DEB to Arch", Weight: 60, Deterministic: false}, // Indeterminate - uses spinner
+		{Name: "Fixing dependencies", Weight: 5, Deterministic: true},
+		{Name: "Installing with pacman", Weight: 20, Deterministic: false}, // Indeterminate - uses spinner
+		{Name: "Configuring desktop", Weight: 5, Deterministic: true},
 	}
 
 	// Create progress tracker (enabled unless in quiet mode)

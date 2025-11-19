@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/diogo/pkgctl/internal/backends/appimage"
-	"github.com/diogo/pkgctl/internal/backends/binary"
-	"github.com/diogo/pkgctl/internal/backends/deb"
-	"github.com/diogo/pkgctl/internal/backends/rpm"
-	"github.com/diogo/pkgctl/internal/backends/tarball"
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/core"
+	"github.com/diogo/upkg/internal/backends/appimage"
+	"github.com/diogo/upkg/internal/backends/binary"
+	"github.com/diogo/upkg/internal/backends/deb"
+	"github.com/diogo/upkg/internal/backends/rpm"
+	"github.com/diogo/upkg/internal/backends/tarball"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/core"
 	"github.com/rs/zerolog"
 )
 

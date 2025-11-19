@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/ui"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -14,18 +14,18 @@ func NewCompletionCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion [bash|zsh|fish|powershell]",
 		Short: "Generate shell completion scripts",
-		Long: `Generate shell completion scripts for pkgctl.
+		Long: `Generate shell completion scripts for upkg.
 
 To load completions:
 
 Bash:
-  $ source <(pkgctl completion bash)
+  $ source <(upkg completion bash)
 
   # To load completions for each session, execute once:
   # Linux:
-  $ pkgctl completion bash > /etc/bash_completion.d/pkgctl
+  $ upkg completion bash > /etc/bash_completion.d/upkg
   # macOS:
-  $ pkgctl completion bash > $(brew --prefix)/etc/bash_completion.d/pkgctl
+  $ upkg completion bash > $(brew --prefix)/etc/bash_completion.d/upkg
 
 Zsh:
   # If shell completion is not already enabled in your environment,
@@ -34,21 +34,21 @@ Zsh:
   $ echo "autoload -U compinit; compinit" >> ~/.zshrc
 
   # To load completions for each session, execute once:
-  $ pkgctl completion zsh > "${fpath[1]}/_pkgctl"
+  $ upkg completion zsh > "${fpath[1]}/_upkg"
 
   # You will need to start a new shell for this setup to take effect.
 
 Fish:
-  $ pkgctl completion fish | source
+  $ upkg completion fish | source
 
   # To load completions for each session, execute once:
-  $ pkgctl completion fish > ~/.config/fish/completions/pkgctl.fish
+  $ upkg completion fish > ~/.config/fish/completions/upkg.fish
 
 PowerShell:
-  PS> pkgctl completion powershell | Out-String | Invoke-Expression
+  PS> upkg completion powershell | Out-String | Invoke-Expression
 
   # To load completions for every new session, run:
-  PS> pkgctl completion powershell > pkgctl.ps1
+  PS> upkg completion powershell > upkg.ps1
   # and source this file from your PowerShell profile.
 `,
 		DisableFlagsInUseLine: true,

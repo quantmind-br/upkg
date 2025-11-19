@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/db"
-	"github.com/diogo/pkgctl/internal/ui"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/db"
+	"github.com/diogo/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -60,7 +60,7 @@ func NewInfoCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 
 				if dbRecord == nil {
 					ui.PrintError("package not found: %s", identifier)
-					ui.PrintInfo("Use 'pkgctl list' to see installed packages")
+					ui.PrintInfo("Use 'upkg list' to see installed packages")
 					return fmt.Errorf("package not found")
 				}
 			}

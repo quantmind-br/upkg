@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diogo/pkgctl/internal/cache"
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/core"
-	"github.com/diogo/pkgctl/internal/desktop"
-	"github.com/diogo/pkgctl/internal/helpers"
-	"github.com/diogo/pkgctl/internal/icons"
+	"github.com/diogo/upkg/internal/cache"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/core"
+	"github.com/diogo/upkg/internal/desktop"
+	"github.com/diogo/upkg/internal/helpers"
+	"github.com/diogo/upkg/internal/icons"
 	"github.com/rs/zerolog"
 )
 
@@ -465,6 +465,13 @@ func (r *RpmBackend) findExecutables(dir string) ([]string, error) {
 
 		// Check if file is executable
 		if info.Mode()&0111 != 0 {
+			// Exclude shared libraries (.so files)
+			// .so, .so.X, .so.X.Y, .so.X.Y.Z patterns
+			baseName := filepath.Base(path)
+			if strings.HasSuffix(baseName, ".so") || strings.Contains(baseName, ".so.") {
+				return nil
+			}
+
 			isElf, _ := helpers.IsELF(path)
 			if isElf {
 				executables = append(executables, path)

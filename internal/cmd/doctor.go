@@ -7,9 +7,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/db"
-	"github.com/diogo/pkgctl/internal/ui"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/db"
+	"github.com/diogo/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -198,7 +198,7 @@ func checkDirectory(path, name string) bool {
 	}
 
 	// Check if writable
-	testFile := filepath.Join(path, ".pkgctl-test")
+	testFile := filepath.Join(path, ".upkg-test")
 	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
 		return false
 	}

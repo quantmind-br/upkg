@@ -78,8 +78,8 @@ import (
 
 // Internal packages
 import (
-    "github.com/diogo/pkgctl/internal/config"
-    "github.com/diogo/pkgctl/internal/logging"
+    "github.com/diogo/upkg/internal/config"
+    "github.com/diogo/upkg/internal/logging"
 )
 ```
 

@@ -1,9 +1,9 @@
-# pkgctl - Modern Package Manager for Linux
+# upkg - Modern Package Manager for Linux
 
 [![Go Version](https://img.shields.io/badge/Go-1.25.3-blue.svg)](https://golang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**pkgctl** is a modern, type-safe package manager for Linux written in Go. It provides a unified interface for installing and managing applications from multiple package formats with full desktop integration, Wayland/Hyprland support, and SQLite-based tracking.
+**upkg** is a modern, type-safe package manager for Linux written in Go. It provides a unified interface for installing and managing applications from multiple package formats with full desktop integration, Wayland/Hyprland support, and SQLite-based tracking.
 
 ## ✨ Features
 
@@ -47,8 +47,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/diogo/pkgctl.git
-cd pkgctl
+git clone https://github.com/diogo/upkg.git
+cd upkg
 
 # Build
 make build
@@ -69,13 +69,13 @@ After installation, you can immediately start installing packages:
 
 ```bash
 # Install an AppImage
-pkgctl install myapp.AppImage
+upkg install myapp.AppImage
 
 # Install a DEB package (requires debtap)
-pkgctl install google-chrome.deb
+upkg install google-chrome.deb
 
 # Install a tarball
-pkgctl install myapp.tar.gz
+upkg install myapp.tar.gz
 ```
 
 ## 🚀 Usage
@@ -84,16 +84,16 @@ pkgctl install myapp.tar.gz
 
 ```bash
 # Install from file
-pkgctl install application.AppImage
+upkg install application.AppImage
 
 # Install with custom name
-pkgctl install app.AppImage --name "My Application"
+upkg install app.AppImage --name "My Application"
 
 # Skip desktop integration
-pkgctl install app.AppImage --skip-desktop
+upkg install app.AppImage --skip-desktop
 
 # Force reinstallation
-pkgctl install app.AppImage --force
+upkg install app.AppImage --force
 ```
 
 **Supported formats:**
@@ -108,44 +108,44 @@ pkgctl install app.AppImage --force
 
 ```bash
 # List all packages
-pkgctl list
+upkg list
 
 # JSON output
-pkgctl list --json
+upkg list --json
 
 # Filter by type
-pkgctl list --type appimage
+upkg list --type appimage
 
 # Filter by name (partial match)
-pkgctl list --name firefox
+upkg list --name firefox
 
 # Sort by date
-pkgctl list --sort date
+upkg list --sort date
 
 # Detailed view
-pkgctl list --details
+upkg list --details
 ```
 
 ### Show Package Information
 
 ```bash
-pkgctl info application-name
+upkg info application-name
 ```
 
 ### Uninstall Packages
 
 ```bash
-pkgctl uninstall application-name
+upkg uninstall application-name
 ```
 
 ### System Health Check
 
 ```bash
 # Basic check
-pkgctl doctor
+upkg doctor
 
 # Verbose with integrity checks
-pkgctl doctor --verbose
+upkg doctor --verbose
 ```
 
 The `doctor` command checks:
@@ -158,18 +158,18 @@ The `doctor` command checks:
 
 ## ⚙️ Configuration
 
-pkgctl uses a configuration file located at `~/.config/pkgctl/config.toml`:
+upkg uses a configuration file located at `~/.config/upkg/config.toml`:
 
 ```toml
 [paths]
-# Data directory for pkgctl files
-data_dir = "~/.local/share/pkgctl"
+# Data directory for upkg files
+data_dir = "~/.local/share/upkg"
 
 # SQLite database file
-db_file = "~/.local/share/pkgctl/installed.db"
+db_file = "~/.local/share/upkg/installed.db"
 
 # Log file location
-log_file = "~/.local/share/pkgctl/pkgctl.log"
+log_file = "~/.local/share/upkg/upkg.log"
 
 [desktop]
 # Enable Wayland environment variable injection
@@ -188,7 +188,7 @@ color = "auto"
 
 ### Wayland/Hyprland Support
 
-When `wayland_env_vars = true`, pkgctl automatically injects the following environment variables into desktop entries:
+When `wayland_env_vars = true`, upkg automatically injects the following environment variables into desktop entries:
 
 ```
 GDK_BACKEND=wayland,x11
@@ -201,11 +201,11 @@ This ensures better compatibility with Wayland-based desktop environments.
 
 ## 🏗️ Architecture
 
-pkgctl is designed with a modular, interface-driven architecture:
+upkg is designed with a modular, interface-driven architecture:
 
 ```
-pkgctl/
-├── cmd/pkgctl/          # Entry point
+upkg/
+├── cmd/upkg/          # Entry point
 ├── internal/
 │   ├── core/           # Domain models and interfaces
 │   ├── backends/       # Package format handlers
@@ -228,7 +228,7 @@ pkgctl/
 
 ### Backend Registry
 
-pkgctl uses a priority-ordered backend registry for package detection:
+upkg uses a priority-ordered backend registry for package detection:
 
 1. **DEB and RPM** - Specific format detection
 2. **AppImage** - Must come before Binary (AppImages are also ELF)
@@ -325,7 +325,7 @@ See existing backends (e.g., `internal/backends/appimage/`) for examples.
 - Support for `rpm -qp` metadata extraction
 
 ### Tarball/ZIP
-- Extracts archives to `~/.local/share/pkgctl/apps/`
+- Extracts archives to `~/.local/share/upkg/apps/`
 - Advanced executable detection with scoring:
   - Filename matching
   - Directory depth preference
@@ -343,7 +343,7 @@ See existing backends (e.g., `internal/backends/appimage/`) for examples.
 
 ## 🗄️ Database Schema
 
-pkgctl uses SQLite for tracking installations:
+upkg uses SQLite for tracking installations:
 
 ```sql
 CREATE TABLE installs (

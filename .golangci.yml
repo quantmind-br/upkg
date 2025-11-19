@@ -1,3 +1,4 @@
+version: 2
 run:
   timeout: 5m
   tests: true
@@ -6,14 +7,14 @@ run:
 linters:
   enable:
     - errcheck      # Check for unchecked errors
-    - gosimple      # Simplify code
+    # - gosimple      # Simplify code
     - govet         # Examines Go source code and reports suspicious constructs
     - ineffassign   # Detects ineffectual assignments
     - staticcheck   # Comprehensive static analysis
     - unused        # Checks for unused constants, variables, functions and types
     - gosec         # Security problems
-    - gofmt         # Checks whether code was gofmt-ed
-    - goimports     # Checks import ordering
+    # - gofmt         # Checks whether code was gofmt-ed
+    # - goimports     # Checks import ordering
     - misspell      # Finds commonly misspelled English words
     - unparam       # Reports unused function parameters
     - unconvert     # Remove unnecessary type conversions
@@ -83,9 +84,9 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 
-output:
-  formats:
-    - format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
-  sort-results: true
+# output:
+#   formats:
+#     - format: colored-line-number
+#   print-issued-lines: true
+#   print-linter-name: true
+#   sort-results: true

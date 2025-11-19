@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/diogo/pkgctl/internal/security"
+	"github.com/diogo/upkg/internal/security"
 	"github.com/ulikunitz/xz"
 )
 

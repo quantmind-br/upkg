@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/diogo/pkgctl/internal/config"
-	"github.com/diogo/pkgctl/internal/db"
-	"github.com/diogo/pkgctl/internal/ui"
+	"github.com/diogo/upkg/internal/config"
+	"github.com/diogo/upkg/internal/db"
+	"github.com/diogo/upkg/internal/ui"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/rs/zerolog"

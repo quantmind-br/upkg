@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/diogo/upkg/internal/backends/appimage"
-	"github.com/diogo/upkg/internal/backends/binary"
-	"github.com/diogo/upkg/internal/backends/deb"
-	"github.com/diogo/upkg/internal/backends/rpm"
-	"github.com/diogo/upkg/internal/backends/tarball"
-	"github.com/diogo/upkg/internal/config"
-	"github.com/diogo/upkg/internal/core"
+	"github.com/quantmind-br/upkg/internal/backends/appimage"
+	"github.com/quantmind-br/upkg/internal/backends/binary"
+	"github.com/quantmind-br/upkg/internal/backends/deb"
+	"github.com/quantmind-br/upkg/internal/backends/rpm"
+	"github.com/quantmind-br/upkg/internal/backends/tarball"
+	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/rs/zerolog"
 )
 

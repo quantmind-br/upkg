@@ -1,4 +1,4 @@
-module github.com/diogo/upkg
+module github.com/quantmind-br/upkg
 
 go 1.25.3
 

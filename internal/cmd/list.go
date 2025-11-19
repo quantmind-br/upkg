@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/diogo/upkg/internal/config"
-	"github.com/diogo/upkg/internal/db"
-	"github.com/diogo/upkg/internal/ui"
+	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/db"
+	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/rs/zerolog"

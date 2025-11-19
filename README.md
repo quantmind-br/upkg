@@ -47,7 +47,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/diogo/upkg.git
+git clone https://github.com/quantmind-br/upkg.git
 cd upkg
 
 # Build

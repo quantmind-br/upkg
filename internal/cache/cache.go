@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diogo/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/rs/zerolog"
 )
 

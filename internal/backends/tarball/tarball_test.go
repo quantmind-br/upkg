@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/diogo/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/rs/zerolog"
 )
 

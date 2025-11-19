@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/diogo/upkg/internal/config"
-	"github.com/diogo/upkg/internal/db"
-	"github.com/diogo/upkg/internal/ui"
+	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/db"
+	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )

@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/diogo/upkg/internal/security"
+	"github.com/quantmind-br/upkg/internal/security"
 	"github.com/ulikunitz/xz"
 )
 

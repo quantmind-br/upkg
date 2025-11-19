@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/diogo/upkg/internal/cmd"
-	"github.com/diogo/upkg/internal/config"
-	"github.com/diogo/upkg/internal/logging"
+	"github.com/quantmind-br/upkg/internal/cmd"
+	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/logging"
 )
 
 var version = "dev"

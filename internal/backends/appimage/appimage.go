@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diogo/upkg/internal/cache"
-	"github.com/diogo/upkg/internal/config"
-	"github.com/diogo/upkg/internal/core"
-	"github.com/diogo/upkg/internal/desktop"
-	"github.com/diogo/upkg/internal/helpers"
-	"github.com/diogo/upkg/internal/icons"
+	"github.com/quantmind-br/upkg/internal/cache"
+	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/core"
+	"github.com/quantmind-br/upkg/internal/desktop"
+	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/icons"
 	"github.com/rs/zerolog"
 )
 

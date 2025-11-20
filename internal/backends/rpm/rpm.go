@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -15,7 +14,11 @@ import (
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/desktop"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/heuristics"
 	"github.com/quantmind-br/upkg/internal/icons"
+	"github.com/quantmind-br/upkg/internal/syspkg"
+	"github.com/quantmind-br/upkg/internal/syspkg/arch"
+	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 )
 
@@ -23,6 +26,8 @@ import (
 type RpmBackend struct {
 	cfg    *config.Config
 	logger *zerolog.Logger
+	scorer heuristics.Scorer
+	sys    syspkg.Provider
 }
 
 // New creates a new RPM backend
@@ -30,6 +35,8 @@ func New(cfg *config.Config, log *zerolog.Logger) *RpmBackend {
 	return &RpmBackend{
 		cfg:    cfg,
 		logger: log,
+		scorer: heuristics.NewScorer(log),
+		sys:    arch.NewPacmanProvider(),
 	}
 }
 
@@ -55,7 +62,7 @@ func (r *RpmBackend) Detect(ctx context.Context, packagePath string) (bool, erro
 }
 
 // Install installs the RPM package
-func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions) (*core.InstallRecord, error) {
+func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	r.logger.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
@@ -89,20 +96,20 @@ func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.
 
 	// Check if rpmextract.sh is available (preferred method)
 	if helpers.CommandExists("rpmextract.sh") {
-		return r.installWithExtract(ctx, packagePath, normalizedName, installID, opts)
+		return r.installWithExtract(ctx, packagePath, normalizedName, installID, opts, tx)
 	}
 
 	// Fallback: check if we can use debtap (on Arch)
 	if helpers.CommandExists("debtap") && helpers.CommandExists("pacman") {
 		r.logger.Info().Msg("using debtap/pacman method for RPM installation")
-		return r.installWithDebtap(ctx, packagePath, normalizedName, installID, opts)
+		return r.installWithDebtap(ctx, packagePath, normalizedName, installID, opts, tx)
 	}
 
 	return nil, fmt.Errorf("no suitable RPM installation method found\nInstall either 'rpmextract.sh' or 'debtap' (Arch)")
 }
 
 // installWithExtract installs RPM by extracting and manually placing files
-func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normalizedName, installID string, opts core.InstallOptions) (*core.InstallRecord, error) {
+func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normalizedName, installID string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	r.logger.Info().Msg("extracting RPM package...")
 
 	homeDir, err := os.UserHomeDir()
@@ -177,7 +184,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	}
 
 	// Find executables
-	executables, err := r.findExecutables(installDir)
+	executables, err := heuristics.FindExecutables(installDir)
 	if err != nil || len(executables) == 0 {
 		os.RemoveAll(installDir)
 		return nil, fmt.Errorf("no executables found in RPM")
@@ -188,7 +195,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 		Msg("found executables")
 
 	// Choose primary executable using scoring heuristic (same as tarball backend)
-	primaryExec := r.chooseBestExecutable(executables, normalizedName, installDir)
+	primaryExec := r.scorer.ChooseBest(executables, normalizedName, installDir)
 
 	// Create wrapper script
 	binDir := filepath.Join(homeDir, ".local", "bin")
@@ -255,7 +262,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 }
 
 // installWithDebtap installs RPM by converting to Arch package via debtap
-func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normalizedName, installID string, opts core.InstallOptions) (*core.InstallRecord, error) {
+func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normalizedName, installID string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	r.logger.Info().Msg("converting RPM to Arch package via debtap...")
 
 	// Convert to absolute path before changing directories
@@ -305,7 +312,7 @@ func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normali
 	installCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
-	_, err = helpers.RunCommand(installCtx, "sudo", "pacman", "-U", "--noconfirm", archPkgPath)
+	err = r.sys.Install(installCtx, archPkgPath)
 	if err != nil {
 		return nil, fmt.Errorf("pacman installation failed: %w", err)
 	}
@@ -388,8 +395,8 @@ func (r *RpmBackend) uninstallPacman(ctx context.Context, record *core.InstallRe
 	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	_, err := helpers.RunCommand(checkCtx, "pacman", "-Qi", normalizedName)
-	if err != nil {
+	installed, err := r.sys.IsInstalled(checkCtx, normalizedName)
+	if err != nil || !installed {
 		r.logger.Warn().Msg("package not found in pacman database")
 		return nil
 	}
@@ -398,7 +405,7 @@ func (r *RpmBackend) uninstallPacman(ctx context.Context, record *core.InstallRe
 	uninstallCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	_, err = helpers.RunCommand(uninstallCtx, "sudo", "pacman", "-R", "--noconfirm", normalizedName)
+	err = r.sys.Remove(uninstallCtx, normalizedName)
 	if err != nil {
 		return fmt.Errorf("pacman removal failed: %w", err)
 	}
@@ -450,135 +457,6 @@ func (r *RpmBackend) uninstallExtracted(ctx context.Context, record *core.Instal
 }
 
 // Helper functions
-
-func (r *RpmBackend) findExecutables(dir string) ([]string, error) {
-	var executables []string
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		// Check if file is executable
-		if info.Mode()&0111 != 0 {
-			// Exclude shared libraries (.so files)
-			// .so, .so.X, .so.X.Y, .so.X.Y.Z patterns
-			baseName := filepath.Base(path)
-			if strings.HasSuffix(baseName, ".so") || strings.Contains(baseName, ".so.") {
-				return nil
-			}
-
-			isElf, _ := helpers.IsELF(path)
-			if isElf {
-				executables = append(executables, path)
-			}
-		}
-
-		return nil
-	})
-
-	return executables, err
-}
-
-// execCandidate represents an executable with its score
-type execCandidate struct {
-	path  string
-	score int
-}
-
-// chooseBestExecutable selects the best executable using a scoring heuristic
-func (r *RpmBackend) chooseBestExecutable(executables []string, baseName, installDir string) string {
-	if len(executables) == 0 {
-		return ""
-	}
-	if len(executables) == 1 {
-		return executables[0]
-	}
-
-	candidates := make([]execCandidate, 0, len(executables))
-
-	for _, exe := range executables {
-		score := r.scoreExecutable(exe, baseName, installDir)
-		candidates = append(candidates, execCandidate{path: exe, score: score})
-
-		r.logger.Debug().
-			Str("executable", exe).
-			Int("score", score).
-			Msg("scored executable candidate")
-	}
-
-	// Sort by score descending
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].score > candidates[j].score
-	})
-
-	return candidates[0].path
-}
-
-// scoreExecutable assigns a score to an executable
-func (r *RpmBackend) scoreExecutable(execPath, baseName, installDir string) int {
-	score := 0
-	filename := strings.ToLower(filepath.Base(execPath))
-	normalizedBase := strings.ToLower(baseName)
-
-	// Calculate depth
-	relPath := strings.TrimPrefix(execPath, installDir)
-	relPath = strings.Trim(relPath, "/")
-	depth := len(strings.Split(relPath, "/"))
-
-	// Prefer shallow depth
-	score += (11 - depth) * 10
-	if depth > 10 {
-		score -= 50
-	}
-
-	// Strong match: exact filename
-	if filename == normalizedBase || filename == normalizedBase+".exe" {
-		score += 100
-	}
-
-	// Partial match
-	if strings.Contains(filename, normalizedBase) {
-		score += 50
-	}
-
-	// Penalize helpers
-	penaltyPatterns := []string{
-		"chrome-sandbox", "crashpad", "minidump",
-		"update", "uninstall", "helper", "crash",
-		"debugger", "sandbox", "nacl", "xdg",
-		"installer", "setup", "config", "daemon",
-		"service", "agent", "monitor", "reporter",
-	}
-	for _, pattern := range penaltyPatterns {
-		if strings.Contains(filename, pattern) {
-			score -= 200
-		}
-	}
-
-	// File size bonus
-	if info, err := os.Stat(execPath); err == nil {
-		fileSize := info.Size()
-		if fileSize > 10*1024*1024 {
-			score += 30
-		} else if fileSize > 1*1024*1024 {
-			score += 10
-		} else if fileSize < 100*1024 {
-			score -= 20
-		}
-	}
-
-	// Bin directory bonus
-	if strings.Contains(strings.ToLower(relPath), "/bin/") {
-		score += 20
-	}
-
-	return score
-}
 
 func (r *RpmBackend) createWrapper(wrapperPath, execPath string) error {
 	content := fmt.Sprintf(`#!/bin/bash
@@ -690,44 +568,22 @@ func (r *RpmBackend) getPackageInfo(ctx context.Context, pkgName string) (*packa
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := helpers.RunCommand(queryCtx, "pacman", "-Qi", pkgName)
+	info, err := r.sys.GetInfo(queryCtx, pkgName)
 	if err != nil {
 		return nil, err
 	}
 
-	info := &packageInfo{name: pkgName}
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Version") {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				info.version = strings.TrimSpace(parts[1])
-			}
-		}
-	}
-
-	return info, nil
+	return &packageInfo{
+		name:    info.Name,
+		version: info.Version,
+	}, nil
 }
 
 func (r *RpmBackend) findInstalledFiles(ctx context.Context, pkgName string) ([]string, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := helpers.RunCommand(queryCtx, "pacman", "-Ql", pkgName)
-	if err != nil {
-		return nil, err
-	}
-
-	var files []string
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			files = append(files, parts[1])
-		}
-	}
-
-	return files, nil
+	return r.sys.ListFiles(queryCtx, pkgName)
 }
 
 func (r *RpmBackend) findDesktopFiles(files []string) []string {

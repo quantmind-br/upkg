@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/quantmind-br/upkg/internal/backends"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
-	"github.com/fatih/color"
+	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -70,6 +71,14 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 
 			color.Green("✓ Detected package type: %s", backend.Name())
 
+			// Initialize transaction manager
+			tx := transaction.NewManager(log)
+			defer func() {
+				if err := tx.Rollback(); err != nil {
+					log.Warn().Err(err).Msg("transaction rollback failed")
+				}
+			}()
+
 			// Install package
 			color.Cyan("→ Installing package...")
 			installOpts := core.InstallOptions{
@@ -78,7 +87,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				SkipWaylandEnv: skipWaylandEnv,
 			}
 
-			record, err := backend.Install(ctx, packagePath, installOpts)
+			record, err := backend.Install(ctx, packagePath, installOpts, tx)
 			if err != nil {
 				color.Red("Error: installation failed: %v", err)
 				return fmt.Errorf("installation failed: %w", err)
@@ -104,10 +113,12 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			// Save to database
 			if err := database.Create(ctx, dbRecord); err != nil {
 				color.Red("Error: failed to save installation record: %v", err)
-				// Try to clean up
+				// Manual cleanup is handled by transaction rollback (deferred)
+				// For legacy/unsupported cleanup, we might still want to try Uninstall
+				// but ideally we trust the transaction.
+				// Since we haven't fully migrated all cleanup to transaction yet,
+				// keeping backend.Uninstall is safer for now as a fallback.
 				if cleanupErr := backend.Uninstall(ctx, record); cleanupErr != nil {
-					color.Red("Warning: cleanup failed: %v", cleanupErr)
-					color.Red("Manual cleanup may be required for: %s", record.InstallPath)
 					log.Warn().
 						Err(cleanupErr).
 						Str("install_path", record.InstallPath).
@@ -115,6 +126,9 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				}
 				return fmt.Errorf("failed to save installation record: %w", err)
 			}
+
+			// Commit transaction
+			tx.Commit()
 
 			// Success!
 			color.Green("✓ Package installed successfully")

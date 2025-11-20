@@ -17,6 +17,9 @@ import (
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/desktop"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/syspkg"
+	"github.com/quantmind-br/upkg/internal/syspkg/arch"
+	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
 )
@@ -25,6 +28,7 @@ import (
 type DebBackend struct {
 	cfg    *config.Config
 	logger *zerolog.Logger
+	sys    syspkg.Provider
 }
 
 // New creates a new DEB backend
@@ -32,6 +36,7 @@ func New(cfg *config.Config, log *zerolog.Logger) *DebBackend {
 	return &DebBackend{
 		cfg:    cfg,
 		logger: log,
+		sys:    arch.NewPacmanProvider(),
 	}
 }
 
@@ -57,7 +62,7 @@ func (d *DebBackend) Detect(ctx context.Context, packagePath string) (bool, erro
 }
 
 // Install installs the DEB package using debtap
-func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions) (*core.InstallRecord, error) {
+func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	d.logger.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
@@ -203,7 +208,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		}
 	}()
 
-	_, err = helpers.RunCommand(installCtx, "sudo", "pacman", "-U", "--noconfirm", archPkgPath)
+	err = d.sys.Install(installCtx, archPkgPath)
 	if err != nil {
 		return nil, fmt.Errorf("pacman installation failed: %w", err)
 	}
@@ -324,8 +329,8 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	_, err := helpers.RunCommand(checkCtx, "pacman", "-Qi", normalizedName)
-	if err != nil {
+	installed, err := d.sys.IsInstalled(checkCtx, normalizedName)
+	if err != nil || !installed {
 		d.logger.Warn().
 			Str("package", normalizedName).
 			Msg("package not found in pacman database")
@@ -338,7 +343,7 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 	uninstallCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	_, err = helpers.RunCommand(uninstallCtx, "sudo", "pacman", "-R", "--noconfirm", normalizedName)
+	err = d.sys.Remove(uninstallCtx, normalizedName)
 	if err != nil {
 		return fmt.Errorf("pacman removal failed: %w", err)
 	}
@@ -533,25 +538,15 @@ func (d *DebBackend) getPackageInfo(ctx context.Context, pkgName string) (*packa
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := helpers.RunCommand(queryCtx, "pacman", "-Qi", pkgName)
+	info, err := d.sys.GetInfo(queryCtx, pkgName)
 	if err != nil {
 		return nil, err
 	}
 
-	info := &packageInfo{name: pkgName}
-
-	// Parse output
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "Version") {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				info.version = strings.TrimSpace(parts[1])
-			}
-		}
-	}
-
-	return info, nil
+	return &packageInfo{
+		name:    info.Name,
+		version: info.Version,
+	}, nil
 }
 
 // findInstalledFiles lists all files installed by the package
@@ -559,22 +554,7 @@ func (d *DebBackend) findInstalledFiles(ctx context.Context, pkgName string) ([]
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := helpers.RunCommand(queryCtx, "pacman", "-Ql", pkgName)
-	if err != nil {
-		return nil, err
-	}
-
-	var files []string
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		// Format: "pkgname /path/to/file"
-		parts := strings.Fields(line)
-		if len(parts) >= 2 {
-			files = append(files, parts[1])
-		}
-	}
-
-	return files, nil
+	return d.sys.ListFiles(queryCtx, pkgName)
 }
 
 // findDesktopFiles filters for .desktop files

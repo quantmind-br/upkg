@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -16,7 +14,9 @@ import (
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/desktop"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/heuristics"
 	"github.com/quantmind-br/upkg/internal/icons"
+	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"layeh.com/asar"
 )
@@ -25,6 +25,7 @@ import (
 type TarballBackend struct {
 	cfg    *config.Config
 	logger *zerolog.Logger
+	scorer heuristics.Scorer
 }
 
 // New creates a new tarball backend
@@ -32,6 +33,7 @@ func New(cfg *config.Config, log *zerolog.Logger) *TarballBackend {
 	return &TarballBackend{
 		cfg:    cfg,
 		logger: log,
+		scorer: heuristics.NewScorer(log),
 	}
 }
 
@@ -62,7 +64,7 @@ func (t *TarballBackend) Detect(ctx context.Context, packagePath string) (bool, 
 }
 
 // Install installs the tarball/zip package
-func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions) (*core.InstallRecord, error) {
+func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	t.logger.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
@@ -138,7 +140,7 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 	}
 
 	// Find executable(s)
-	executables, err := t.findExecutables(installDir)
+	executables, err := heuristics.FindExecutables(installDir)
 	if err != nil || len(executables) == 0 {
 		os.RemoveAll(installDir)
 		return nil, fmt.Errorf("no executables found in archive")
@@ -149,7 +151,7 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		Msg("found executables")
 
 	// Choose primary executable using scoring heuristic
-	primaryExec := t.chooseBestExecutable(executables, normalizedName, installDir)
+	primaryExec := t.scorer.ChooseBest(executables, normalizedName, installDir)
 
 	t.logger.Debug().
 		Str("primary_executable", primaryExec).
@@ -292,249 +294,6 @@ func (t *TarballBackend) extractArchive(archivePath, destDir, archiveType string
 	default:
 		return fmt.Errorf("unsupported archive type: %s", archiveType)
 	}
-}
-
-// findExecutables finds all executable files in a directory
-func (t *TarballBackend) findExecutables(dir string) ([]string, error) {
-	var executables []string
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		// Check if file is executable
-		if info.Mode()&0111 != 0 {
-			// Exclude shared libraries (.so files)
-			// .so, .so.X, .so.X.Y, .so.X.Y.Z patterns
-			baseName := filepath.Base(path)
-			if strings.HasSuffix(baseName, ".so") || strings.Contains(baseName, ".so.") {
-				return nil
-			}
-
-			// Check if it's an ELF binary
-			isElf, _ := helpers.IsELF(path)
-			if isElf {
-				executables = append(executables, path)
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return executables, nil
-}
-
-// execCandidate represents an executable with its score
-type execCandidate struct {
-	path  string
-	score int
-}
-
-// chooseBestExecutable selects the best executable using a scoring heuristic
-func (t *TarballBackend) chooseBestExecutable(executables []string, baseName, installDir string) string {
-	if len(executables) == 0 {
-		return ""
-	}
-	if len(executables) == 1 {
-		return executables[0]
-	}
-
-	candidates := make([]execCandidate, 0, len(executables))
-
-	for _, exe := range executables {
-		score := t.scoreExecutable(exe, baseName, installDir)
-		candidates = append(candidates, execCandidate{path: exe, score: score})
-
-		t.logger.Debug().
-			Str("executable", exe).
-			Int("score", score).
-			Msg("scored executable candidate")
-	}
-
-	// Sort by score descending (highest score first)
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].score > candidates[j].score
-	})
-
-	return candidates[0].path
-}
-
-// scoreExecutable assigns a score to an executable based on various heuristics
-func (t *TarballBackend) scoreExecutable(execPath, baseName, installDir string) int {
-	score := 0
-	filename := strings.ToLower(filepath.Base(execPath))
-	normalizedBase := strings.ToLower(baseName)
-	nameVariants := helpers.GenerateNameVariants(normalizedBase)
-
-	// Calculate relative path and depth
-	relPath := strings.TrimPrefix(execPath, installDir)
-	relPath = strings.Trim(relPath, "/")
-	depth := len(strings.Split(relPath, "/"))
-
-	// Prefer shallow depth (executables in root or first level)
-	// Depth 1: +50, Depth 2: +40, Depth 3: +30, etc.
-	score += (11 - depth) * 10
-	if depth > 10 {
-		score -= 50 // Very deep, probably not the main executable
-	}
-
-	// Strong match: filename exactly matches any base variant
-exactMatchLoop:
-	for _, variant := range nameVariants {
-		if variant == "" {
-			continue
-		}
-		if filename == variant || filename == variant+".exe" {
-			score += 120
-			break exactMatchLoop
-		}
-	}
-
-	// Partial match: filename contains any of the variants
-partialMatchLoop:
-	for _, variant := range nameVariants {
-		if variant == "" || len(variant) < 3 {
-			continue
-		}
-		if strings.Contains(filename, variant) {
-			score += 60
-			break partialMatchLoop
-		}
-	}
-
-	// Bonus for known main executable patterns
-	bonusPatterns := []string{
-		"^wine$", "^wine64$", "^run$", "^start$", "^launch$",
-		"^main$", "^app$", "^game$", "^application$",
-	}
-	for _, pattern := range bonusPatterns {
-		matched, _ := regexp.MatchString(pattern, filename)
-		if matched {
-			score += 80
-		}
-	}
-
-	// Penalize known helper/utility executables
-	penaltyPatterns := []string{
-		"chrome-sandbox", "crashpad", "minidump",
-		"update", "uninstall", "helper", "crash",
-		"debugger", "sandbox", "nacl", "xdg",
-		"installer", "setup", "config", "daemon",
-		"service", "agent", "monitor", "reporter",
-		"dump", "winedump", "windump", "objdump",
-		"winedbg", "wineboot", "winecfg", "wineconsole",
-		"wineserver", "widl", "wmc", "wrc", "winebuild",
-		"winegcc", "wineg++", "winecpp", "winemaker",
-		"winefile", "winemine", "winepath",
-	}
-	for _, pattern := range penaltyPatterns {
-		if strings.Contains(filename, pattern) {
-			score -= 200 // Heavy penalty for utility executables
-		}
-	}
-
-	// Strongly penalize shared libraries and lib-prefixed files that slip through
-	if strings.HasPrefix(filename, "lib") {
-		score -= 80
-	}
-	if strings.HasSuffix(filename, ".so") || strings.Contains(filename, ".so.") ||
-		strings.HasSuffix(filename, ".dylib") || strings.HasSuffix(filename, ".dll") {
-		score -= 400
-	}
-
-	// Check file size (main executables are usually larger)
-	if info, err := os.Stat(execPath); err == nil {
-		fileSize := info.Size()
-
-		if fileSize > 10*1024*1024 { // > 10MB
-			score += 30 // Likely a main application
-		} else if fileSize > 1*1024*1024 { // 1-10MB
-			score += 10 // Reasonable size
-		} else if fileSize < 100*1024 { // < 100KB
-			score -= 20 // Too small, probably a helper
-
-			// Extra penalty for tiny executables (< 1KB) - likely wrapper scripts
-			if fileSize < 1024 {
-				score -= 50 // Very small, probably a wrapper script
-			}
-		}
-	}
-
-	// Bonus for executables in "bin" directory
-	if strings.Contains(strings.ToLower(relPath), "/bin/") {
-		score += 20
-	}
-
-	// Additional check: penalize if executable is a shell script with invalid references
-	if t.isInvalidWrapperScript(execPath, installDir) {
-		score -= 300 // Heavy penalty for wrapper scripts pointing to invalid paths
-	}
-
-	return score
-}
-
-// isInvalidWrapperScript checks if file is a wrapper script with invalid path references
-func (t *TarballBackend) isInvalidWrapperScript(execPath, installDir string) bool {
-	// Only check small files (< 10KB) that might be scripts
-	info, err := os.Stat(execPath)
-	if err != nil || info.Size() > 10*1024 {
-		return false
-	}
-
-	// Read first 1KB to check for invalid paths
-	file, err := os.Open(execPath)
-	if err != nil {
-		return false
-	}
-	defer file.Close()
-
-	buf := make([]byte, 1024)
-	n, err := file.Read(buf)
-	if err != nil && err != io.EOF {
-		return false
-	}
-	if n == 0 {
-		return false
-	}
-
-	content := string(buf[:n])
-
-	// Check for shebang (shell script indicator)
-	if !strings.HasPrefix(content, "#!") {
-		return false // Not a shell script
-	}
-
-	// Check for absolute paths that don't exist or point outside installDir
-	// Common patterns: /home/runner/, /tmp/build/, /opt/build/, etc.
-	invalidPatterns := []string{
-		"/home/runner/",
-		"/home/builder/",
-		"/tmp/build/",
-		"/opt/build/",
-		"/workspace/",
-		"/build/",
-	}
-
-	for _, pattern := range invalidPatterns {
-		if strings.Contains(content, pattern) {
-			t.logger.Debug().
-				Str("executable", execPath).
-				Str("invalid_pattern", pattern).
-				Msg("detected wrapper script with invalid build path")
-			return true
-		}
-	}
-
-	return false
 }
 
 // cleanAppName removes version numbers, architecture, and platform suffixes

@@ -13,6 +13,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/backends/tarball"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
+	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 )
 
@@ -25,7 +26,7 @@ type Backend interface {
 	Detect(ctx context.Context, packagePath string) (bool, error)
 
 	// Install installs the package
-	Install(ctx context.Context, packagePath string, opts core.InstallOptions) (*core.InstallRecord, error)
+	Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error)
 
 	// Uninstall removes the installed package
 	Uninstall(ctx context.Context, record *core.InstallRecord) error

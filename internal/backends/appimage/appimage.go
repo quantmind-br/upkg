@@ -14,6 +14,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/desktop"
 	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/icons"
+	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 )
 
@@ -53,7 +54,7 @@ func (a *AppImageBackend) Detect(ctx context.Context, packagePath string) (bool,
 }
 
 // Install installs the AppImage package
-func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions) (*core.InstallRecord, error) {
+func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	a.logger.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).

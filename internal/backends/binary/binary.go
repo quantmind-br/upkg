@@ -13,6 +13,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/desktop"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
 )
@@ -63,7 +64,7 @@ func (b *BinaryBackend) Detect(ctx context.Context, packagePath string) (bool, e
 }
 
 // Install installs the binary package
-func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions) (*core.InstallRecord, error) {
+func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	b.logger.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).

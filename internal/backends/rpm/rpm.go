@@ -661,7 +661,7 @@ func (r *RpmBackend) createDesktopFile(installDir, normalizedName, wrapperPath s
 
 		// Try to create a better display name from the original package name
 		// Example: "git-butler-nightly" -> "Git Butler Nightly"
-		displayName := formatDisplayName(normalizedName)
+		displayName := helpers.FormatDisplayName(normalizedName)
 
 		entry = &core.DesktopEntry{
 			Type:    "Application",
@@ -679,7 +679,7 @@ func (r *RpmBackend) createDesktopFile(installDir, normalizedName, wrapperPath s
 	}
 
 	// Inject Wayland vars
-	if r.cfg.Desktop.WaylandEnvVars {
+	if r.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
 		desktop.InjectWaylandEnvVars(entry, r.cfg.Desktop.CustomEnvVars)
 	}
 
@@ -827,50 +827,6 @@ func extractRpmBaseName(filename string) string {
 }
 
 // No local helper functions - using shared helpers from internal/helpers/common.go
-
-// formatDisplayName converts a normalized package name to a human-readable display name
-// Examples:
-//   - "git-butler-nightly" -> "Git Butler Nightly"
-//   - "cursor" -> "Cursor"
-//   - "firefox-esr" -> "Firefox ESR"
-func formatDisplayName(normalizedName string) string {
-	// Replace hyphens and underscores with spaces
-	displayName := strings.ReplaceAll(normalizedName, "-", " ")
-	displayName = strings.ReplaceAll(displayName, "_", " ")
-
-	// Title case each word
-	words := strings.Fields(displayName)
-	for i, word := range words {
-		if len(word) > 0 {
-			// Handle common acronyms that should stay uppercase
-			upperWord := strings.ToUpper(word)
-			if isCommonAcronym(upperWord) {
-				words[i] = upperWord
-			} else {
-				// Title case: First letter uppercase, rest lowercase
-				words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
-			}
-		}
-	}
-
-	return strings.Join(words, " ")
-}
-
-// isCommonAcronym checks if a word is a common acronym that should stay uppercase
-func isCommonAcronym(word string) bool {
-	acronyms := map[string]bool{
-		"API": true, "SDK": true, "IDE": true, "CLI": true,
-		"GUI": true, "UI": true, "UX": true, "HTML": true,
-		"CSS": true, "JS": true, "JSON": true, "XML": true,
-		"SQL": true, "HTTP": true, "HTTPS": true, "FTP": true,
-		"SSH": true, "VPN": true, "DNS": true, "URL": true,
-		"ESR": true, "LTS": true, "RC": true, "DVD": true,
-		"CD": true, "USB": true, "RAM": true, "CPU": true,
-		"GPU": true, "AI": true, "ML": true, "AR": true,
-		"VR": true, "OS": true, "DB": true, "VM": true,
-	}
-	return acronyms[word]
-}
 
 func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {

@@ -856,10 +856,9 @@ func fixDependencyLine(line string, logger *zerolog.Logger) string {
 		"cura-bin",       // Artifact from libc6>=2.17
 	}
 
-	// Check if this dependency should be removed entirely
+	// Extract just the package name (before any version operator)
 	depName := dep
 	versionConstraint := ""
-	// Extract just the package name (before any version operator)
 	for _, op := range []string{">=", "<=", "=", ">", "<"} {
 		if idx := strings.Index(dep, op); idx != -1 {
 			depName = dep[:idx]
@@ -882,8 +881,8 @@ func fixDependencyLine(line string, logger *zerolog.Logger) string {
 		"gtk-3.0":    "gtk3",          // Debian GTK3 naming variant
 		"python3":    "python",        // Arch uses "python" for Python 3
 		"nodejs":     "nodejs",        // Same but good to document
-		"libssl":     "openssl",       // SSL library naming
-		"libssl1.1":  "openssl",       // Specific SSL version
+		"libssl":     "openssl",       // SSL library naming (v3)
+		"libssl1.1":  "openssl-1.1",   // Specific SSL 1.1 version (legacy package)
 		"libssl3":    "openssl",       // OpenSSL 3.x
 		"libjpeg":    "libjpeg-turbo", // JPEG library
 		"libpng":     "libpng",        // Same but documented
@@ -901,6 +900,20 @@ func fixDependencyLine(line string, logger *zerolog.Logger) string {
 	}
 
 	// Pattern-based fixes
+	// Check if dependency name matches regex rules
+	replacements := []struct {
+		prefix     string
+		minLen     int
+		versionIdx int // Index where version typically starts
+		target     string
+	}{
+		{prefix: "libx11", minLen: 6, versionIdx: 6, target: "libx11"},
+		{prefix: "libxcomposite", minLen: 13, versionIdx: 13, target: "libxcomposite"},
+		{prefix: "libxdamage", minLen: 10, versionIdx: 10, target: "libxdamage"},
+		{prefix: "libxkbfile", minLen: 10, versionIdx: 10, target: "libxkbfile"},
+		{prefix: "nspr", minLen: 4, versionIdx: 4, target: "nspr"},
+	}
+
 	// Fix "c>=" → "glibc>=" (but avoid matching "cairo", "curl", etc.)
 	if strings.HasPrefix(dep, "c>=") || strings.HasPrefix(dep, "c>") || strings.HasPrefix(dep, "c<") || strings.HasPrefix(dep, "c=") {
 		if len(dep) > 1 && (dep[1] == '>' || dep[1] == '<' || dep[1] == '=') {
@@ -908,45 +921,14 @@ func fixDependencyLine(line string, logger *zerolog.Logger) string {
 		}
 	}
 
-	// Fix malformed libx11 variants (libx111.4.99.1 → libx11>=1.4.99.1)
-	if strings.HasPrefix(dep, "libx11") && len(dep) > 6 {
-		// Check if it's malformed (has digits immediately after libx11)
-		if len(dep) > 6 && dep[6] >= '0' && dep[6] <= '9' {
-			// Extract version part
-			version := dep[6:]
-			return "depend = libx11>=" + version
-		}
-	}
-
-	// Fix malformed libxcomposite variants (libxcomposite0.4.4-1 → libxcomposite>=0.4.4-1)
-	if strings.HasPrefix(dep, "libxcomposite") && len(dep) > 13 {
-		if len(dep) > 13 && dep[13] >= '0' && dep[13] <= '9' {
-			version := dep[13:]
-			return "depend = libxcomposite>=" + version
-		}
-	}
-
-	// Fix malformed libxdamage variants
-	if strings.HasPrefix(dep, "libxdamage") && len(dep) > 10 {
-		if len(dep) > 10 && dep[10] >= '0' && dep[10] <= '9' {
-			version := dep[10:]
-			return "depend = libxdamage>=" + version
-		}
-	}
-
-	// Fix malformed libxkbfile variants
-	if strings.HasPrefix(dep, "libxkbfile") && len(dep) > 10 {
-		if len(dep) > 10 && dep[10] >= '0' && dep[10] <= '9' {
-			version := dep[10:]
-			return "depend = libxkbfile>=" + version
-		}
-	}
-
-	// Fix malformed nspr variants (nspr4.9-2~ → nspr>=4.9-2~)
-	if strings.HasPrefix(dep, "nspr") && len(dep) > 4 {
-		if len(dep) > 4 && dep[4] >= '0' && dep[4] <= '9' {
-			version := dep[4:]
-			return "depend = nspr>=" + version
+	// Apply pattern replacements for malformed versions (e.g. libx111.4.99 -> libx11>=1.4.99)
+	for _, r := range replacements {
+		if strings.HasPrefix(dep, r.prefix) && len(dep) > r.minLen {
+			// Check if it's malformed (has digits immediately after prefix)
+			if dep[r.versionIdx] >= '0' && dep[r.versionIdx] <= '9' {
+				version := dep[r.versionIdx:]
+				return "depend = " + r.target + ">=" + version
+			}
 		}
 	}
 

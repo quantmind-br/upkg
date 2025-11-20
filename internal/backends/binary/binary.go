@@ -79,6 +79,7 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 	if appName == "" {
 		appName = filepath.Base(packagePath)
 		appName = strings.TrimSuffix(appName, filepath.Ext(appName))
+		appName = helpers.CleanAppName(appName)
 	}
 
 	// Normalize name for filesystem
@@ -218,12 +219,13 @@ func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opt
 	desktopFilePath := filepath.Join(appsDir, binName+".desktop")
 
 	// Create desktop entry
+	displayName := helpers.FormatDisplayName(appName)
 	entry := &core.DesktopEntry{
 		Type:        "Application",
 		Version:     "1.5",
-		Name:        appName,
-		GenericName: appName,
-		Comment:     fmt.Sprintf("%s application", appName),
+		Name:        displayName,
+		GenericName: displayName,
+		Comment:     fmt.Sprintf("%s application", displayName),
 		Icon:        "application-x-executable", // Generic icon
 		Exec:        execPath,
 		Terminal:    false,
@@ -232,7 +234,7 @@ func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opt
 	}
 
 	// Inject Wayland environment variables if enabled
-	if b.cfg.Desktop.WaylandEnvVars {
+	if b.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
 		desktop.InjectWaylandEnvVars(entry, b.cfg.Desktop.CustomEnvVars)
 	}
 

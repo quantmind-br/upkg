@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/quantmind-br/upkg/internal/cache"
 	"github.com/quantmind-br/upkg/internal/config"
@@ -88,9 +87,20 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 	appName := opts.CustomName
 	if appName == "" {
 		appName = filepath.Base(packagePath)
-		appName = strings.TrimSuffix(appName, filepath.Ext(appName))
-		// Handle .tar.gz
-		appName = strings.TrimSuffix(appName, ".tar")
+		// Remove all extensions
+		for {
+			ext := filepath.Ext(appName)
+			if ext == "" {
+				break
+			}
+			appName = strings.TrimSuffix(appName, ext)
+		}
+
+		// Clean up version numbers, arch, etc.
+		appName = helpers.CleanAppName(appName)
+
+		// Title case for better presentation
+		appName = helpers.FormatDisplayName(appName)
 	}
 
 	// Normalize name
@@ -363,7 +373,7 @@ func (t *TarballBackend) scoreExecutable(execPath, baseName, installDir string) 
 	score := 0
 	filename := strings.ToLower(filepath.Base(execPath))
 	normalizedBase := strings.ToLower(baseName)
-	nameVariants := generateNameVariants(normalizedBase)
+	nameVariants := helpers.GenerateNameVariants(normalizedBase)
 
 	// Calculate relative path and depth
 	relPath := strings.TrimPrefix(execPath, installDir)
@@ -527,129 +537,11 @@ func (t *TarballBackend) isInvalidWrapperScript(execPath, installDir string) boo
 	return false
 }
 
+// cleanAppName removes version numbers, architecture, and platform suffixes
+// MOVED TO INTERNAL/HELPERS
+
 // generateNameVariants produces different normalized variants for matching executable names
-var (
-	archSuffixTokens = map[string]struct{}{
-		"x86": {}, "x64": {}, "x86_64": {}, "x86-64": {}, "amd64": {},
-		"arm": {}, "arm64": {}, "aarch64": {}, "armhf": {}, "armv7": {},
-		"armv7l": {}, "armv6": {}, "armel": {}, "riscv64": {}, "ppc64le": {},
-		"s390x": {}, "i386": {}, "i686": {}, "ia32": {}, "sparc": {},
-	}
-	platformSuffixTokens = map[string]struct{}{
-		"linux": {}, "win": {}, "windows": {}, "mac": {}, "macos": {}, "osx": {},
-		"darwin": {}, "unix": {}, "gnu": {}, "glibc": {}, "musl": {}, "appimage": {},
-		"portable": {}, "release": {}, "cli": {}, "gtk": {}, "qt": {}, "flatpak": {},
-		"tarball": {}, "tar": {},
-	}
-	releaseSuffixPrefixes = []string{"rc", "beta", "alpha", "nightly", "snapshot", "preview"}
-)
-
-func generateNameVariants(baseName string) []string {
-	normalized := strings.Trim(strings.ToLower(baseName), "-_.")
-	if normalized == "" {
-		return nil
-	}
-
-	seen := make(map[string]struct{})
-	var variants []string
-
-	addVariant := func(v string) {
-		v = strings.Trim(v, "-_.")
-		if v == "" {
-			return
-		}
-		if _, ok := seen[v]; !ok {
-			seen[v] = struct{}{}
-			variants = append(variants, v)
-		}
-	}
-
-	addVariant(normalized)
-
-	// Iteratively trim suffix tokens like version numbers, platforms, arches
-	tokens := strings.Split(normalized, "-")
-	for len(tokens) > 1 {
-		last := strings.Trim(tokens[len(tokens)-1], "-_.")
-		if !isSuffixToken(last) {
-			break
-		}
-		tokens = tokens[:len(tokens)-1]
-		addVariant(strings.Join(tokens, "-"))
-	}
-
-	// Add compact variants without separators for binaries named without dashes
-	originalVariants := append([]string(nil), variants...)
-	for _, v := range originalVariants {
-		compact := strings.ReplaceAll(v, "-", "")
-		addVariant(compact)
-	}
-
-	return variants
-}
-
-func isSuffixToken(token string) bool {
-	if token == "" {
-		return false
-	}
-	token = strings.Trim(token, "-_.")
-	if token == "" {
-		return false
-	}
-	return isVersionToken(token) || isArchToken(token) || isPlatformToken(token) || isReleaseToken(token)
-}
-
-func isVersionToken(token string) bool {
-	if token == "" {
-		return false
-	}
-	if token[0] == 'v' && len(token) > 1 && looksNumeric(token[1:]) {
-		return true
-	}
-	return looksNumeric(token)
-}
-
-func looksNumeric(token string) bool {
-	hasDigit := false
-	for _, r := range token {
-		if unicode.IsDigit(r) {
-			hasDigit = true
-			continue
-		}
-		if r == '.' {
-			continue
-		}
-		return false
-	}
-	return hasDigit
-}
-
-func isArchToken(token string) bool {
-	if _, ok := archSuffixTokens[token]; ok {
-		return true
-	}
-
-	// Tokens like "armhf.tar" should already be trimmed, but keep a fallback
-	token = strings.ReplaceAll(token, "_", "-")
-	if _, ok := archSuffixTokens[token]; ok {
-		return true
-	}
-
-	return false
-}
-
-func isPlatformToken(token string) bool {
-	_, ok := platformSuffixTokens[token]
-	return ok
-}
-
-func isReleaseToken(token string) bool {
-	for _, prefix := range releaseSuffixPrefixes {
-		if token == prefix || strings.HasPrefix(token, prefix) {
-			return true
-		}
-	}
-	return false
-}
+// MOVED TO INTERNAL/HELPERS
 
 // createWrapper creates a wrapper shell script
 func (t *TarballBackend) createWrapper(wrapperPath, execPath string) error {
@@ -1116,7 +1008,7 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 	}
 
 	// Inject Wayland environment variables
-	if t.cfg.Desktop.WaylandEnvVars {
+	if t.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
 		desktop.InjectWaylandEnvVars(entry, t.cfg.Desktop.CustomEnvVars)
 	}
 

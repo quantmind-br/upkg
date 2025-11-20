@@ -104,7 +104,9 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 		} else {
 			appName = filepath.Base(packagePath)
 			appName = strings.TrimSuffix(appName, filepath.Ext(appName))
+			appName = helpers.CleanAppName(appName)
 		}
+		appName = helpers.FormatDisplayName(appName)
 	}
 
 	// Normalize name
@@ -398,7 +400,19 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 	}
 
 	// Update Exec to point to installed AppImage
-	entry.Exec = execPath + " %U"
+	entry.Exec = execPath
+
+	// Check for Electron structure to apply sandbox fix if needed
+	isElectron := false
+	if _, err := os.Stat(filepath.Join(squashfsRoot, "resources", "app.asar")); err == nil {
+		isElectron = true
+	}
+
+	if a.cfg.Desktop.ElectronDisableSandbox && isElectron {
+		entry.Exec += " --no-sandbox"
+	}
+
+	entry.Exec += " %U"
 
 	// Set icon (use normalized name for theme compatibility)
 	if entry.Icon != "" && !filepath.IsAbs(entry.Icon) {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-pkgctl is a modern, type-safe package manager for Linux written in Go. It provides a unified interface for installing and managing applications from multiple package formats (AppImage, DEB, RPM, Tarball, ZIP, Binary) with full desktop integration, Wayland/Hyprland support, and SQLite-based tracking.
+upkg is a modern, type-safe package manager for Linux written in Go. It provides a unified interface for installing and managing applications from multiple package formats (AppImage, DEB, RPM, Tarball, ZIP, Binary) with full desktop integration, Wayland/Hyprland support, and SQLite-based tracking.
 
 **Tech Stack:**
 - Go 1.25.3
@@ -14,177 +14,118 @@ pkgctl is a modern, type-safe package manager for Linux written in Go. It provid
 - zerolog (structured logging)
 - afero (filesystem abstraction for testing)
 
+**Documentation:**
+- `AGENTS.md`: Development guidelines and agent protocols.
+- `pkg-test/`: Directory containing sample packages for testing.
+
 ## Development Commands
 
-### Building & Running
 ```bash
-make build              # Build binary to bin/pkgctl
+make build              # Build binary to bin/upkg
 make install            # Install to $GOBIN or $GOPATH/bin
-make run                # Build and run
-./bin/pkgctl --help     # Run built binary directly
-```
-
-### Testing
-```bash
 make test               # Run all tests with race detector
 make test-coverage      # Generate coverage report (coverage.html)
-make coverage           # Show coverage in terminal
-```
-
-### Code Quality
-```bash
+make lint               # Run golangci-lint
 make fmt                # Format code with gofmt
-make vet                # Run go vet
-make lint               # Run golangci-lint (requires golangci-lint installed)
 make validate           # Run fmt + vet + lint + test (full validation)
 make quick-check        # Run fmt + vet + lint (skip tests)
-make tidy               # Tidy go modules
 ```
 
-**After any code modification, run:** `make validate` to ensure all checks pass.
+**Run single test:** `go test -v -race -run TestName ./path/to/pkg`
+
+**After any code modification, run:** `make validate`
 
 ## Code Architecture
 
 ### Backend Registry Pattern
 
-pkgctl uses a **priority-ordered backend registry** for package format detection and handling. This is the core architectural pattern.
+upkg uses a **priority-ordered backend registry** for package format detection and handling. This is the core architectural pattern.
 
-**Key files:**
-- `internal/backends/backend.go` - Backend interface and registry
-- `internal/backends/{appimage,deb,rpm,tarball,binary}/` - Format-specific backends
-- `internal/core/interfaces.go` - Core domain models
-
-**Backend Interface:** (internal/backends/backend.go:19-31)
+**Backend Interface:** (internal/backends/backend.go)
 ```go
 type Backend interface {
     Name() string
     Detect(ctx context.Context, packagePath string) (bool, error)
-    Install(ctx context.Context, packagePath string, opts core.InstallOptions) (*core.InstallRecord, error)
+    Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error)
     Uninstall(ctx context.Context, record *core.InstallRecord) error
 }
 ```
 
-**Registration Order (CRITICAL):**
-The order backends are registered in `NewRegistry()` matters:
+**Registration Order (CRITICAL):** The order in `NewRegistry()` matters:
 1. DEB and RPM - Specific format detection first
 2. AppImage - MUST come before Binary (AppImages are ELF executables too)
 3. Binary - Generic ELF detection
 4. Tarball/ZIP - Archive formats last
 
-### Installation Flow
+### Key Architectural Components
 
-1. **Detection**: `Registry.DetectBackend()` iterates backends in priority order
-2. **Installation**: Backend-specific `Install()` method
-3. **Desktop Integration**: `internal/desktop/` handles .desktop file generation/updates
-4. **Icon Management**: `internal/icons/` extracts and installs icons (PNG, SVG, ICO, XPM)
-5. **Database**: `internal/db/` records installation in SQLite
-6. **Cache Updates**: `internal/cache/` updates desktop database and icon cache
+**Transaction Manager** (internal/transaction/manager.go):
+- Manages rollback operations as a LIFO stack
+- `Add(name, fn)` registers a rollback function
+- `Rollback()` executes all rollbacks in reverse order on failure
+- `Commit()` clears the stack on success
 
-### Key Components
+**Heuristics System** (internal/heuristics/):
+- `Scorer` interface for executable scoring
+- `ScoreExecutable()` calculates scores (filename, depth, size, patterns)
+- `ChooseBest()` selects optimal executable for Tarball/Binary backends
 
-**Configuration:**
-- `internal/config/` - TOML-based config (~/.config/pkgctl/config.toml)
-- Default paths: `~/.local/share/pkgctl/` (data), `~/.local/share/pkgctl/installed.db` (SQLite)
+**System Package Provider** (internal/syspkg/):
+- Abstracts system package managers (pacman, apt, etc.)
+- Used by DEB/RPM backends for system-level installation via `debtap` or similar tools
 
-**Desktop Integration:**
-- `internal/desktop/` - Generates/modifies .desktop files
-- Wayland support: Auto-injects environment variables (GDK_BACKEND, QT_QPA_PLATFORM, MOZ_ENABLE_WAYLAND, ELECTRON_OZONE_PLATFORM_HINT)
-- Located in: `~/.local/share/applications/`
+**Hyprland Integration** (internal/hyprland/):
+- `Client` struct and methods (`GetClients`, `WaitForClient`)
+- Enables precise window matching and management for installed apps
 
-**Database Schema:**
-- SQLite table: `installs` with columns: install_id, package_type, name, version, install_date, original_file, install_path, desktop_file, metadata (JSON)
-- Indexes on: name, package_type
+### Installation Strategies
 
-**Helpers:**
-- `internal/helpers/detection.go` - File type detection, executable scoring heuristics
-- `internal/helpers/exec.go` - Command execution utilities
-- `internal/security/` - Path validation, traversal attack prevention
+- **DEB**: Uses `debtap` to convert to Arch package -> `pacman` install. Includes **dependency fixing logic** (remapping Debian names to Arch names).
+- **RPM**:
+    1. Strategy A (Preferred): `rpmextract.sh` for manual extraction and installation to `~/.local/share/upkg/apps/`.
+    2. Strategy B (Fallback): `debtap` conversion -> `pacman` install.
+- **AppImage**: Integrated directly, extracts icon/desktop file.
+- **Tarball/Zip**: Extracts, scores executables, creates wrapper & desktop integration.
+
+### Key Directories
+
+- `internal/backends/` - Format-specific backends (appimage, deb, rpm, tarball, binary)
+- `internal/transaction/` - Transaction manager
+- `internal/heuristics/` - Executable detection/scoring
+- `internal/syspkg/` - System package manager abstraction
+- `internal/hyprland/` - Wayland/Hyprland window management
+- `internal/desktop/` - .desktop file generation
+- `internal/icons/` - Icon extraction
+- `internal/ui/` - CLI progress bars and spinners
+- `internal/db/` - SQLite database layer
+- `internal/config/` - TOML-based config
+- `internal/security/` - Path validation
 
 ## Code Style & Conventions
 
-**From .editorconfig:**
-- Go files: Tabs for indentation (size 4), max line length 120
-- charset: utf-8
-- trim trailing whitespace, insert final newline
-
-**Naming:**
-- Interface types in `internal/core/` and `internal/backends/`
-- Backend implementations in separate packages
-- Use `ctx context.Context` as first parameter for I/O operations
-- Error handling: Always check errors, use `zerolog` for logging
-
-**Testing:**
-- Use `afero` filesystem mocking for all filesystem operations
-- Race detector enabled in tests (`-race` flag)
-- Test files: `*_test.go`
-- Coverage target: Generate HTML reports with `make test-coverage`
+- **Imports**: Group as Stdlib -> 3rd Party -> Local (`upkg/internal/...`)
+- **Logging**: Use `internal/logging`. NEVER use `fmt.Printf` for logs
+- **Errors**: Always wrap with context: `fmt.Errorf("action: %w", err)`
+- **Context**: Use `ctx context.Context` as first parameter for I/O operations
+- **Security**: Validate paths/input via `internal/security`
+- **Testing**: Use `afero` filesystem mocking; co-locate `*_test.go` with source
 
 **Linting:** (from .golangci.yml)
-- Enabled linters: errcheck, gosimple, govet, ineffassign, staticcheck, unused, gosec, gofmt, goimports, misspell, unparam, unconvert, goconst, gocyclo, revive
 - Max cyclomatic complexity: 15
-- Security: G204 (subprocess with variable) excluded - needed for package installation
-- Test files: Relaxed linting (gocyclo, errcheck, gosec, unparam excluded)
+- Security: G204 excluded (subprocess with variable)
 
-## Adding a New Package Format
+## External Dependencies
 
-1. Create backend directory: `internal/backends/<format>/`
-2. Implement `Backend` interface (Detect, Install, Uninstall)
-3. Register in `internal/backends/backend.go` `NewRegistry()` - **ORDER MATTERS**
-4. Add comprehensive tests with `afero` mocking
-5. Update README.md documentation
+**Core:**
+- `tar`, `unsquashfs` (AppImage)
+- `bsdtar` (Archive extraction/repacking)
+- `dpkg-deb` (DEB metadata)
+- `rpm` (RPM metadata)
 
-**Example:** See `internal/backends/appimage/` for reference implementation
+**System Integration (Arch Linux):**
+- `debtap` (Required for DEB, Fallback for RPM)
+- `pacman` (Required for DEB/RPM via debtap)
+- `rpmextract.sh` (Preferred for RPM)
 
-## Special Considerations
-
-**AppImage Detection:**
-- AppImages are ELF executables, so AppImage backend MUST be registered before Binary backend
-- Detection checks for magic bytes and `.AppImage` file patterns
-
-**Executable Scoring (Tarball/Binary):**
-- `internal/helpers/detection.go` uses heuristics: filename matching, directory depth, file size
-- Bonuses for: matching package name, being in bin/, appropriate size
-- Penalties for: test files, deep nesting, very large files
-
-**Wayland Support:**
-- Config flag: `desktop.wayland_env_vars` (default: true)
-- Injects environment variables into Exec= line of .desktop files
-- Ensures compatibility with Wayland/Hyprland compositors
-
-**Security:**
-- All paths validated in `internal/security/validation.go`
-- Prevents directory traversal attacks
-- Rollback on installation failures
-
-## Database Operations
-
-- SQLite in WAL mode for reliability
-- Schema migrations handled in `internal/db/`
-- Metadata stored as JSON blob for flexibility
-- Always use transactions for multi-step operations
-
-## Logging
-
-- Structured logging via `zerolog`
-- Log levels: debug, info, warn, error
-- Log file: `~/.local/share/pkgctl/pkgctl.log`
-- Color output configurable: always, never, auto
-
-## Dependencies to Know
-
-**Required for functionality:**
-- tar - Extract tarballs
-- unsquashfs - Extract AppImage filesystems
-
-**Optional (checked by `pkgctl doctor`):**
-- debtap - DEB package conversion on Arch
-- rpmextract.sh - RPM extraction
-- gtk4-update-icon-cache - Icon cache updates
-- update-desktop-database - Desktop database updates
-- npx - Electron ASAR icon extraction
-
-## Entry Point
-
-`cmd/pkgctl/main.go:15` - Loads config, initializes logger, executes root command
-
-Commands defined in: `internal/cmd/` (install.go, list.go, info.go, uninstall.go, doctor.go)
+**Optional:**
+- `gtk4-update-icon-cache`, `update-desktop-database`

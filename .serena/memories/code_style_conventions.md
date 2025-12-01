@@ -7,31 +7,49 @@
 - **Trailing whitespace**: Trimmed
 - **Final newline**: Required
 
+## Import Organization
+Group imports as: Stdlib -> 3rd Party -> Local
+```go
+import (
+    "context"
+    "fmt"
+    
+    "github.com/spf13/cobra"
+    "github.com/rs/zerolog"
+    
+    "upkg/internal/config"
+    "upkg/internal/logging"
+)
+```
+
 ## Naming Conventions
 - **Interfaces**: Define in `internal/core/` and `internal/backends/`
 - **Backend implementations**: Separate packages under `internal/backends/<format>/`
 - **Context parameter**: Always `ctx context.Context` as first parameter for I/O operations
-- **Error handling**: Always check errors, log with `zerolog`
+- **Error handling**: Always check errors, use `zerolog` for logging
 
-## Go Conventions
-- Use `gofmt` for formatting
-- Follow standard Go project layout
-- Package names: lowercase, single word
-- Exported names: Start with uppercase
-- Unexported names: Start with lowercase
+## Logging
+- Use `internal/logging` package
+- NEVER use `fmt.Printf` for logs
+- Structured logging with zerolog
 
 ## Error Handling
 - Never ignore errors
-- Use `zerolog` for structured logging
+- Always wrap with context: `fmt.Errorf("action: %w", err)`
 - Log context with errors (file paths, package names, etc.)
 - Return errors up the stack, handle at appropriate level
+
+## Security
+- Validate paths/input via `internal/security`
+- Path validation before filesystem operations
+- Prevent directory traversal attacks
 
 ## Testing Conventions
 - Test files: `*_test.go`
 - Use `afero` filesystem mocking for all filesystem operations
 - Race detector enabled: `go test -race`
 - Table-driven tests preferred
-- Coverage: Generate HTML reports with `make test-coverage`
+- Co-locate tests with source files
 
 ## Linting Configuration (from .golangci.yml)
 
@@ -39,15 +57,12 @@
 - **errcheck** - Check unchecked errors
 - **gosimple** - Simplify code
 - **govet** - Suspicious constructs
-- **ineffassign** - Ineffectual assignments
 - **staticcheck** - Comprehensive static analysis
 - **unused** - Unused code
 - **gosec** - Security issues
 - **gofmt** - Formatting
 - **goimports** - Import ordering
 - **misspell** - Spelling
-- **unparam** - Unused function parameters
-- **unconvert** - Unnecessary type conversions
 - **goconst** - Repeated strings → constants
 - **gocyclo** - Cyclomatic complexity (max: 15)
 - **revive** - Extensible linter
@@ -61,27 +76,6 @@ Excluded for `*_test.go`:
 - errcheck (unchecked errors)
 - gosec (security)
 - unparam (unused parameters)
-
-## Import Organization
-```go
-// Standard library
-import (
-    "context"
-    "fmt"
-)
-
-// External dependencies
-import (
-    "github.com/spf13/cobra"
-    "github.com/rs/zerolog"
-)
-
-// Internal packages
-import (
-    "github.com/quantmind-br/upkg/internal/config"
-    "github.com/quantmind-br/upkg/internal/logging"
-)
-```
 
 ## File Organization
 - Package declaration

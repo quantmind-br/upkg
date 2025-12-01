@@ -29,10 +29,11 @@ type InstallRecord struct {
 
 // Metadata contains additional package-specific metadata
 type Metadata struct {
-	IconFiles      []string          `json:"icon_files,omitempty"`
-	WrapperScript  string            `json:"wrapper_script,omitempty"`
-	WaylandSupport string            `json:"wayland_support,omitempty"`
-	ExtractedMeta  ExtractedMetadata `json:"extracted_metadata,omitempty"`
+	IconFiles           []string          `json:"icon_files,omitempty"`
+	WrapperScript       string            `json:"wrapper_script,omitempty"`
+	WaylandSupport      string            `json:"wayland_support,omitempty"`
+	ExtractedMeta       ExtractedMetadata `json:"extracted_metadata,omitempty"`
+	OriginalDesktopFile string            `json:"original_desktop_file,omitempty"` // Original .desktop path before rename for dock compatibility
 }
 
 // ExtractedMetadata contains metadata extracted from the package

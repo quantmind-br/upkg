@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -11,7 +14,9 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
+	"github.com/quantmind-br/upkg/internal/hyprland"
 	"github.com/quantmind-br/upkg/internal/transaction"
+	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -24,6 +29,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		customName     string
 		timeoutSecs    int
 		skipWaylandEnv bool
+		skipIconFix    bool
 	)
 
 	cmd := &cobra.Command{
@@ -130,6 +136,15 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			// Commit transaction
 			tx.Commit()
 
+			// Try to fix dock icon if we have a desktop file and Hyprland is running
+			if record.DesktopFile != "" && !skipIconFix && hyprland.IsHyprlandRunning() {
+				if newDesktopPath, err := fixDockIcon(ctx, record, dbRecord, database, log); err != nil {
+					log.Warn().Err(err).Msg("dock icon fix failed")
+				} else if newDesktopPath != "" {
+					record.DesktopFile = newDesktopPath
+				}
+			}
+
 			// Success!
 			color.Green("✓ Package installed successfully")
 			color.Green("  Name: %s", record.Name)
@@ -157,6 +172,107 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	cmd.Flags().StringVarP(&customName, "name", "n", "", "custom application name")
 	cmd.Flags().IntVar(&timeoutSecs, "timeout", 600, "installation timeout in seconds")
 	cmd.Flags().BoolVar(&skipWaylandEnv, "skip-wayland-env", false, "skip Wayland environment variable injection (recommended for Tauri apps)")
+	cmd.Flags().BoolVar(&skipIconFix, "skip-icon-fix", false, "skip dock icon fix (Hyprland initialClass detection)")
 
 	return cmd
+}
+
+// fixDockIcon prompts user to open app, captures initialClass, and renames .desktop file for dock compatibility.
+// Returns the new desktop file path if renamed, empty string if not renamed, or error if failed.
+func fixDockIcon(ctx context.Context, record *core.InstallRecord, dbRecord *db.Install, database *db.DB, log *zerolog.Logger) (string, error) {
+	// Ask user if they want to fix dock icon
+	color.Cyan("\n→ Dock icon fix (Hyprland)")
+	color.White("  To display the correct icon in nwg-dock-hyprland, the .desktop file")
+	color.White("  must match the application's window class (initialClass).")
+	color.White("  This requires briefly opening the application to detect its window class.")
+
+	confirmed, err := ui.ConfirmWithDefault("Open application to detect window class?", true)
+	if err != nil || !confirmed {
+		color.Yellow("  Skipping dock icon fix")
+		return "", nil
+	}
+
+	// Get executable from install path or desktop file
+	execPath := record.InstallPath
+	if execPath == "" {
+		return "", fmt.Errorf("no executable path available")
+	}
+
+	// Start the application
+	color.Cyan("  Starting application...")
+	cmd := exec.CommandContext(ctx, execPath) //nolint:gosec // G204: execPath is from user-installed package
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true, // Create new process group so we can kill it later
+	}
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("start application: %w", err)
+	}
+
+	pid := cmd.Process.Pid
+	log.Debug().Int("pid", pid).Str("exec", execPath).Msg("started application for window class detection")
+
+	// Wait for window to appear
+	color.Cyan("  Waiting for window to appear (max 10s)...")
+	client, err := hyprland.WaitForClient(ctx, pid, 10*time.Second, 500*time.Millisecond)
+
+	// Kill the application regardless of whether we found the window
+	defer func() {
+		// Kill the entire process group
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+			log.Debug().Err(err).Int("pid", pid).Msg("failed to kill process group, trying direct kill")
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				log.Warn().Err(killErr).Int("pid", pid).Msg("failed to kill process")
+			}
+		}
+		// Wait to avoid zombies
+		_ = cmd.Wait()
+	}()
+
+	if err != nil {
+		color.Yellow("  Could not detect window class (application may not have a GUI window)")
+		return "", nil // Not an error, just skip
+	}
+
+	initialClass := client.InitialClass
+	if initialClass == "" {
+		color.Yellow("  Application has no initialClass set")
+		return "", nil
+	}
+
+	color.Green("  Detected initialClass: %s", initialClass)
+
+	// Check if rename is needed
+	currentDesktopName := filepath.Base(record.DesktopFile)
+	expectedDesktopName := initialClass + ".desktop"
+
+	if currentDesktopName == expectedDesktopName {
+		color.Green("  Desktop file already matches initialClass")
+		return "", nil
+	}
+
+	// Rename the desktop file
+	desktopDir := filepath.Dir(record.DesktopFile)
+	newDesktopPath := filepath.Join(desktopDir, expectedDesktopName)
+
+	color.Cyan("  Renaming: %s → %s", currentDesktopName, expectedDesktopName)
+
+	if err := os.Rename(record.DesktopFile, newDesktopPath); err != nil {
+		return "", fmt.Errorf("rename desktop file: %w", err)
+	}
+
+	// Update database record
+	dbRecord.Metadata["original_desktop_file"] = record.DesktopFile
+	dbRecord.DesktopFile = newDesktopPath
+
+	if err := database.Update(ctx, dbRecord); err != nil {
+		// Try to rollback the rename
+		if rollbackErr := os.Rename(newDesktopPath, record.DesktopFile); rollbackErr != nil {
+			log.Error().Err(rollbackErr).Msg("failed to rollback desktop file rename")
+		}
+		return "", fmt.Errorf("update database: %w", err)
+	}
+
+	color.Green("  ✓ Desktop file renamed for dock compatibility")
+	return newDesktopPath, nil
 }

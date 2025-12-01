@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/quantmind-br/upkg/internal/backends"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
 	"github.com/quantmind-br/upkg/internal/ui"
-	"github.com/fatih/color"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -282,6 +282,10 @@ func dbInstallToCore(dbRecord *db.Install) *core.InstallRecord {
 
 		if waylandSupport, ok := dbRecord.Metadata["wayland_support"].(string); ok {
 			record.Metadata.WaylandSupport = waylandSupport
+		}
+
+		if originalDesktopFile, ok := dbRecord.Metadata["original_desktop_file"].(string); ok {
+			record.Metadata.OriginalDesktopFile = originalDesktopFile
 		}
 	}
 

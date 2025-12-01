@@ -29,7 +29,6 @@ This runs: fmt + vet + lint (skips tests)
 If you need to run specific checks:
 ```bash
 make fmt        # Format only
-make vet        # Vet only
 make lint       # Lint only
 make test       # Test only
 ```
@@ -39,14 +38,6 @@ make test       # Test only
 After adding tests:
 ```bash
 make test-coverage    # Generate coverage.html
-make coverage         # Show coverage in terminal
-```
-
-## Module Maintenance
-
-After adding/removing dependencies:
-```bash
-make tidy
 ```
 
 ## Pre-Commit Workflow
@@ -79,6 +70,6 @@ The following must always pass:
 - Ensure proper error handling
 
 **Build errors:**
-- Run `make tidy` to sync dependencies
+- Run `go mod tidy` to sync dependencies
 - Check import paths
 - Verify Go version (1.25.3)

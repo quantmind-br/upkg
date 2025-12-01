@@ -1,28 +1,24 @@
-# Suggested Commands for pkgctl
+# Suggested Commands for upkg
 
 ## Build & Run
 ```bash
-make build              # Build binary to bin/pkgctl
+make build              # Build binary to bin/upkg
 make install            # Install to $GOBIN or $GOPATH/bin
-make run                # Build and run
-./bin/pkgctl --help     # Run built binary directly
+./bin/upkg --help       # Run built binary directly
 ```
 
 ## Testing
 ```bash
 make test               # Run all tests with race detector
 make test-coverage      # Generate coverage report (coverage.html)
-make coverage           # Show coverage in terminal
 ```
 
 ## Code Quality & Validation
 ```bash
 make fmt                # Format code with gofmt
-make vet                # Run go vet
 make lint               # Run golangci-lint
 make validate           # Run fmt + vet + lint + test (FULL VALIDATION)
 make quick-check        # Run fmt + vet + lint (skip tests)
-make tidy               # Tidy go modules
 ```
 
 ## Task Completion Workflow
@@ -42,7 +38,14 @@ This ensures:
 
 ```bash
 # After building
-./bin/pkgctl install <package>
-./bin/pkgctl list
-./bin/pkgctl doctor
+./bin/upkg install <package>
+./bin/upkg list
+./bin/upkg info <name>
+./bin/upkg uninstall <name>
+./bin/upkg doctor
+```
+
+## Running a Single Test
+```bash
+go test -v -race -run TestName ./path/to/pkg
 ```

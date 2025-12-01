@@ -12,7 +12,29 @@
 
 **Why:** AppImages are ELF executables. If Binary backend is registered before AppImage, it will match first and misidentify AppImages as generic binaries.
 
-**Code reference:** `internal/backends/backend.go` - `NewRegistry()` function
+## Transaction Manager Pattern
+
+**Location:** `internal/transaction/manager.go`
+
+**Pattern:**
+```go
+tx := transaction.NewManager()
+
+// Register rollback operations as you go
+tx.Add("remove installed files", func() error {
+    return os.RemoveAll(installPath)
+})
+
+// On success
+if err := tx.Commit(); err != nil {
+    return err
+}
+
+// On failure (deferred or explicit)
+tx.Rollback()
+```
+
+**Important:** All backends receive `*transaction.Manager` in `Install()` and must register rollbacks for atomic operations.
 
 ## Filesystem Abstraction
 
@@ -35,7 +57,7 @@ fs := afero.NewMemMapFs()
 
 **Pattern:**
 ```go
-func Install(ctx context.Context, packagePath string, opts InstallOptions) error {
+func Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
     // Use ctx for cancellation, timeouts, values
 }
 ```
@@ -58,9 +80,9 @@ if err != nil {
 - Structured logging with context
 - Descriptive error messages
 
-## Executable Detection Heuristics
+## Heuristics System
 
-**Location:** `internal/helpers/detection.go`
+**Location:** `internal/heuristics/`
 
 **Scoring system** for finding main executable in tarballs:
 - **Bonuses:** Filename matches package name, in bin/ directory, reasonable size (1KB-100MB)
@@ -112,23 +134,6 @@ if err := tx.Commit(); err != nil {
 }
 ```
 
-## Rollback on Installation Failure
-
-**Pattern:** Track installation state, rollback on errors:
-```go
-// Track what was created
-var installedFiles []string
-
-// On error
-defer func() {
-    if err != nil {
-        for _, f := range installedFiles {
-            os.Remove(f)
-        }
-    }
-}()
-```
-
 ## Icon Extraction Priority
 
 **Order (internal/icons/):**
@@ -141,8 +146,6 @@ defer func() {
 
 ## Command Execution
 
-**Location:** `internal/helpers/exec.go`
-
 **Pattern:**
 ```go
 cmd := exec.CommandContext(ctx, "tar", "xf", archivePath)
@@ -154,10 +157,9 @@ output, err := cmd.CombinedOutput()
 
 ## DEB/RPM Installation
 
-**DEB (Arch):** Uses `debtap` to convert to Arch package, installs via `pacman`
-**RPM:** Two methods:
-1. `rpmextract.sh` (preferred) - Manual extraction
-2. `debtap` (fallback) - Conversion to Arch package
+**Uses system package provider:** `internal/syspkg/`
+- **Arch Linux:** Uses `pacman` via `debtap` conversion
+- **RPM:** `rpmextract.sh` for extraction or `debtap` conversion
 
 **Gotcha:** `debtap` may produce malformed dependencies, handle gracefully
 

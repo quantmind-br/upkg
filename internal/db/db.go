@@ -228,6 +228,51 @@ FROM installs ORDER BY install_date DESC
 	return installs, nil
 }
 
+// Update updates an existing install record
+func (db *DB) Update(ctx context.Context, install *Install) error {
+	metadataJSON, err := json.Marshal(install.Metadata)
+	if err != nil {
+		return fmt.Errorf("marshal metadata: %w", err)
+	}
+
+	query := `
+UPDATE installs SET
+    package_type = ?,
+    name = ?,
+    version = ?,
+    original_file = ?,
+    install_path = ?,
+    desktop_file = ?,
+    metadata = ?
+WHERE install_id = ?
+	`
+
+	result, err := db.write.ExecContext(ctx, query,
+		install.PackageType,
+		install.Name,
+		install.Version,
+		install.OriginalFile,
+		install.InstallPath,
+		install.DesktopFile,
+		string(metadataJSON),
+		install.InstallID,
+	)
+	if err != nil {
+		return fmt.Errorf("update install: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("install not found: %s", install.InstallID)
+	}
+
+	return nil
+}
+
 // Delete removes an install record
 func (db *DB) Delete(ctx context.Context, installID string) error {
 	query := "DELETE FROM installs WHERE install_id = ?"

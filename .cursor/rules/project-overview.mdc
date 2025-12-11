@@ -1,0 +1,46 @@
+---
+description: High-level architecture, transaction management, and key directories for the upkg project.
+globs:
+  - "**/*.go"
+alwaysApply: true
+---
+
+# upkg Project Overview
+
+This document provides high-level architectural context for the `upkg` project.
+
+## Core Architecture: Backend Strategy Pattern
+
+`upkg` is a package manager for Linux written in Go. Its core design is a **Backend Registry Strategy Pattern**. This means that support for each package type (AppImage, DEB, RPM, Tarball, etc.) is encapsulated in its own "backend".
+
+- **Location**: All backends are located in `internal/backends/`.
+- **Interface**: Each backend must implement the `backends.Backend` interface defined in `@internal/backends/backend.go`.
+- **Registry**: The `backends.Registry` is responsible for detecting the package type and routing tasks to the correct backend. The order of registration in `NewRegistry` is critical for accurate detection.
+
+When working on package-specific logic, you will primarily be modifying or creating files within a subdirectory of `internal/backends/`.
+
+## Transactional Integrity
+
+To ensure system stability, all installation and uninstallation operations that modify the filesystem or database **must** be atomic. This is handled by the `transaction.Manager` located in `@internal/transaction/manager.go`.
+
+- **Pattern**: The manager uses a LIFO (Last-In, First-Out) stack of rollback functions.
+- **Usage**: Before performing an action (e.g., creating a file), add a corresponding cleanup function to the transaction manager. If any subsequent step fails, the manager will execute all registered cleanup functions in reverse order.
+
+```go
+// Example from internal/backends/deb/deb.go
+tx.Add(fmt.Sprintf("remove_desktop_file_%s", d.Name()), func() error {
+    return os.Remove(desktopPath)
+})
+if err := d.Desktop.Write(desktopPath, entry); err != nil {
+    return nil, fmt.Errorf("failed to write desktop file: %w", err)
+}
+```
+
+## Key Directories
+
+- `internal/cmd`: Defines all user-facing CLI commands using the Cobra library.
+- `internal/core`: Contains core domain models (`InstallRecord`) and interfaces. This is the central, least-coupled package.
+- `internal/backends`: The heart of the application, containing the strategy pattern implementation for each package type.
+- `internal/db`: The SQLite database layer for tracking installed packages.
+- `internal/security`: Handles path validation and prevents traversal attacks. All file paths from user input or package metadata must be validated.
+```,description:

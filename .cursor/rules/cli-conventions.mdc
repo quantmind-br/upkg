@@ -1,0 +1,69 @@
+---
+description: Rules for creating and structuring CLI commands using Cobra, initializing services, and handling user-facing output.
+globs:
+  - "internal/cmd/**/*.go"
+alwaysApply: false
+---
+
+# CLI Command Conventions
+
+This document outlines how to build and structure CLI commands for `upkg` using the Cobra library.
+
+## Command Structure
+
+All CLI commands are located in the `internal/cmd` directory. Each command should have its own file (e.g., `install.go`, `list.go`).
+
+A command is defined using a `New<CommandName>Cmd` constructor that accepts dependencies and returns a `*cobra.Command`.
+
+The core logic for a command resides in the `RunE` field, which must return an `error`.
+
+```go
+// Example structure from @internal/cmd/install.go
+func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
+    cmd := &cobra.Command{
+        Use:   "install [package]",
+        Short: "Install a package",
+        Args:  cobra.ExactArgs(1),
+        RunE: func(cmd *cobra.Command, args []string) error {
+            // 1. Initialize services (DB, Registry, Transaction Manager)
+            ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+            defer cancel()
+
+            database, err := db.New(ctx, cfg.Paths.DBFile)
+            // ... error handling
+
+            // 2. Perform core logic
+            // ...
+
+            // 3. Return error on failure
+            return nil
+        },
+    }
+    // Define flags here
+    cmd.Flags().BoolVarP(&force, "force", "f", false, "Force installation")
+    // ...
+    return cmd
+}
+```
+
+## Initializing Services in Commands
+
+Core services like the database, backend registry, and transaction manager are instantiated at the beginning of a command's `RunE` function, not globally. This ensures they are configured for the specific command's lifecycle, including its context and timeout.
+
+```go
+// Correct initialization inside RunE
+database, err := db.New(ctx, cfg.Paths.DBFile)
+if err != nil {
+    return fmt.Errorf("failed to initialize database: %w", err)
+}
+defer database.Close()
+
+registry := backends.NewRegistry(cfg, log)
+tx := transaction.NewManager(log)
+```
+
+## User-Facing Output
+
+- Use the `github.com/fatih/color` package for colored output to `stdout` and `stderr`.
+- For tabular data (like in `upkg list`), use the `github.com/olekukonko/tablewriter` package.
+- Avoid using `fmt.Println` for final user output; use UI helper packages for consistency.

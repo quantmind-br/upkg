@@ -1,0 +1,71 @@
+---
+description: Defines mandatory transaction usage, backend implementation patterns, dependency injection, and logging conventions.
+globs:
+  - "internal/**/*.go"
+  - "cmd/**/*.go"
+alwaysApply: false
+---
+
+# Go Code Patterns and Conventions
+
+This file outlines specific coding patterns and conventions to follow when contributing to the `upkg` codebase.
+
+## Transaction Management is Mandatory
+
+Any operation within a backend's `Install` or `Uninstall` method that modifies the filesystem or database **must** be registered with the `transaction.Manager`. This ensures that failed operations can be cleanly rolled back.
+
+- **Rule**: Before a mutable action (create/move/delete file, write to DB), add a function to the transaction manager that can undo it.
+- **Pattern**: Use `tx.Add(name, rollbackFunc)`. The name should be unique to the operation.
+
+```go
+// Good example: Register cleanup before creating the directory.
+// from: @internal/backends/tarball/install.go
+tx.Add(fmt.Sprintf("remove_install_dir_%s", t.Name()), func() error {
+    return os.RemoveAll(installPath)
+})
+if err := os.MkdirAll(installPath, 0755); err != nil {
+    return nil, fmt.Errorf("failed to create install directory: %w", err)
+}
+```
+
+## Implementing a New Backend
+
+To add support for a new package type:
+1.  Create a new package under `internal/backends/`.
+2.  Implement the `backends.Backend` interface.
+3.  In `@internal/backends/backend.go`, instantiate your new backend in the `NewRegistry` function.
+4.  **Crucially**, add your backend to the `registry.backends` slice in the correct priority order. More specific formats (like `deb`, `rpm`) should come before generic ones (`tarball`, `zip`).
+
+```go
+// in internal/backends/backend.go
+func NewRegistry(...) *Registry {
+    // ...
+    // HIGHER PRIORITY
+    registry.backends = append(registry.backends, deb.New(cfg, log))
+    registry.backends = append(registry.backends, rpm.New(cfg, log))
+    registry.backends = append(registry.backends, appimage.New(cfg, log))
+    // ...
+    // LOWER PRIORITY
+    registry.backends = append(registry.backends, tarball.New(cfg, log))
+    // ...
+}
+```
+
+## Dependency Injection
+
+Dependencies are passed explicitly via constructors. Do not use global variables for services.
+- The main composition root is in `cmd/upkg/main.go`.
+- Commands in `internal/cmd/` receive dependencies like `*config.Config` and `*zerolog.Logger`.
+- Services like the database and backend registry are instantiated within the command's `RunE` function.
+
+## Logging
+
+Use the `*zerolog.Logger` instance passed down through the call stack. Do not use the standard `log` package or `fmt.Println` for internal logging. This ensures structured, consistent logging.
+
+```go
+// Correct
+log.Info().Str("path", packagePath).Msg("Starting installation")
+
+// Incorrect
+// log.Printf("Starting installation for %s", packagePath)
+```

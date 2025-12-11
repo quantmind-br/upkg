@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-upkg is a modern, type-safe package manager for Linux written in Go. It provides a unified interface for installing and managing applications from multiple package formats (AppImage, DEB, RPM, Tarball, ZIP, Binary) with full desktop integration, Wayland/Hyprland support, and SQLite-based tracking.
+upkg is a modern, type-safe package manager for Linux written in Go. It provides a unified interface for installing and managing applications from multiple package formats (AppImage, DEB, RPM, Tarball, ZIP, Binary). Key features include a transaction manager for installation reliability, full desktop integration, Wayland/Hyprland support, and SQLite-based tracking.
 
 **Tech Stack:**
-- Go 1.25.3
+- Go
 - SQLite (modernc.org/sqlite - pure Go implementation)
 - Cobra (CLI framework)
 - Viper (configuration management)
@@ -15,33 +15,48 @@ upkg is a modern, type-safe package manager for Linux written in Go. It provides
 - afero (filesystem abstraction for testing)
 
 **Documentation:**
-- `AGENTS.md`: Development guidelines and agent protocols.
+- `AGENTS.md`: Condensed development guidelines for all AI agents.
 - `pkg-test/`: Directory containing sample packages for testing.
 
 ## Development Commands
 
 ```bash
-make build              # Build binary to bin/upkg
-make install            # Install to $GOBIN or $GOPATH/bin
-make test               # Run all tests with race detector
-make test-coverage      # Generate coverage report (coverage.html)
-make lint               # Run golangci-lint
-make fmt                # Format code with gofmt
-make validate           # Run fmt + vet + lint + test (full validation)
-make quick-check        # Run fmt + vet + lint (skip tests)
+# Build the binary to bin/upkg
+make build
+
+# Install the binary to $GOBIN or $GOPATH/bin
+make install
+
+# Run all tests with the race detector enabled
+make test
+
+# Generate a test coverage report (coverage.html)
+make test-coverage
+
+# Run the linter (golangci-lint)
+make lint
+
+# Format all Go code with gofmt
+make fmt
+
+# Run the full validation suite (fmt + vet + lint + test)
+make validate
+
+# Run a quick check without running tests (fmt + vet + lint)
+make quick-check
 ```
 
-**Run single test:** `go test -v -race -run TestName ./path/to/pkg`
+**Run a single test:** `go test -v -race -run TestName ./path/to/pkg`
 
-**After any code modification, run:** `make validate`
+**After any code modification, it's highly recommended to run:** `make validate`
 
 ## Code Architecture
 
-### Backend Registry Pattern
+### Backend Registry Strategy Pattern
 
-upkg uses a **priority-ordered backend registry** for package format detection and handling. This is the core architectural pattern.
+The core of `upkg` is a **priority-ordered backend registry**, which is an implementation of the Strategy Pattern. This system detects and handles various package formats.
 
-**Backend Interface:** (internal/backends/backend.go)
+**Backend Interface:** (`internal/backends/backend.go`)
 ```go
 type Backend interface {
     Name() string
@@ -51,81 +66,64 @@ type Backend interface {
 }
 ```
 
-**Registration Order (CRITICAL):** The order in `NewRegistry()` matters:
-1. DEB and RPM - Specific format detection first
-2. AppImage - MUST come before Binary (AppImages are ELF executables too)
-3. Binary - Generic ELF detection
-4. Tarball/ZIP - Archive formats last
+**Registration Order is CRITICAL:** The order of registration in `internal/backends/backend.go`'s `NewRegistry()` function is crucial for correct detection.
+1.  **DEB & RPM**: Specific, well-defined formats are checked first.
+2.  **AppImage**: Must be checked *before* Binary, as AppImages are also valid ELF executables.
+3.  **Binary**: Generic ELF executable detection.
+4.  **Tarball/ZIP**: Archive formats are checked last as they are the most generic.
 
 ### Key Architectural Components
 
-**Transaction Manager** (internal/transaction/manager.go):
-- Manages rollback operations as a LIFO stack
-- `Add(name, fn)` registers a rollback function
-- `Rollback()` executes all rollbacks in reverse order on failure
-- `Commit()` clears the stack on success
-
-**Heuristics System** (internal/heuristics/):
-- `Scorer` interface for executable scoring
-- `ScoreExecutable()` calculates scores (filename, depth, size, patterns)
-- `ChooseBest()` selects optimal executable for Tarball/Binary backends
-
-**System Package Provider** (internal/syspkg/):
-- Abstracts system package managers (pacman, apt, etc.)
-- Used by DEB/RPM backends for system-level installation via `debtap` or similar tools
-
-**Hyprland Integration** (internal/hyprland/):
-- `Client` struct and methods (`GetClients`, `WaitForClient`)
-- Enables precise window matching and management for installed apps
+- **Transaction Manager** (`internal/transaction`): Provides atomic operations for installs/uninstalls. It uses a LIFO (Last-In, First-Out) stack of rollback functions. If any step fails, `Rollback()` is called to execute cleanup functions in the reverse order they were added, ensuring the system remains in a clean state.
+- **Database Layer** (`internal/db`): A robust SQLite persistence layer using `modernc.org/sqlite`. It tracks all installed packages, storing metadata as a JSON blob. It uses separate read/write connection pools for performance.
+- **Heuristics Engine** (`internal/heuristics`): Analyzes and scores potential executables within archives (Tarball, ZIP) to intelligently find the main application binary.
+- **Desktop Integration** (`internal/desktop`): Manages the creation and validation of `.desktop` files, including injecting environment variables for Wayland/Hyprland compatibility.
+- **Security Layer** (`internal/security`): Provides critical validation functions to prevent directory traversal attacks and sanitize user inputs.
+- **System Package Provider** (`internal/syspkg`): An abstraction layer for interacting with the native OS package manager (e.g., `pacman` on Arch Linux). Used by backends like DEB and RPM.
+- **Hyprland Integration** (`internal/hyprland`): Provides specific integration for the Hyprland compositor to fix common dock icon issues after installation.
 
 ### Installation Strategies
 
-- **DEB**: Uses `debtap` to convert to Arch package -> `pacman` install. Includes **dependency fixing logic** (remapping Debian names to Arch names).
+- **DEB**: Uses `debtap` to convert the package to a native Arch package, then installs it via `pacman`. Includes logic to remap Debian dependency names to their Arch equivalents.
 - **RPM**:
-    1. Strategy A (Preferred): `rpmextract.sh` for manual extraction and installation to `~/.local/share/upkg/apps/`.
-    2. Strategy B (Fallback): `debtap` conversion -> `pacman` install.
-- **AppImage**: Integrated directly, extracts icon/desktop file.
-- **Tarball/Zip**: Extracts, scores executables, creates wrapper & desktop integration.
+    1.  **Strategy A (Preferred)**: Uses `rpmextract.sh` to manually extract contents into a managed directory (`~/.local/share/upkg/apps/`).
+    2.  **Strategy B (Fallback)**: Uses `debtap` for conversion and `pacman` for installation.
+- **AppImage**: Extracts the icon and `.desktop` file from the AppImage and integrates it directly.
+- **Tarball/Zip**: Extracts the archive, uses the Heuristics Engine to find the main executable, creates a wrapper script, and generates a `.desktop` file.
 
 ### Key Directories
 
-- `internal/backends/` - Format-specific backends (appimage, deb, rpm, tarball, binary)
-- `internal/transaction/` - Transaction manager
-- `internal/heuristics/` - Executable detection/scoring
-- `internal/syspkg/` - System package manager abstraction
-- `internal/hyprland/` - Wayland/Hyprland window management
-- `internal/desktop/` - .desktop file generation
-- `internal/icons/` - Icon extraction
-- `internal/ui/` - CLI progress bars and spinners
-- `internal/db/` - SQLite database layer
-- `internal/config/` - TOML-based config
-- `internal/security/` - Path validation
+- `internal/backends/`: Format-specific handlers (appimage, deb, rpm, tarball, binary).
+- `internal/cmd/`: CLI command definitions using Cobra.
+- `internal/core/`: Core domain models and interfaces.
+- `internal/db/`: SQLite database layer.
+- `internal/desktop/`: `.desktop` file generation and management.
+- `internal/heuristics/`: Executable detection and scoring logic.
+- `internal/security/`: Path validation and input sanitization.
+- `internal/syspkg/`: System package manager abstraction.
+- `internal/transaction/`: The atomic transaction manager.
+- `internal/ui/`: CLI progress bars, prompts, and spinners.
 
 ## Code Style & Conventions
 
-- **Imports**: Group as Stdlib -> 3rd Party -> Local (`upkg/internal/...`)
-- **Logging**: Use `internal/logging`. NEVER use `fmt.Printf` for logs
-- **Errors**: Always wrap with context: `fmt.Errorf("action: %w", err)`
-- **Context**: Use `ctx context.Context` as first parameter for I/O operations
-- **Security**: Validate paths/input via `internal/security`
-- **Testing**: Use `afero` filesystem mocking; co-locate `*_test.go` with source
-
-**Linting:** (from .golangci.yml)
-- Max cyclomatic complexity: 15
-- Security: G204 excluded (subprocess with variable)
+- **Imports**: Group imports in three blocks: 1. Standard library, 2. Third-party packages, 3. Local project packages (`upkg/internal/...`).
+- **Logging**: Use the structured logger from `internal/logging`. **NEVER** use `fmt.Printf` or `log.Printf` for application logging.
+- **Errors**: Always wrap errors with context to create a clear error chain. Example: `return fmt.Errorf("failed to install package: %w", err)`.
+- **Context**: Pass `ctx context.Context` as the first parameter to any function that performs I/O or can be long-running.
+- **Security**: All file paths and user-provided identifiers **must** be validated using the `internal/security` package.
+- **Testing**: Use the `afero` library for filesystem mocking to create hermetic tests. Test files (`*_test.go`) should be located in the same package as the code they are testing.
 
 ## External Dependencies
 
-**Core:**
-- `tar`, `unsquashfs` (AppImage)
-- `bsdtar` (Archive extraction/repacking)
-- `dpkg-deb` (DEB metadata)
-- `rpm` (RPM metadata)
+**Core Tools (Required):**
+- `tar`, `unsquashfs` (for AppImage), `bsdtar`, `dpkg-deb` (for DEB), `rpm` (for RPM).
 
-**System Integration (Arch Linux):**
-- `debtap` (Required for DEB, Fallback for RPM)
-- `pacman` (Required for DEB/RPM via debtap)
-- `rpmextract.sh` (Preferred for RPM)
+**System Integration (Arch Linux Specific):**
+- `debtap`: Required for DEB backend and as a fallback for RPM.
+- `pacman`: Required for installing packages via `debtap`.
+- `rpmextract.sh`: The preferred tool for the RPM backend.
 
-**Optional:**
-- `gtk4-update-icon-cache`, `update-desktop-database`
+**Desktop Integration (Optional but Recommended):**
+- `gtk4-update-icon-cache` / `gtk-update-icon-cache`
+- `update-desktop-database`
+- `desktop-file-validate`

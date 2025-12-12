@@ -1,14 +1,16 @@
 package tarball
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"time"
 
+	backendbase "github.com/quantmind-br/upkg/internal/backends/base"
 	"github.com/quantmind-br/upkg/internal/cache"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
@@ -19,47 +21,48 @@ import (
 	"github.com/quantmind-br/upkg/internal/security"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 	"layeh.com/asar"
 )
 
 // TarballBackend handles tarball and zip archive installations
 type TarballBackend struct {
-	cfg          *config.Config
-	logger       *zerolog.Logger
+	*backendbase.BaseBackend
 	scorer       heuristics.Scorer
-	runner       helpers.CommandRunner
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new tarball backend
 func New(cfg *config.Config, log *zerolog.Logger) *TarballBackend {
+	base := backendbase.New(cfg, log)
 	return &TarballBackend{
-		cfg:          cfg,
-		logger:       log,
+		BaseBackend:  base,
 		scorer:       heuristics.NewScorer(log),
-		runner:       helpers.NewOSCommandRunner(),
-		cacheManager: cache.NewCacheManager(),
+		cacheManager: cache.NewCacheManagerWithRunner(base.Runner),
 	}
 }
 
 // NewWithRunner creates a new tarball backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *TarballBackend {
+	return NewWithDeps(cfg, log, afero.NewOsFs(), runner)
+}
+
+// NewWithDeps creates a new tarball backend with injected fs and runner.
+func NewWithDeps(cfg *config.Config, log *zerolog.Logger, fs afero.Fs, runner helpers.CommandRunner) *TarballBackend {
+	base := backendbase.NewWithDeps(cfg, log, fs, runner)
 	return &TarballBackend{
-		cfg:          cfg,
-		logger:       log,
+		BaseBackend:  base,
 		scorer:       heuristics.NewScorer(log),
-		runner:       runner,
-		cacheManager: cache.NewCacheManager(),
+		cacheManager: cache.NewCacheManagerWithRunner(runner),
 	}
 }
 
 // NewWithCacheManager creates a new tarball backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *TarballBackend {
+	base := backendbase.New(cfg, log)
 	return &TarballBackend{
-		cfg:          cfg,
-		logger:       log,
+		BaseBackend:  base,
 		scorer:       heuristics.NewScorer(log),
-		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cacheManager,
 	}
 }
@@ -72,7 +75,7 @@ func (t *TarballBackend) Name() string {
 // Detect checks if this backend can handle the package
 func (t *TarballBackend) Detect(ctx context.Context, packagePath string) (bool, error) {
 	// Check if file exists
-	if _, err := os.Stat(packagePath); err != nil {
+	if _, err := t.Fs.Stat(packagePath); err != nil {
 		return false, nil
 	}
 
@@ -92,13 +95,13 @@ func (t *TarballBackend) Detect(ctx context.Context, packagePath string) (bool, 
 
 // Install installs the tarball/zip package
 func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
-	t.logger.Info().
+	t.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
 		Msg("installing tarball/zip package")
 
 	// Validate package exists
-	if _, err := os.Stat(packagePath); err != nil {
+	if _, err := t.Fs.Stat(packagePath); err != nil {
 		return nil, fmt.Errorf("package not found: %w", err)
 	}
 
@@ -108,7 +111,7 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		return nil, fmt.Errorf("unsupported archive type: %s", packagePath)
 	}
 
-	t.logger.Debug().
+	t.Log.Debug().
 		Str("archive_type", archiveType).
 		Msg("detected archive type")
 
@@ -139,101 +142,97 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 	}
 	installID := helpers.GenerateInstallID(normalizedName)
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	if t.Paths.HomeDir() == "" {
+		return nil, fmt.Errorf("failed to get home directory")
 	}
 
 	// Create installation directory in ~/.local/share/upkg/apps/
-	appsDir := filepath.Join(homeDir, ".local", "share", "upkg", "apps")
+	appsDir := t.Paths.GetUpkgAppsDir()
 	installDir := filepath.Join(appsDir, normalizedName)
 
 	// Check if already exists
-	if _, err := os.Stat(installDir); err == nil {
+	if _, err := t.Fs.Stat(installDir); err == nil {
 		if !opts.Force {
 			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", installDir)
 		}
-		if err := os.RemoveAll(installDir); err != nil {
+		if err := t.Fs.RemoveAll(installDir); err != nil {
 			return nil, fmt.Errorf("remove existing installation directory: %w", err)
 		}
 		// Best-effort cleanup of expected wrapper/desktop paths
-		binDir := filepath.Join(homeDir, ".local", "bin")
-		_ = os.Remove(filepath.Join(binDir, normalizedName))
-		appsDbDir := filepath.Join(homeDir, ".local", "share", "applications")
-		_ = os.Remove(filepath.Join(appsDbDir, normalizedName+".desktop"))
+		binDir := t.Paths.GetBinDir()
+		_ = t.Fs.Remove(filepath.Join(binDir, normalizedName))
+		appsDbDir := t.Paths.GetAppsDir()
+		_ = t.Fs.Remove(filepath.Join(appsDbDir, normalizedName+".desktop"))
 	}
 
 	// Create installation directory
-	if err := os.MkdirAll(installDir, 0755); err != nil {
+	if err := t.Fs.MkdirAll(installDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create installation directory: %w", err)
 	}
 	if tx != nil {
 		dir := installDir
 		tx.Add("remove installation directory", func() error {
-			return os.RemoveAll(dir)
+			return t.Fs.RemoveAll(dir)
 		})
 	}
 
 	// Extract archive
-	t.logger.Debug().
+	t.Log.Debug().
 		Str("archive", packagePath).
 		Str("dest", installDir).
 		Msg("extracting archive")
 
 	if err := t.extractArchive(packagePath, installDir, archiveType); err != nil {
-		os.RemoveAll(installDir)
+		_ = t.Fs.RemoveAll(installDir)
 		return nil, fmt.Errorf("failed to extract archive: %w", err)
 	}
 
 	// Find executable(s)
 	executables, err := heuristics.FindExecutables(installDir)
 	if err != nil || len(executables) == 0 {
-		os.RemoveAll(installDir)
+		_ = t.Fs.RemoveAll(installDir)
 		return nil, fmt.Errorf("no executables found in archive")
 	}
 
-	t.logger.Debug().
+	t.Log.Debug().
 		Strs("executables", executables).
 		Msg("found executables")
 
 	// Choose primary executable using scoring heuristic
 	primaryExec := t.scorer.ChooseBest(executables, normalizedName, installDir)
 
-	t.logger.Debug().
+	t.Log.Debug().
 		Str("primary_executable", primaryExec).
 		Int("total_candidates", len(executables)).
 		Msg("selected primary executable")
 
 	// Create wrapper script in ~/.local/bin/
-	binDir := filepath.Join(homeDir, ".local", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		os.RemoveAll(installDir)
+	binDir := t.Paths.GetBinDir()
+	if err := t.Fs.MkdirAll(binDir, 0755); err != nil {
+		_ = t.Fs.RemoveAll(installDir)
 		return nil, fmt.Errorf("failed to create bin directory: %w", err)
 	}
 
 	wrapperPath := filepath.Join(binDir, normalizedName)
 	if err := t.createWrapper(wrapperPath, primaryExec); err != nil {
-		os.RemoveAll(installDir)
+		_ = t.Fs.RemoveAll(installDir)
 		return nil, fmt.Errorf("failed to create wrapper script: %w", err)
 	}
 	if tx != nil {
 		path := wrapperPath
 		tx.Add("remove wrapper script", func() error {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return err
-			}
-			return nil
+			return t.Fs.Remove(path)
 		})
 	}
 
-	t.logger.Debug().
+	t.Log.Debug().
 		Str("wrapper", wrapperPath).
 		Msg("created wrapper script")
 
 	// Install icons (if any)
 	iconPaths, err := t.installIcons(installDir, normalizedName)
 	if err != nil {
-		t.logger.Warn().Err(err).Msg("failed to install icons")
+		t.Log.Warn().Err(err).Msg("failed to install icons")
 	}
 	if tx != nil && len(iconPaths) > 0 {
 		paths := append([]string(nil), iconPaths...)
@@ -249,32 +248,29 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		desktopPath, err = t.createDesktopFile(installDir, appName, normalizedName, wrapperPath, opts)
 		if err != nil {
 			// Clean up on failure
-			os.RemoveAll(installDir)
-			os.Remove(wrapperPath)
+			_ = t.Fs.RemoveAll(installDir)
+			_ = t.Fs.Remove(wrapperPath)
 			t.removeIcons(iconPaths)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
-		t.logger.Debug().
+		t.Log.Debug().
 			Str("desktop_file", desktopPath).
 			Msg("desktop file created")
 
 		if tx != nil && desktopPath != "" {
 			path := desktopPath
 			tx.Add("remove desktop file", func() error {
-				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-					return err
-				}
-				return nil
+				return t.Fs.Remove(path)
 			})
 		}
 
 		// Update caches
-		appsDbDir := filepath.Join(homeDir, ".local", "share", "applications")
-		t.cacheManager.UpdateDesktopDatabase(appsDbDir, t.logger)
+		appsDbDir := t.Paths.GetAppsDir()
+		_ = t.cacheManager.UpdateDesktopDatabase(appsDbDir, t.Log)
 
-		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		t.cacheManager.UpdateIconCache(iconsDir, t.logger)
+		iconsDir := t.Paths.GetIconsDir()
+		_ = t.cacheManager.UpdateIconCache(iconsDir, t.Log)
 	}
 
 	// Create install record
@@ -294,7 +290,7 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		},
 	}
 
-	t.logger.Info().
+	t.Log.Info().
 		Str("install_id", installID).
 		Str("name", appName).
 		Str("path", installDir).
@@ -305,29 +301,32 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 
 // Uninstall removes the installed tarball/zip package
 func (t *TarballBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
-	t.logger.Info().
+	t.Log.Info().
 		Str("install_id", record.InstallID).
 		Str("name", record.Name).
 		Msg("uninstalling tarball/zip package")
 
 	// Remove installation directory
 	if record.InstallPath != "" {
-		if err := os.RemoveAll(record.InstallPath); err != nil && !os.IsNotExist(err) {
-			t.logger.Warn().Err(err).Str("path", record.InstallPath).Msg("failed to remove installation directory")
+		if err := t.Fs.RemoveAll(record.InstallPath); err != nil {
+			t.Log.Warn().Err(err).Str("path", record.InstallPath).Msg("failed to remove installation directory")
 		}
 	}
 
 	// Remove wrapper script
 	if record.Metadata.WrapperScript != "" {
-		if err := os.Remove(record.Metadata.WrapperScript); err != nil && !os.IsNotExist(err) {
-			t.logger.Warn().Err(err).Str("path", record.Metadata.WrapperScript).Msg("failed to remove wrapper script")
+		if err := t.Fs.Remove(record.Metadata.WrapperScript); err != nil {
+			t.Log.Warn().Err(err).Str("path", record.Metadata.WrapperScript).Msg("failed to remove wrapper script")
 		}
 	}
 
-	// Remove .desktop file
-	if record.DesktopFile != "" {
-		if err := os.Remove(record.DesktopFile); err != nil && !os.IsNotExist(err) {
-			t.logger.Warn().Err(err).Str("path", record.DesktopFile).Msg("failed to remove desktop file")
+	// Remove .desktop file(s)
+	for _, desktopPath := range record.GetDesktopFiles() {
+		if desktopPath == "" {
+			continue
+		}
+		if err := t.Fs.Remove(desktopPath); err != nil {
+			t.Log.Warn().Err(err).Str("path", desktopPath).Msg("failed to remove desktop file")
 		}
 	}
 
@@ -335,16 +334,13 @@ func (t *TarballBackend) Uninstall(ctx context.Context, record *core.InstallReco
 	t.removeIcons(record.Metadata.IconFiles)
 
 	// Update caches
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		t.cacheManager.UpdateDesktopDatabase(appsDir, t.logger)
+	appsDir := t.Paths.GetAppsDir()
+	_ = t.cacheManager.UpdateDesktopDatabase(appsDir, t.Log)
 
-		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		t.cacheManager.UpdateIconCache(iconsDir, t.logger)
-	}
+	iconsDir := t.Paths.GetIconsDir()
+	_ = t.cacheManager.UpdateIconCache(iconsDir, t.Log)
 
-	t.logger.Info().
+	t.Log.Info().
 		Str("install_id", record.InstallID).
 		Msg("tarball/zip package uninstalled successfully")
 
@@ -388,7 +384,7 @@ func (t *TarballBackend) createWrapper(wrapperPath, execPath string) error {
 
 		// Only add --no-sandbox if explicitly configured (security risk)
 		sandboxFlag := ""
-		if t.cfg.Desktop.ElectronDisableSandbox {
+		if t.Cfg.Desktop.ElectronDisableSandbox {
 			sandboxFlag = " --no-sandbox"
 		}
 
@@ -405,11 +401,7 @@ exec "%s" "$@"
 `, execPath)
 	}
 
-	if err := os.WriteFile(wrapperPath, []byte(content), 0755); err != nil {
-		return err
-	}
-
-	return nil
+	return afero.WriteFile(t.Fs, wrapperPath, []byte(content), 0755)
 }
 
 // isElectronApp checks if the executable is part of an Electron app
@@ -418,14 +410,14 @@ func (t *TarballBackend) isElectronApp(execPath string) bool {
 
 	// Check for resources/app.asar (typical Electron structure)
 	asarPath := filepath.Join(execDir, "resources", "app.asar")
-	if _, err := os.Stat(asarPath); err == nil {
+	if _, err := t.Fs.Stat(asarPath); err == nil {
 		return true
 	}
 
 	// Check for *.asar in parent directory and subdirectories
 	parentDir := filepath.Dir(execDir)
 	var asarFound bool
-	filepath.Walk(parentDir, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(parentDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return nil // Continue on errors
 		}
@@ -440,9 +432,9 @@ func (t *TarballBackend) isElectronApp(execPath string) bool {
 
 // installIcons installs icons from the extracted directory
 func (t *TarballBackend) installIcons(installDir, normalizedName string) ([]string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
+	homeDir := t.Paths.HomeDir()
+	if homeDir == "" {
+		return nil, fmt.Errorf("failed to get home directory")
 	}
 
 	installedIcons := []string{}
@@ -450,16 +442,16 @@ func (t *TarballBackend) installIcons(installDir, normalizedName string) ([]stri
 	// Discover icons from regular filesystem
 	discoveredIcons := icons.DiscoverIcons(installDir)
 
-	t.logger.Debug().
+	t.Log.Debug().
 		Int("count", len(discoveredIcons)).
 		Msg("discovered icons in filesystem")
 
 	// Try to extract icons from ASAR archives (Electron apps)
 	asarIcons, err := t.extractIconsFromAsar(installDir, normalizedName)
 	if err != nil {
-		t.logger.Debug().Err(err).Msg("asar icon extraction failed or not applicable")
+		t.Log.Debug().Err(err).Msg("asar icon extraction failed or not applicable")
 	} else if len(asarIcons) > 0 {
-		t.logger.Info().
+		t.Log.Info().
 			Int("count", len(asarIcons)).
 			Msg("extracted icons from ASAR archive")
 		discoveredIcons = append(discoveredIcons, asarIcons...)
@@ -469,7 +461,7 @@ func (t *TarballBackend) installIcons(installDir, normalizedName string) ([]stri
 	for _, iconFile := range discoveredIcons {
 		targetPath, err := icons.InstallIcon(iconFile, normalizedName, homeDir)
 		if err != nil {
-			t.logger.Warn().
+			t.Log.Warn().
 				Err(err).
 				Str("icon", iconFile.Path).
 				Msg("failed to install icon")
@@ -485,17 +477,17 @@ func (t *TarballBackend) installIcons(installDir, normalizedName string) ([]stri
 // extractIconsFromAsarNative extracts icons using native Go ASAR library
 // This is significantly faster than spawning npx for each ASAR file
 // Returns extracted icons and any error encountered
-func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normalizedName string) ([]core.IconFile, error) {
-	t.logger.Debug().
+func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, _ string) ([]core.IconFile, error) {
+	t.Log.Debug().
 		Str("asar", asarPath).
 		Msg("extracting icons using native Go ASAR library")
 
 	// Open ASAR file
-	f, err := os.Open(asarPath)
+	f, err := t.Fs.Open(asarPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ASAR: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Decode ASAR archive
 	archive, err := asar.Decode(f)
@@ -504,17 +496,17 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 	}
 
 	// Create temporary directory for extracted icons
-	tempDir, err := os.MkdirTemp("", "upkg-asar-icons-*")
+	tempDir, err := afero.TempDir(t.Fs, "", "upkg-asar-icons-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = t.Fs.RemoveAll(tempDir) }()
 
 	// Track extracted icon files
 	var extractedPaths []string
 
 	// Walk ASAR and extract only icon files
-	walkErr := archive.Walk(func(path string, info os.FileInfo, err error) error {
+	walkErr := archive.Walk(func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return nil // Continue on errors
 		}
@@ -535,7 +527,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 			return nil
 		}
 
-		t.logger.Debug().
+		t.Log.Debug().
 			Str("path", path).
 			Int64("size", info.Size()).
 			Msg("extracting icon from ASAR")
@@ -544,7 +536,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 		pathParts := strings.Split(strings.Trim(path, "/"), "/")
 		entry := archive.Find(pathParts...)
 		if entry == nil {
-			t.logger.Warn().Str("path", path).Msg("entry not found")
+			t.Log.Warn().Str("path", path).Msg("entry not found")
 			return nil
 		}
 
@@ -552,7 +544,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 		targetPath := filepath.Join(tempDir, filepath.Base(path))
 
 		// Handle duplicate filenames by appending path component
-		if _, err := os.Stat(targetPath); err == nil {
+		if _, err := t.Fs.Stat(targetPath); err == nil {
 			// File exists, make unique by adding directory name
 			dirName := filepath.Base(filepath.Dir(path))
 			if dirName != "." && dirName != "/" {
@@ -563,21 +555,21 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 		// Open entry for reading
 		reader := entry.Open()
 		if reader == nil {
-			t.logger.Warn().Str("path", path).Msg("failed to open entry")
+			t.Log.Warn().Str("path", path).Msg("failed to open entry")
 			return nil
 		}
 
 		// Create output file
-		outFile, err := os.Create(targetPath)
+		outFile, err := t.Fs.Create(targetPath)
 		if err != nil {
-			t.logger.Warn().Err(err).Str("path", path).Msg("failed to create icon file")
+			t.Log.Warn().Err(err).Str("path", path).Msg("failed to create icon file")
 			return nil // Continue on error
 		}
-		defer outFile.Close()
+		defer func() { _ = outFile.Close() }()
 
 		// Copy contents
 		if _, err := io.Copy(outFile, reader); err != nil {
-			t.logger.Warn().Err(err).Str("path", path).Msg("failed to write icon file")
+			t.Log.Warn().Err(err).Str("path", path).Msg("failed to write icon file")
 			return nil // Continue on error
 		}
 
@@ -593,7 +585,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 		return nil, nil // No icons found, not an error
 	}
 
-	t.logger.Info().
+	t.Log.Info().
 		Int("count", len(extractedPaths)).
 		Str("asar", filepath.Base(asarPath)).
 		Msg("extracted icons using native ASAR library")
@@ -606,7 +598,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 	for _, icon := range discoveredIcons {
 		// Create subdirectory for asar-extracted icons
 		asarIconsDir := filepath.Join(installDir, ".upkg-asar-icons")
-		if err := os.MkdirAll(asarIconsDir, 0755); err != nil {
+		if err := t.Fs.MkdirAll(asarIconsDir, 0755); err != nil {
 			continue
 		}
 
@@ -615,7 +607,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 		permanentPath := filepath.Join(asarIconsDir, iconName)
 
 		if err := t.copyFile(icon.Path, permanentPath); err != nil {
-			t.logger.Warn().
+			t.Log.Warn().
 				Err(err).
 				Str("icon", icon.Path).
 				Msg("failed to copy icon from ASAR")
@@ -635,7 +627,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, normal
 func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string) ([]core.IconFile, error) {
 	// Find .asar files recursively
 	var asarFiles []string
-	err := filepath.Walk(installDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(installDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return nil // Continue on errors
 		}
@@ -658,7 +650,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		// OPTIMIZATION: Try native Go ASAR extraction first (80-95% faster)
 		extractedIcons, nativeErr := t.extractIconsFromAsarNative(asarFile, installDir, normalizedName)
 		if nativeErr == nil && len(extractedIcons) > 0 {
-			t.logger.Debug().
+			t.Log.Debug().
 				Str("asar", filepath.Base(asarFile)).
 				Int("icons", len(extractedIcons)).
 				Msg("successfully extracted icons using native Go ASAR library")
@@ -668,28 +660,28 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 
 		// Log native extraction failure
 		if nativeErr != nil {
-			t.logger.Debug().
+			t.Log.Debug().
 				Err(nativeErr).
 				Str("asar", filepath.Base(asarFile)).
 				Msg("native ASAR extraction failed, falling back to npx")
 		}
 
 		// Fallback to npx method if native extraction fails
-		if !t.runner.CommandExists("npx") {
-			t.logger.Warn().
+		if !t.Runner.CommandExists("npx") {
+			t.Log.Warn().
 				Str("asar", filepath.Base(asarFile)).
 				Msg("native ASAR failed and npx not available, skipping")
 			continue
 		}
 
-		t.logger.Debug().
+		t.Log.Debug().
 			Str("asar", asarFile).
 			Msg("attempting to extract icons using npx fallback")
 
 		// Create temporary directory for extraction
-		tempDir, err := os.MkdirTemp("", "upkg-asar-*")
+		tempDir, err := afero.TempDir(t.Fs, "", "upkg-asar-*")
 		if err != nil {
-			t.logger.Warn().Err(err).Msg("failed to create temp dir for asar extraction")
+			t.Log.Warn().Err(err).Msg("failed to create temp dir for asar extraction")
 			continue
 		}
 
@@ -697,22 +689,22 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		// OPTIMIZATION: Use streaming variant to avoid buffering large outputs
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
-		extractErr := t.runner.RunCommandStreaming(ctx, nil, nil, "npx", "--yes", "asar", "extract", asarFile, tempDir)
+		extractErr := t.Runner.RunCommandStreaming(ctx, nil, nil, "npx", "--yes", "asar", "extract", asarFile, tempDir)
 		if extractErr != nil {
-			t.logger.Warn().
+			t.Log.Warn().
 				Err(extractErr).
 				Str("asar", asarFile).
 				Msg("failed to extract asar file with npx")
 			// OPTIMIZATION: Release resources immediately after failure
 			cancel()
-			os.RemoveAll(tempDir)
+			_ = t.Fs.RemoveAll(tempDir)
 			continue
 		}
 
 		// Discover icons in extracted ASAR
 		discoveredIcons := icons.DiscoverIcons(tempDir)
 
-		t.logger.Debug().
+		t.Log.Debug().
 			Int("count", len(discoveredIcons)).
 			Str("asar", filepath.Base(asarFile)).
 			Msg("found icons in asar using npx")
@@ -721,7 +713,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		for _, icon := range discoveredIcons {
 			// Create a subdirectory for asar-extracted icons
 			asarIconsDir := filepath.Join(installDir, ".upkg-asar-icons")
-			if err := os.MkdirAll(asarIconsDir, 0755); err != nil {
+			if err := t.Fs.MkdirAll(asarIconsDir, 0755); err != nil {
 				continue
 			}
 
@@ -730,7 +722,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 			permanentPath := filepath.Join(asarIconsDir, iconName)
 
 			if err := t.copyFile(icon.Path, permanentPath); err != nil {
-				t.logger.Warn().
+				t.Log.Warn().
 					Err(err).
 					Str("icon", icon.Path).
 					Msg("failed to copy icon from asar")
@@ -745,7 +737,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		// OPTIMIZATION: Release resources at end of each iteration instead of defer
 		// This frees disk space and cancels timers immediately
 		cancel()
-		os.RemoveAll(tempDir)
+		_ = t.Fs.RemoveAll(tempDir)
 	}
 
 	return allIcons, nil
@@ -753,7 +745,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 
 // copyFile is a helper to copy files
 func (t *TarballBackend) copyFile(src, dst string) (err error) {
-	sourceFile, err := os.Open(src)
+	sourceFile, err := t.Fs.Open(src)
 	if err != nil {
 		return err
 	}
@@ -763,7 +755,7 @@ func (t *TarballBackend) copyFile(src, dst string) (err error) {
 		}
 	}()
 
-	destFile, err := os.Create(dst)
+	destFile, err := t.Fs.Create(dst)
 	if err != nil {
 		return err
 	}
@@ -783,8 +775,8 @@ func (t *TarballBackend) copyFile(src, dst string) (err error) {
 // removeIcons removes installed icons
 func (t *TarballBackend) removeIcons(iconPaths []string) {
 	for _, iconPath := range iconPaths {
-		if err := os.Remove(iconPath); err != nil && !os.IsNotExist(err) {
-			t.logger.Warn().
+		if err := t.Fs.Remove(iconPath); err != nil {
+			t.Log.Warn().
 				Err(err).
 				Str("path", iconPath).
 				Msg("failed to remove icon")
@@ -794,13 +786,8 @@ func (t *TarballBackend) removeIcons(iconPaths []string) {
 
 // createDesktopFile creates a .desktop file
 func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, execPath string, opts core.InstallOptions) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-	if err := os.MkdirAll(appsDir, 0755); err != nil {
+	appsDir := t.Paths.GetAppsDir()
+	if err := t.Fs.MkdirAll(appsDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create applications directory: %w", err)
 	}
 
@@ -808,11 +795,11 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 
 	// Try to find existing .desktop file in installDir
 	var entry *core.DesktopEntry
-	desktopFiles, _ := filepath.Glob(filepath.Join(installDir, "*.desktop"))
+	desktopFiles, _ := afero.Glob(t.Fs, filepath.Join(installDir, "*.desktop"))
 	if len(desktopFiles) > 0 {
-		file, err := os.Open(desktopFiles[0])
+		file, err := t.Fs.Open(desktopFiles[0])
 		if err == nil {
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 			entry, _ = desktop.Parse(file)
 		}
 	}
@@ -840,9 +827,9 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 	}
 
 	// Inject Wayland environment variables
-	if t.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
-		if err := desktop.InjectWaylandEnvVars(entry, t.cfg.Desktop.CustomEnvVars); err != nil {
-			t.logger.Warn().
+	if t.Cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
+		if err := desktop.InjectWaylandEnvVars(entry, t.Cfg.Desktop.CustomEnvVars); err != nil {
+			t.Log.Warn().
 				Err(err).
 				Str("app", appName).
 				Msg("invalid custom Wayland env vars, injecting defaults only")
@@ -850,18 +837,21 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 		}
 	}
 
-	// Write desktop file
-	if err := desktop.WriteDesktopFile(desktopFilePath, entry); err != nil {
+	var buf bytes.Buffer
+	if err := desktop.Write(&buf, entry); err != nil {
+		return "", err
+	}
+	if err := afero.WriteFile(t.Fs, desktopFilePath, buf.Bytes(), 0644); err != nil {
 		return "", err
 	}
 
 	// Validate
-	if t.runner.CommandExists("desktop-file-validate") {
+	if t.Runner.CommandExists("desktop-file-validate") {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if _, err := t.runner.RunCommand(ctx, "desktop-file-validate", desktopFilePath); err != nil {
-			t.logger.Warn().
+		if _, err := t.Runner.RunCommand(ctx, "desktop-file-validate", desktopFilePath); err != nil {
+			t.Log.Warn().
 				Err(err).
 				Str("desktop_file", desktopFilePath).
 				Msg("desktop file validation failed")

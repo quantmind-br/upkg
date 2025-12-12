@@ -6,12 +6,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	backendbase "github.com/quantmind-br/upkg/internal/backends/base"
 	"github.com/quantmind-br/upkg/internal/cache"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
@@ -22,46 +22,47 @@ import (
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 )
 
 // DebBackend handles DEB package installations via debtap
 type DebBackend struct {
-	cfg          *config.Config
-	logger       *zerolog.Logger
+	*backendbase.BaseBackend
 	sys          syspkg.Provider
-	runner       helpers.CommandRunner
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new DEB backend
 func New(cfg *config.Config, log *zerolog.Logger) *DebBackend {
+	base := backendbase.New(cfg, log)
 	return &DebBackend{
-		cfg:          cfg,
-		logger:       log,
+		BaseBackend:  base,
 		sys:          arch.NewPacmanProvider(),
-		runner:       helpers.NewOSCommandRunner(),
-		cacheManager: cache.NewCacheManager(),
+		cacheManager: cache.NewCacheManagerWithRunner(base.Runner),
 	}
 }
 
 // NewWithRunner creates a new DEB backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *DebBackend {
+	return NewWithDeps(cfg, log, afero.NewOsFs(), runner)
+}
+
+// NewWithDeps creates a new DEB backend with injected fs and runner.
+func NewWithDeps(cfg *config.Config, log *zerolog.Logger, fs afero.Fs, runner helpers.CommandRunner) *DebBackend {
+	base := backendbase.NewWithDeps(cfg, log, fs, runner)
 	return &DebBackend{
-		cfg:          cfg,
-		logger:       log,
+		BaseBackend:  base,
 		sys:          arch.NewPacmanProvider(),
-		runner:       runner,
-		cacheManager: cache.NewCacheManager(),
+		cacheManager: cache.NewCacheManagerWithRunner(runner),
 	}
 }
 
 // NewWithCacheManager creates a new DEB backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *DebBackend {
+	base := backendbase.New(cfg, log)
 	return &DebBackend{
-		cfg:          cfg,
-		logger:       log,
+		BaseBackend:  base,
 		sys:          arch.NewPacmanProvider(),
-		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cacheManager,
 	}
 }
@@ -74,7 +75,7 @@ func (d *DebBackend) Name() string {
 // Detect checks if this backend can handle the package
 func (d *DebBackend) Detect(ctx context.Context, packagePath string) (bool, error) {
 	// Check if file exists
-	if _, err := os.Stat(packagePath); err != nil {
+	if _, err := d.Fs.Stat(packagePath); err != nil {
 		return false, nil
 	}
 
@@ -89,7 +90,7 @@ func (d *DebBackend) Detect(ctx context.Context, packagePath string) (bool, erro
 
 // Install installs the DEB package using debtap
 func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
-	d.logger.Info().
+	d.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
 		Msg("installing DEB package")
@@ -105,7 +106,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	}
 
 	// Create progress tracker (enabled unless in quiet mode)
-	progressEnabled := d.logger.GetLevel() != zerolog.Disabled && d.logger.GetLevel() <= zerolog.InfoLevel
+	progressEnabled := d.Log.GetLevel() != zerolog.Disabled && d.Log.GetLevel() <= zerolog.InfoLevel
 	progress := ui.NewProgressTracker(phases, "Installing DEB", progressEnabled)
 	defer progress.Finish()
 
@@ -113,12 +114,12 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	progress.StartPhase(0)
 
 	// Check if debtap is installed
-	if err := d.runner.RequireCommand("debtap"); err != nil {
+	if err := d.Runner.RequireCommand("debtap"); err != nil {
 		return nil, fmt.Errorf("debtap is required for DEB installation: %w\nInstall with: yay -S debtap", err)
 	}
 
 	// Check if pacman is available (we're on Arch)
-	if err := d.runner.RequireCommand("pacman"); err != nil {
+	if err := d.Runner.RequireCommand("pacman"); err != nil {
 		return nil, fmt.Errorf("pacman not found - DEB backend requires Arch Linux")
 	}
 
@@ -128,7 +129,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	}
 
 	// Validate package exists
-	if _, err := os.Stat(packagePath); err != nil {
+	if _, err := d.Fs.Stat(packagePath); err != nil {
 		return nil, fmt.Errorf("package not found: %w", err)
 	}
 
@@ -143,14 +144,14 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		// Try to get official package name from DEB metadata (best practice)
 		if name, err := d.queryDebName(ctx, packagePath); err == nil && name != "" {
 			pkgName = name
-			d.logger.Debug().
+			d.Log.Debug().
 				Str("name", name).
 				Msg("extracted package name from DEB metadata")
 		} else {
 			// Fallback: Extract base name from DEB filename
 			pkgName = filepath.Base(packagePath)
 			pkgName = strings.TrimSuffix(pkgName, filepath.Ext(pkgName))
-			d.logger.Debug().
+			d.Log.Debug().
 				Str("name", pkgName).
 				Msg("extracted package name from filename (dpkg-deb unavailable)")
 		}
@@ -160,17 +161,17 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	pacmanPkgName := normalizedName
 	var pkgMeta *packageInfo
 
-	d.logger.Debug().
+	d.Log.Debug().
 		Str("package_name", pkgName).
 		Str("normalized_name", normalizedName).
 		Msg("package name determined")
 
 	// Create temp directory for conversion
-	tmpDir, err := os.MkdirTemp("", "upkg-deb-*")
+	tmpDir, err := afero.TempDir(d.Fs, "", "upkg-deb-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = d.Fs.RemoveAll(tmpDir) }()
 
 	progress.AdvancePhase()
 
@@ -182,7 +183,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		return nil, fmt.Errorf("debtap conversion failed: %w", err)
 	}
 
-	d.logger.Debug().
+	d.Log.Debug().
 		Str("arch_package", archPkgPath).
 		Msg("DEB converted to Arch package")
 
@@ -191,18 +192,18 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	// Phase 4: Fix dependencies
 	progress.StartPhase(3)
 
-	d.logger.Info().Msg("checking and fixing malformed dependencies...")
-	if err := fixMalformedDependencies(archPkgPath, d.logger); err != nil {
-		d.logger.Warn().Err(err).Msg("failed to fix malformed dependencies, proceeding anyway")
+	d.Log.Info().Msg("checking and fixing malformed dependencies...")
+	if err := fixMalformedDependencies(archPkgPath, d.Log); err != nil {
+		d.Log.Warn().Err(err).Msg("failed to fix malformed dependencies, proceeding anyway")
 	}
 
 	// Read package metadata to determine actual pacman package name
 	pkgMeta, err = extractPackageInfoFromArchive(archPkgPath)
 	if err != nil {
-		d.logger.Warn().Err(err).Str("fallback_name", pacmanPkgName).Msg("failed to read package metadata from archive")
+		d.Log.Warn().Err(err).Str("fallback_name", pacmanPkgName).Msg("failed to read package metadata from archive")
 	} else if pkgMeta.name != "" {
 		pacmanPkgName = pkgMeta.name
-		d.logger.Debug().
+		d.Log.Debug().
 			Str("package_name", pkgMeta.name).
 			Str("normalized_name", normalizedName).
 			Msg("resolved pacman package name from archive metadata")
@@ -247,7 +248,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		})
 	}
 
-	d.logger.Info().Msg("package installed successfully via pacman")
+	d.Log.Info().Msg("package installed successfully via pacman")
 
 	progress.AdvancePhase()
 
@@ -257,7 +258,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	// Get package info from pacman
 	pkgInfo, err := d.getPackageInfo(ctx, pacmanPkgName)
 	if err != nil {
-		d.logger.Warn().Err(err).
+		d.Log.Warn().Err(err).
 			Str("package", pacmanPkgName).
 			Msg("failed to get package info from pacman")
 		fallbackVersion := "unknown"
@@ -277,7 +278,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	// Find installed files
 	installedFiles, err := d.findInstalledFiles(ctx, pacmanPkgName)
 	if err != nil {
-		d.logger.Warn().Err(err).Msg("failed to list installed files")
+		d.Log.Warn().Err(err).Msg("failed to list installed files")
 	}
 
 	// Find desktop files
@@ -288,10 +289,10 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	if len(desktopFiles) > 0 {
 		primaryDesktopFile = desktopFiles[0]
 
-		if d.cfg.Desktop.WaylandEnvVars {
+		if d.Cfg.Desktop.WaylandEnvVars {
 			for _, desktopFile := range desktopFiles {
 				if err := d.updateDesktopFileWayland(desktopFile); err != nil {
-					d.logger.Warn().
+					d.Log.Warn().
 						Err(err).
 						Str("desktop_file", desktopFile).
 						Msg("failed to update desktop file with Wayland vars")
@@ -306,7 +307,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	// Update caches
 	if len(desktopFiles) > 0 {
 		appsDir := filepath.Dir(desktopFiles[0])
-		_ = d.cacheManager.UpdateDesktopDatabase(appsDir, d.logger)
+		_ = d.cacheManager.UpdateDesktopDatabase(appsDir, d.Log)
 	}
 
 	if len(iconFiles) > 0 {
@@ -314,7 +315,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		for _, iconFile := range iconFiles {
 			if strings.Contains(iconFile, "hicolor") {
 				hicolorDir := filepath.Dir(filepath.Dir(filepath.Dir(iconFile)))
-				_ = d.cacheManager.UpdateIconCache(hicolorDir, d.logger)
+				_ = d.cacheManager.UpdateIconCache(hicolorDir, d.Log)
 				break
 			}
 		}
@@ -334,13 +335,14 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 			IconFiles:      iconFiles,
 			WaylandSupport: string(core.WaylandUnknown),
 			InstallMethod:  core.InstallMethodPacman,
+			DesktopFiles:   desktopFiles,
 			ExtractedMeta: core.ExtractedMetadata{
 				Comment: "Installed via debtap/pacman",
 			},
 		},
 	}
 
-	d.logger.Info().
+	d.Log.Info().
 		Str("install_id", installID).
 		Str("name", pkgInfo.name).
 		Str("version", pkgInfo.version).
@@ -351,7 +353,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 
 // Uninstall removes the installed DEB package via pacman
 func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
-	d.logger.Info().
+	d.Log.Info().
 		Str("install_id", record.InstallID).
 		Str("name", record.Name).
 		Msg("uninstalling DEB package")
@@ -366,14 +368,14 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 
 	installed, err := d.sys.IsInstalled(checkCtx, normalizedName)
 	if err != nil || !installed {
-		d.logger.Warn().
+		d.Log.Warn().
 			Str("package", normalizedName).
 			Msg("package not found in pacman database")
 		return nil // Already uninstalled
 	}
 
 	// Uninstall with pacman
-	d.logger.Info().Msg("removing package with pacman...")
+	d.Log.Info().Msg("removing package with pacman...")
 
 	uninstallCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
@@ -384,10 +386,10 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 	}
 
 	// Update caches
-	_ = d.cacheManager.UpdateDesktopDatabase("/usr/share/applications", d.logger)
-	_ = d.cacheManager.UpdateIconCache("/usr/share/icons/hicolor", d.logger)
+	_ = d.cacheManager.UpdateDesktopDatabase("/usr/share/applications", d.Log)
+	_ = d.cacheManager.UpdateIconCache("/usr/share/icons/hicolor", d.Log)
 
-	d.logger.Info().
+	d.Log.Info().
 		Str("install_id", record.InstallID).
 		Msg("DEB package uninstalled successfully")
 
@@ -406,7 +408,7 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
-	d.logger.Debug().
+	d.Log.Debug().
 		Str("deb_path", absDebPath).
 		Str("output_dir", outputDir).
 		Msg("running debtap conversion")
@@ -438,12 +440,12 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 		reader := io.TeeReader(stdoutPipe, &stdoutBuf)
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
-			d.logger.Debug().
+			d.Log.Debug().
 				Str("line", scanner.Text()).
 				Msg("debtap stdout")
 		}
 		if err := scanner.Err(); err != nil {
-			d.logger.Warn().Err(err).Msg("failed to read debtap stdout")
+			d.Log.Warn().Err(err).Msg("failed to read debtap stdout")
 		}
 	}()
 
@@ -453,12 +455,12 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 		reader := io.TeeReader(stderrPipe, &stderrBuf)
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
-			d.logger.Debug().
+			d.Log.Debug().
 				Str("line", scanner.Text()).
 				Msg("debtap stderr")
 		}
 		if err := scanner.Err(); err != nil {
-			d.logger.Warn().Err(err).Msg("failed to read debtap stderr")
+			d.Log.Warn().Err(err).Msg("failed to read debtap stderr")
 		}
 	}()
 
@@ -484,7 +486,7 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 	<-stderrDone
 
 	if err != nil {
-		d.logger.Error().
+		d.Log.Error().
 			Err(err).
 			Str("stdout", stdoutBuf.String()).
 			Str("stderr", stderrBuf.String()).
@@ -492,7 +494,7 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 		return "", fmt.Errorf("debtap conversion failed: %w\nStderr: %s", err, stderrBuf.String())
 	}
 
-	d.logger.Debug().
+	d.Log.Debug().
 		Str("stdout", stdoutBuf.String()).
 		Str("stderr", stderrBuf.String()).
 		Msg("debtap conversion completed")
@@ -505,7 +507,7 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 	files, err := filepath.Glob(tempPattern)
 
 	if err != nil {
-		d.logger.Error().
+		d.Log.Error().
 			Err(err).
 			Str("pattern", tempPattern).
 			Msg("temp dir glob search failed")
@@ -514,10 +516,8 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 
 	if len(files) == 0 {
 		// Search in current working directory (debtap default behavior)
-		wd, _ := os.Getwd()
-		wdPattern := filepath.Join(wd, "*.pkg.tar.*")
-		d.logger.Debug().
-			Str("working_dir", wd).
+		wdPattern := "*.pkg.tar.*"
+		d.Log.Debug().
 			Str("pattern", wdPattern).
 			Msg("searching in working directory for debtap package")
 
@@ -538,7 +538,7 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 		// Try searching in the original package directory
 		pkgDir := filepath.Dir(debPath)
 		pkgPattern := filepath.Join(pkgDir, "*.pkg.tar.*")
-		d.logger.Debug().
+		d.Log.Debug().
 			Str("pkg_dir", pkgDir).
 			Str("pattern", pkgPattern).
 			Msg("searching in package directory")
@@ -549,19 +549,19 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 
 	if len(files) == 0 {
 		// List all files in output directory for debugging
-		allFiles, _ := os.ReadDir(outputDir)
+		allFiles, _ := afero.ReadDir(d.Fs, outputDir)
 		var fileList []string
 		for _, f := range allFiles {
 			fileList = append(fileList, f.Name())
 		}
-		d.logger.Error().
+		d.Log.Error().
 			Strs("files_in_dir", fileList).
 			Str("output_dir", outputDir).
 			Msg("no arch package generated by debtap in any location")
 		return "", fmt.Errorf("no arch package generated by debtap (searched temp, working, and pkg dirs)")
 	}
 
-	d.logger.Debug().
+	d.Log.Debug().
 		Strs("found_files", files).
 		Msg("found generated packages")
 
@@ -620,7 +620,7 @@ func (d *DebBackend) findIconFiles(files []string) []string {
 // updateDesktopFileWayland updates a desktop file with Wayland environment variables
 func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	// Read desktop file
-	file, err := os.Open(desktopPath)
+	file, err := d.Fs.Open(desktopPath)
 	if err != nil {
 		return err
 	}
@@ -632,8 +632,8 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	}
 
 	// Inject Wayland vars
-	if err := desktop.InjectWaylandEnvVars(entry, d.cfg.Desktop.CustomEnvVars); err != nil {
-		d.logger.Warn().
+	if err := desktop.InjectWaylandEnvVars(entry, d.Cfg.Desktop.CustomEnvVars); err != nil {
+		d.Log.Warn().
 			Err(err).
 			Str("desktop_file", desktopPath).
 			Msg("invalid custom Wayland env vars, injecting defaults only")
@@ -643,15 +643,20 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	}
 
 	// Write back (need sudo for system files)
-	tmpFile, err := os.CreateTemp("", "upkg-desktop-*.desktop")
+	tmpFile, err := afero.TempFile(d.Fs, "", "upkg-desktop-*.desktop")
 	if err != nil {
 		return err
 	}
 	tmpPath := tmpFile.Name()
 	_ = tmpFile.Close()
 
-	if err := desktop.WriteDesktopFile(tmpPath, entry); err != nil {
-		_ = os.Remove(tmpPath)
+	var buf bytes.Buffer
+	if err := desktop.Write(&buf, entry); err != nil {
+		_ = d.Fs.Remove(tmpPath)
+		return err
+	}
+	if err := afero.WriteFile(d.Fs, tmpPath, buf.Bytes(), 0644); err != nil {
+		_ = d.Fs.Remove(tmpPath)
 		return err
 	}
 
@@ -659,9 +664,9 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err = d.runner.RunCommand(ctx, "sudo", "mv", tmpPath, desktopPath)
+	_, err = d.Runner.RunCommand(ctx, "sudo", "mv", tmpPath, desktopPath)
 	if err != nil {
-		_ = os.Remove(tmpPath)
+		_ = d.Fs.Remove(tmpPath)
 		return err
 	}
 
@@ -680,7 +685,7 @@ type packageInfo struct {
 // instead of parsing the filename which may not match the actual package name.
 func (d *DebBackend) queryDebName(ctx context.Context, packagePath string) (string, error) {
 	// Check if dpkg-deb command is available
-	if !d.runner.CommandExists("dpkg-deb") {
+	if !d.Runner.CommandExists("dpkg-deb") {
 		return "", fmt.Errorf("dpkg-deb command not found")
 	}
 
@@ -694,7 +699,7 @@ func (d *DebBackend) queryDebName(ctx context.Context, packagePath string) (stri
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := d.runner.RunCommand(queryCtx, "dpkg-deb", "--field", absPath, "Package")
+	output, err := d.Runner.RunCommand(queryCtx, "dpkg-deb", "--field", absPath, "Package")
 	if err != nil {
 		return "", fmt.Errorf("dpkg-deb query failed: %w", err)
 	}
@@ -711,9 +716,10 @@ func (d *DebBackend) queryDebName(ctx context.Context, packagePath string) (stri
 func isDebtapInitialized() bool {
 	// Debtap stores its database in /var/cache/debtap/
 	debtapCacheDir := "/var/cache/debtap"
+	fs := afero.NewOsFs()
 
 	// Check if cache directory exists
-	if info, err := os.Stat(debtapCacheDir); err != nil || !info.IsDir() {
+	if info, err := fs.Stat(debtapCacheDir); err != nil || !info.IsDir() {
 		return false
 	}
 
@@ -727,7 +733,7 @@ func isDebtapInitialized() bool {
 	foundCount := 0
 	for _, filename := range essentialFiles {
 		filePath := filepath.Join(debtapCacheDir, filename)
-		if _, err := os.Stat(filePath); err == nil {
+		if _, err := fs.Stat(filePath); err == nil {
 			foundCount++
 		}
 	}
@@ -773,11 +779,12 @@ func extractPackageInfoFromArchive(pkgPath string) (*packageInfo, error) {
 // This addresses issues where epoch versions (like 2:1.4.99.1) cause name mangling
 func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 	// Extract the package to a temp directory
-	tmpDir, err := os.MkdirTemp("", "upkg-fix-deps-*")
+	fs := afero.NewOsFs()
+	tmpDir, err := afero.TempDir(fs, "", "upkg-fix-deps-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	defer func() { _ = fs.RemoveAll(tmpDir) }()
 
 	// Extract package using bsdtar (Arch standard, auto-detects compression)
 	extractCmd := exec.Command("bsdtar", "-xf", pkgPath, "-C", tmpDir) // #nosec G204 -- pkgPath is validated
@@ -789,7 +796,7 @@ func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 
 	// Read .PKGINFO
 	pkgInfoPath := filepath.Join(tmpDir, ".PKGINFO")
-	content, err := os.ReadFile(pkgInfoPath)
+	content, err := afero.ReadFile(fs, pkgInfoPath)
 	if err != nil {
 		return fmt.Errorf("failed to read .PKGINFO: %w", err)
 	}
@@ -829,13 +836,13 @@ func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 	}
 
 	// Write fixed .PKGINFO
-	if err := os.WriteFile(pkgInfoPath, []byte(strings.Join(fixed, "\n")), 0644); err != nil {
+	if err := afero.WriteFile(fs, pkgInfoPath, []byte(strings.Join(fixed, "\n")), 0644); err != nil {
 		return fmt.Errorf("failed to write fixed .PKGINFO: %w", err)
 	}
 
 	// Repack using bsdtar with zstd compression (Arch standard)
 	// List files explicitly to avoid ./ prefix that causes "missing metadata" error
-	files, err := os.ReadDir(tmpDir)
+	files, err := afero.ReadDir(fs, tmpDir)
 	if err != nil {
 		return fmt.Errorf("failed to read tmpdir: %w", err)
 	}
@@ -862,7 +869,7 @@ func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 
 // fixDependencyLine corrects a single dependency line with known malformations
 // Returns empty string if dependency should be removed
-func fixDependencyLine(line string, logger *zerolog.Logger) string {
+func fixDependencyLine(line string, _ *zerolog.Logger) string {
 	// Extract the dependency part after "depend = "
 	if !strings.HasPrefix(line, "depend = ") {
 		return line

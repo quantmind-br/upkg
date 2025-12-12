@@ -215,7 +215,7 @@ func TestValidate(t *testing.T) {
 				Exec: "firefox",
 			},
 			wantErr:   true,
-			errSubstr: "Type field is required",
+			errSubstr: "type field is required",
 		},
 		{
 			name: "missing Name",
@@ -224,7 +224,7 @@ func TestValidate(t *testing.T) {
 				Exec: "firefox",
 			},
 			wantErr:   true,
-			errSubstr: "Name field is required",
+			errSubstr: "name field is required",
 		},
 		{
 			name: "missing Exec",
@@ -233,7 +233,7 @@ func TestValidate(t *testing.T) {
 				Name: "Firefox",
 			},
 			wantErr:   true,
-			errSubstr: "Exec field is required",
+			errSubstr: "exec field is required",
 		},
 		{
 			name:    "empty desktop entry",

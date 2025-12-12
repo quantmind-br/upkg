@@ -13,6 +13,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ func TestNewWithRunner(t *testing.T) {
 
 	assert.NotNil(t, backend)
 	assert.Equal(t, "tarball", backend.Name())
-	assert.Equal(t, mockRunner, backend.runner)
+	assert.Equal(t, mockRunner, backend.Runner)
 }
 
 func TestNewWithCacheManager(t *testing.T) {
@@ -366,14 +367,7 @@ func TestUninstall(t *testing.T) {
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return false },
 	}
-	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
-
-	backend := &TarballBackend{
-		cfg:          cfg,
-		logger:       &logger,
-		runner:       mockRunner,
-		cacheManager: cacheManager,
-	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 	t.Run("uninstalls all files", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -511,11 +505,7 @@ func TestCreateDesktopFile(t *testing.T) {
 			},
 		}
 
-		backend := &TarballBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -549,11 +539,7 @@ func TestCreateDesktopFile(t *testing.T) {
 			},
 		}
 
-		backend := &TarballBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -596,11 +582,7 @@ Categories=Development;IDE;
 			},
 		}
 
-		backend := &TarballBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -630,11 +612,7 @@ Categories=Development;IDE;
 			},
 		}
 
-		backend := &TarballBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))

@@ -107,7 +107,7 @@ func (p *ProgressTracker) StartPhase(phaseIndex int) {
 			p.bar.ChangeMax(p.totalWeight) // Reset progressbar
 			p.inSpinnerMode = false
 		}
-		p.bar.Describe(fmt.Sprintf("%s", phase.Name))
+		p.bar.Describe(phase.Name)
 		p.startDeterministicRefresh(phase.Name)
 	} else {
 		p.stopDeterministicRefresh()

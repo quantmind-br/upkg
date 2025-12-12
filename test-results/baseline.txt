@@ -1,0 +1,25 @@
+upkg E2E baseline - qui 11 dez 2025 23:24:21 -03
+ROOT_DIR=/home/diogo/dev/upkg
+BIN_PATH=/home/diogo/dev/upkg/bin/upkg
+PKG_DIR=/home/diogo/dev/upkg/pkg-test
+ALLOW_SYSTEM=0
+
+== Case: appimage ==
+Installing /home/diogo/dev/upkg/pkg-test/MiniKeyboard-x86_64.AppImage as name=e2e-appimage
+OK (appimage)
+
+== Case: binary ==
+Installing /home/diogo/dev/upkg/pkgctl as name=e2e-binary
+OK (binary)
+
+== Case: tarball ==
+Installing /home/diogo/dev/upkg/pkg-test/gitkraken-amd64.tar.gz as name=e2e-tarball
+OK (tarball)
+
+== Case: zip ==
+Installing /home/diogo/dev/upkg/pkg-test/balenaEtcher-linux-x64-2.1.4.zip as name=e2e-zip
+OK (zip)
+SKIP deb: set UPKG_E2E_SYSTEM=1 to enable
+SKIP rpm: rpmextract.sh not found; set UPKG_E2E_SYSTEM=1 to enable fallback
+
+E2E baseline completed successfully

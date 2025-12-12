@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sync"
 	"time"
 )
 
@@ -41,7 +42,9 @@ type CommandRunner interface {
 }
 
 // OSCommandRunner is the default implementation using os/exec
-type OSCommandRunner struct{}
+type OSCommandRunner struct {
+	commandCache sync.Map // map[string]bool
+}
 
 // NewOSCommandRunner creates a new OSCommandRunner instance
 func NewOSCommandRunner() *OSCommandRunner {
@@ -50,8 +53,14 @@ func NewOSCommandRunner() *OSCommandRunner {
 
 // CommandExists checks if a command is available in PATH
 func (r *OSCommandRunner) CommandExists(name string) bool {
+	if cached, ok := r.commandCache.Load(name); ok {
+		return cached.(bool)
+	}
+
 	_, err := exec.LookPath(name)
-	return err == nil
+	exists := err == nil
+	r.commandCache.Store(name, exists)
+	return exists
 }
 
 // RequireCommand ensures a command exists or returns error

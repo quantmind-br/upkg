@@ -14,6 +14,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/syspkg"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func TestNewWithRunner(t *testing.T) {
 
 	assert.NotNil(t, backend)
 	assert.Equal(t, "rpm", backend.Name())
-	assert.Equal(t, mockRunner, backend.runner)
+	assert.Equal(t, mockRunner, backend.Runner)
 }
 
 func TestNewWithCacheManager(t *testing.T) {
@@ -198,11 +199,7 @@ func TestInstall_NoInstallationMethod(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	backend := &RpmBackend{
-		cfg:    cfg,
-		logger: &logger,
-		runner: mockRunner,
-	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 	tmpDir := t.TempDir()
 	fakeRpm := filepath.Join(tmpDir, "test.rpm")
@@ -366,15 +363,8 @@ func TestUninstall_ExtractedMethod(t *testing.T) {
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return false },
 	}
-	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
 
 	cfg := &config.Config{}
-	backend := &RpmBackend{
-		cfg:          cfg,
-		logger:       &logger,
-		runner:       mockRunner,
-		cacheManager: cacheManager,
-	}
 
 	t.Run("uninstalls all files", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -382,6 +372,8 @@ func TestUninstall_ExtractedMethod(t *testing.T) {
 		origHomeDir := os.Getenv("HOME")
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHomeDir)
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		// Create fake installation
 		installDir := filepath.Join(tmpDir, "install")
@@ -427,6 +419,8 @@ func TestUninstall_ExtractedMethod(t *testing.T) {
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHomeDir)
 
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+
 		record := &core.InstallRecord{
 			InstallID:   "test-id",
 			Name:        "test-app",
@@ -451,7 +445,6 @@ func TestUninstall_PacmanMethod(t *testing.T) {
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return false },
 	}
-	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
 
 	cfg := &config.Config{}
 
@@ -460,13 +453,8 @@ func TestUninstall_PacmanMethod(t *testing.T) {
 			isInstalled: false,
 		}
 
-		backend := &RpmBackend{
-			cfg:          cfg,
-			logger:       &logger,
-			runner:       mockRunner,
-			sys:          mockProvider,
-			cacheManager: cacheManager,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.sys = mockProvider
 
 		record := &core.InstallRecord{
 			InstallID:   "test-id",
@@ -487,13 +475,8 @@ func TestUninstall_PacmanMethod(t *testing.T) {
 			removeErr:   nil,
 		}
 
-		backend := &RpmBackend{
-			cfg:          cfg,
-			logger:       &logger,
-			runner:       mockRunner,
-			sys:          mockProvider,
-			cacheManager: cacheManager,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.sys = mockProvider
 
 		record := &core.InstallRecord{
 			InstallID:   "test-id",
@@ -521,11 +504,7 @@ func TestQueryRpmName(t *testing.T) {
 		}
 
 		cfg := &config.Config{}
-		backend := &RpmBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		tmpDir := t.TempDir()
 		fakeRpm := filepath.Join(tmpDir, "test.rpm")
@@ -551,11 +530,7 @@ func TestQueryRpmName(t *testing.T) {
 		}
 
 		cfg := &config.Config{}
-		backend := &RpmBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		tmpDir := t.TempDir()
 		fakeRpm := filepath.Join(tmpDir, "test.rpm")
@@ -568,6 +543,8 @@ func TestQueryRpmName(t *testing.T) {
 }
 
 func TestCopyDir(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+
 	t.Run("copies directory with files", func(t *testing.T) {
 		srcDir := t.TempDir()
 		dstDir := t.TempDir()
@@ -578,7 +555,8 @@ func TestCopyDir(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file1.txt"), []byte("content1"), 0644))
 		require.NoError(t, os.WriteFile(filepath.Join(srcDir, "subdir", "file2.txt"), []byte("content2"), 0644))
 
-		err := copyDir(srcDir, dstPath)
+		backend := New(&config.Config{}, &logger)
+		err := backend.copyDir(srcDir, dstPath)
 		require.NoError(t, err)
 
 		// Verify copied files
@@ -600,7 +578,8 @@ func TestCopyDir(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(srcDir, "target.txt"), []byte("target content"), 0644))
 		require.NoError(t, os.Symlink("target.txt", filepath.Join(srcDir, "link.txt")))
 
-		err := copyDir(srcDir, dstPath)
+		backend := New(&config.Config{}, &logger)
+		err := backend.copyDir(srcDir, dstPath)
 		require.NoError(t, err)
 
 		// Verify symlink is copied

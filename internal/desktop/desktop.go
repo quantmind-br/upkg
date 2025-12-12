@@ -98,13 +98,13 @@ func Write(w io.Writer, de *core.DesktopEntry) error {
 // Validate checks if the desktop entry has required fields
 func Validate(de *core.DesktopEntry) error {
 	if de.Type == "" {
-		return fmt.Errorf("Type field is required")
+		return fmt.Errorf("type field is required")
 	}
 	if de.Name == "" {
-		return fmt.Errorf("Name field is required")
+		return fmt.Errorf("name field is required")
 	}
 	if de.Exec == "" {
-		return fmt.Errorf("Exec field is required")
+		return fmt.Errorf("exec field is required")
 	}
 	return nil
 }

@@ -27,6 +27,18 @@ type InstallRecord struct {
 	Metadata     Metadata    `json:"metadata"`
 }
 
+// GetDesktopFiles returns all desktop files for this install.
+// Falls back to the singular DesktopFile for backward compatibility.
+func (r *InstallRecord) GetDesktopFiles() []string {
+	if len(r.Metadata.DesktopFiles) > 0 {
+		return r.Metadata.DesktopFiles
+	}
+	if r.DesktopFile != "" {
+		return []string{r.DesktopFile}
+	}
+	return nil
+}
+
 // Metadata contains additional package-specific metadata
 type Metadata struct {
 	IconFiles           []string          `json:"icon_files,omitempty"`
@@ -35,6 +47,7 @@ type Metadata struct {
 	InstallMethod       string            `json:"install_method,omitempty"`
 	ExtractedMeta       ExtractedMetadata `json:"extracted_metadata,omitempty"`
 	OriginalDesktopFile string            `json:"original_desktop_file,omitempty"` // Original .desktop path before rename for dock compatibility
+	DesktopFiles        []string          `json:"desktop_files,omitempty"`
 }
 
 // Install method constants

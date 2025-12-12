@@ -39,7 +39,7 @@ func NewListCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				ui.PrintError("failed to open database: %v", err)
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer database.Close()
+			defer func() { _ = database.Close() }()
 
 			// List installs
 			installs, err := database.List(ctx)

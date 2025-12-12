@@ -111,7 +111,7 @@ func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				issues = append(issues, fmt.Sprintf("Cannot open database: %v", err))
 			} else {
 				ui.PrintSuccess("Database: accessible (%s)", cfg.Paths.DBFile)
-				defer database.Close()
+				defer func() { _ = database.Close() }()
 
 				// Check installed packages
 				installs, err := database.List(ctx)
@@ -126,8 +126,11 @@ func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 						brokenInstalls := checkPackageIntegrity(installs)
 						if len(brokenInstalls) > 0 {
 							ui.PrintWarning("Found %d packages with missing files:", len(brokenInstalls))
-							for _, install := range brokenInstalls {
-								fmt.Printf("  • %s (%s)\n", install.Name, install.InstallID)
+							for _, broken := range brokenInstalls {
+								fmt.Printf("  • %s (%s)\n", broken.install.Name, broken.install.InstallID)
+								for _, missing := range broken.missing {
+									fmt.Printf("      - %s\n", missing)
+								}
 							}
 							warnings = append(warnings, fmt.Sprintf("%d packages have missing files", len(brokenInstalls)))
 						} else {
@@ -179,13 +182,13 @@ func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 }
 
 // checkDependency checks if a dependency is available
-func checkDependency(command, name, purpose string, required bool) bool {
+func checkDependency(command, _, _ string, _ bool) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
 }
 
 // checkDirectory checks if a directory exists and is writable
-func checkDirectory(path, name string, fix bool) bool {
+func checkDirectory(path, _ string, fix bool) bool {
 	info, err := os.Stat(path)
 	if err != nil {
 		// Try to create if it doesn't exist
@@ -222,32 +225,96 @@ func checkDirectory(path, name string, fix bool) bool {
 	return true
 }
 
+type brokenInstall struct {
+	install db.Install
+	missing []string
+}
+
 // checkPackageIntegrity checks if installed packages have their files intact
-func checkPackageIntegrity(installs []db.Install) []db.Install {
-	var broken []db.Install
+func checkPackageIntegrity(installs []db.Install) []brokenInstall {
+	var broken []brokenInstall
 
 	for _, install := range installs {
 		if isSystemManagedInstall(install) {
 			continue
 		}
 
+		var missing []string
+
 		// Check if install path exists
 		if install.InstallPath != "" {
 			if _, err := os.Stat(install.InstallPath); os.IsNotExist(err) {
-				broken = append(broken, install)
-				continue
+				missing = append(missing, install.InstallPath)
 			}
 		}
 
-		// Check if desktop file exists (if specified)
-		if install.DesktopFile != "" {
-			if _, err := os.Stat(install.DesktopFile); os.IsNotExist(err) {
-				broken = append(broken, install)
+		// Check desktop files (plural or singular)
+		for _, desktopPath := range getDesktopFilesFromDB(install) {
+			if desktopPath == "" {
+				continue
 			}
+			if _, err := os.Stat(desktopPath); os.IsNotExist(err) {
+				missing = append(missing, desktopPath)
+			}
+		}
+
+		// Check wrapper script
+		if install.Metadata != nil {
+			if wrapper, ok := install.Metadata["wrapper_script"].(string); ok && wrapper != "" {
+				if _, err := os.Stat(wrapper); os.IsNotExist(err) {
+					missing = append(missing, wrapper)
+				}
+			}
+
+			// Check icon files
+			var iconFiles []string
+			if iconsSlice, ok := install.Metadata["icon_files"].([]string); ok {
+				iconFiles = iconsSlice
+			} else if iconsInterface, ok := install.Metadata["icon_files"].([]interface{}); ok {
+				for _, item := range iconsInterface {
+					if str, ok := item.(string); ok {
+						iconFiles = append(iconFiles, str)
+					}
+				}
+			}
+			for _, iconPath := range iconFiles {
+				if iconPath == "" {
+					continue
+				}
+				if _, err := os.Stat(iconPath); os.IsNotExist(err) {
+					missing = append(missing, iconPath)
+				}
+			}
+		}
+
+		if len(missing) > 0 {
+			broken = append(broken, brokenInstall{install: install, missing: missing})
 		}
 	}
 
 	return broken
+}
+
+func getDesktopFilesFromDB(install db.Install) []string {
+	var desktopFiles []string
+
+	if install.Metadata != nil {
+		if files, ok := install.Metadata["desktop_files"].([]string); ok {
+			desktopFiles = append(desktopFiles, files...)
+		} else if filesInterface, ok := install.Metadata["desktop_files"].([]interface{}); ok {
+			for _, item := range filesInterface {
+				if str, ok := item.(string); ok {
+					desktopFiles = append(desktopFiles, str)
+				}
+			}
+		}
+	}
+
+	if len(desktopFiles) == 0 && install.DesktopFile != "" {
+		desktopFiles = []string{install.DesktopFile}
+	}
+
+	return desktopFiles
 }
 
 func isSystemManagedInstall(install db.Install) bool {

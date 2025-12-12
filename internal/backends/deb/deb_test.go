@@ -15,6 +15,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/syspkg"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ func TestNewWithRunner(t *testing.T) {
 
 	assert.NotNil(t, backend)
 	assert.Equal(t, "deb", backend.Name())
-	assert.Equal(t, mockRunner, backend.runner)
+	assert.Equal(t, mockRunner, backend.Runner)
 }
 
 func TestNewWithCacheManager(t *testing.T) {
@@ -286,11 +287,7 @@ func TestInstall_MissingDebtap(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	backend := &DebBackend{
-		cfg:    cfg,
-		logger: &logger,
-		runner: mockRunner,
-	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 	tmpDir := t.TempDir()
 	fakeDeb := filepath.Join(tmpDir, "test.deb")
@@ -312,11 +309,7 @@ func TestInstall_PackageNotFound(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	backend := &DebBackend{
-		cfg:    cfg,
-		logger: &logger,
-		runner: mockRunner,
-	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 	tx := transaction.NewManager(&logger)
 	record, err := backend.Install(context.Background(), "/nonexistent/package.deb", core.InstallOptions{}, tx)
@@ -341,13 +334,9 @@ func TestUninstall_PackageNotInPacman(t *testing.T) {
 		isInstalled: false,
 	}
 
-	backend := &DebBackend{
-		cfg:          cfg,
-		logger:       &logger,
-		runner:       mockRunner,
-		sys:          mockProvider,
-		cacheManager: cacheManager,
-	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.sys = mockProvider
+	backend.cacheManager = cacheManager
 
 	record := &core.InstallRecord{
 		InstallID:   "test-id",
@@ -377,13 +366,9 @@ func TestUninstall_Success(t *testing.T) {
 		removeErr:   nil,
 	}
 
-	backend := &DebBackend{
-		cfg:          cfg,
-		logger:       &logger,
-		runner:       mockRunner,
-		sys:          mockProvider,
-		cacheManager: cacheManager,
-	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.sys = mockProvider
+	backend.cacheManager = cacheManager
 
 	record := &core.InstallRecord{
 		InstallID:   "test-id",
@@ -410,11 +395,7 @@ func TestQueryDebName(t *testing.T) {
 		}
 
 		cfg := &config.Config{}
-		backend := &DebBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		tmpDir := t.TempDir()
 		fakeDeb := filepath.Join(tmpDir, "test.deb")
@@ -440,11 +421,7 @@ func TestQueryDebName(t *testing.T) {
 		}
 
 		cfg := &config.Config{}
-		backend := &DebBackend{
-			cfg:    cfg,
-			logger: &logger,
-			runner: mockRunner,
-		}
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		tmpDir := t.TempDir()
 		fakeDeb := filepath.Join(tmpDir, "test.deb")

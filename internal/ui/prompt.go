@@ -112,7 +112,7 @@ func MultiSelectPrompt(label string, items []string) ([]string, error) {
 		prompt := promptui.Select{
 			Label: label + " (select multiple, choose 'Done' when finished)",
 			Items: currentItems,
-			Size:  min(10, len(currentItems)),
+			Size:  minInt(10, len(currentItems)),
 			Searcher: func(input string, index int) bool {
 				if index < 0 || index >= len(currentItems) {
 					return false
@@ -161,7 +161,7 @@ func MultiSelectPrompt(label string, items []string) ([]string, error) {
 	return selected, nil
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -195,20 +195,20 @@ func ValidateNonEmpty(input string) error {
 }
 
 // ValidateMinLength validates minimum length
-func ValidateMinLength(min int) func(string) error {
+func ValidateMinLength(minLen int) func(string) error {
 	return func(input string) error {
-		if len(input) < min {
-			return fmt.Errorf("input must be at least %d characters", min)
+		if len(input) < minLen {
+			return fmt.Errorf("input must be at least %d characters", minLen)
 		}
 		return nil
 	}
 }
 
 // ValidateMaxLength validates maximum length
-func ValidateMaxLength(max int) func(string) error {
+func ValidateMaxLength(maxLen int) func(string) error {
 	return func(input string) error {
-		if len(input) > max {
-			return fmt.Errorf("input must be at most %d characters", max)
+		if len(input) > maxLen {
+			return fmt.Errorf("input must be at most %d characters", maxLen)
 		}
 		return nil
 	}

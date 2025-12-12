@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // sqlite driver
 )
 
 // DB represents the database with separate read/write pools
@@ -35,7 +35,7 @@ func New(ctx context.Context, dbPath string) (*DB, error) {
 	// Read pool: Can have multiple connections
 	read, err := sql.Open("sqlite", connStr)
 	if err != nil {
-		write.Close()
+		_ = write.Close()
 		return nil, fmt.Errorf("open read connection: %w", err)
 	}
 	read.SetMaxOpenConns(10)
@@ -51,7 +51,7 @@ func New(ctx context.Context, dbPath string) (*DB, error) {
 
 	// Initialize schema
 	if err := db.initSchema(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
 

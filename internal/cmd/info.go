@@ -29,7 +29,7 @@ func NewInfoCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				ui.PrintError("failed to open database: %v", err)
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer database.Close()
+			defer func() { _ = database.Close() }()
 
 			// Try to find install record (by ID or name)
 			var dbRecord *db.Install
@@ -112,7 +112,7 @@ func printPackageInfo(install *db.Install) {
 	}
 
 	// Metadata section
-	if install.Metadata != nil && len(install.Metadata) > 0 {
+	if len(install.Metadata) > 0 {
 		fmt.Println()
 		ui.PrintSubheader("Metadata")
 

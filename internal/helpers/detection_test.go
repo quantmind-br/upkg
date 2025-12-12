@@ -85,10 +85,7 @@ func TestHasSquashFS(t *testing.T) {
 				t.Fatalf("Failed to seek to start: %v", err)
 			}
 
-			result, err := hasSquashFS(tmpfile)
-			if err != nil {
-				t.Fatalf("hasSquashFS returned error: %v", err)
-			}
+			result := hasSquashFS(tmpfile)
 
 			if result != tt.expectedResult {
 				t.Errorf("hasSquashFS() = %v, want %v", result, tt.expectedResult)

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/quantmind-br/upkg/internal/backends/appimage"
 	"github.com/quantmind-br/upkg/internal/backends/binary"
@@ -13,9 +15,13 @@ import (
 	"github.com/quantmind-br/upkg/internal/backends/tarball"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 )
+
+const fileTypeUnknown = "unknown"
 
 // Backend interface that all package installers must implement
 type Backend interface {
@@ -40,6 +46,12 @@ type Registry struct {
 
 // NewRegistry creates a backend registry with all backends
 func NewRegistry(cfg *config.Config, log *zerolog.Logger) *Registry {
+	return NewRegistryWithDeps(cfg, log, afero.NewOsFs(), helpers.NewOSCommandRunner())
+}
+
+// NewRegistryWithDeps cria um registry com dependências comuns injetadas.
+// O fs será usado conforme os backends forem migrados para DI.
+func NewRegistryWithDeps(cfg *config.Config, log *zerolog.Logger, fs afero.Fs, runner helpers.CommandRunner) *Registry {
 	registry := &Registry{
 		backends: make([]Backend, 0),
 		logger:   log,
@@ -47,17 +59,17 @@ func NewRegistry(cfg *config.Config, log *zerolog.Logger) *Registry {
 
 	// Register backends in priority order
 	// 1. DEB and RPM (specific format detection)
-	registry.backends = append(registry.backends, deb.New(cfg, log))
-	registry.backends = append(registry.backends, rpm.New(cfg, log))
+	registry.backends = append(registry.backends, deb.NewWithDeps(cfg, log, fs, runner))
+	registry.backends = append(registry.backends, rpm.NewWithDeps(cfg, log, fs, runner))
 
 	// 2. AppImage must come before Binary (AppImages are also ELF)
-	registry.backends = append(registry.backends, appimage.New(cfg, log))
+	registry.backends = append(registry.backends, appimage.NewWithDeps(cfg, log, fs, runner))
 
 	// 3. Binary (catches standalone ELF binaries)
-	registry.backends = append(registry.backends, binary.New(cfg, log))
+	registry.backends = append(registry.backends, binary.NewWithDeps(cfg, log, fs, runner))
 
 	// 4. Tarball/Zip (archive formats)
-	registry.backends = append(registry.backends, tarball.New(cfg, log))
+	registry.backends = append(registry.backends, tarball.NewWithDeps(cfg, log, fs, runner))
 
 	return registry
 }
@@ -116,6 +128,16 @@ func (r *Registry) createDetectionError(packagePath string) error {
 		errorMsg += "\nWorkaround: Package your script in a tarball (.tar.gz) with any required assets."
 	}
 
+	ext := strings.ToLower(filepath.Ext(packagePath))
+	switch ext {
+	case ".flatpak", ".flatpakref", ".flatpakrepo":
+		errorMsg += "\n\nNote: This looks like a Flatpak package."
+		errorMsg += "\nUse: flatpak install <file-or-ref>"
+	case ".snap":
+		errorMsg += "\n\nNote: This looks like a Snap package."
+		errorMsg += "\nUse: sudo snap install <file.snap>"
+	}
+
 	return errors.New(errorMsg)
 }
 
@@ -125,7 +147,7 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 	// This is a simplified version - could be more sophisticated
 	file, err := os.Open(packagePath)
 	if err != nil {
-		return "unknown", err
+		return fileTypeUnknown, err
 	}
 	defer func() { _ = file.Close() }()
 
@@ -133,7 +155,7 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 	buf := make([]byte, 512)
 	n, err := file.Read(buf)
 	if err != nil {
-		return "unknown", err
+		return fileTypeUnknown, err
 	}
 
 	// Check for common file signatures
@@ -167,7 +189,7 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 		return "XZ compressed (likely tar.xz)", nil
 	}
 
-	return "unknown", nil
+	return fileTypeUnknown, nil
 }
 
 // GetBackend retrieves a backend by name

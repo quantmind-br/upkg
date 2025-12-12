@@ -1,13 +1,15 @@
 package binary
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"os"
+	"io"
 	"path/filepath"
 	"strings"
 	"time"
 
+	backendbase "github.com/quantmind-br/upkg/internal/backends/base"
 	"github.com/quantmind-br/upkg/internal/cache"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
@@ -16,43 +18,38 @@ import (
 	"github.com/quantmind-br/upkg/internal/security"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 )
 
 // BinaryBackend handles standalone ELF binary installations
 type BinaryBackend struct {
-	cfg          *config.Config
-	logger       *zerolog.Logger
-	runner       helpers.CommandRunner
+	*backendbase.BaseBackend
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new binary backend
 func New(cfg *config.Config, log *zerolog.Logger) *BinaryBackend {
-	return &BinaryBackend{
-		cfg:          cfg,
-		logger:       log,
-		runner:       helpers.NewOSCommandRunner(),
-		cacheManager: cache.NewCacheManager(),
-	}
+	return NewWithDeps(cfg, log, afero.NewOsFs(), helpers.NewOSCommandRunner())
 }
 
 // NewWithRunner creates a new binary backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *BinaryBackend {
-	return &BinaryBackend{
-		cfg:          cfg,
-		logger:       log,
-		runner:       runner,
-		cacheManager: cache.NewCacheManager(),
-	}
+	return NewWithDeps(cfg, log, afero.NewOsFs(), runner)
 }
 
 // NewWithCacheManager creates a new binary backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *BinaryBackend {
+	backend := New(cfg, log)
+	backend.cacheManager = cacheManager
+	return backend
+}
+
+// NewWithDeps creates a new binary backend with custom dependencies for testing
+func NewWithDeps(cfg *config.Config, log *zerolog.Logger, fs afero.Fs, runner helpers.CommandRunner) *BinaryBackend {
+	base := backendbase.NewWithDeps(cfg, log, fs, runner)
 	return &BinaryBackend{
-		cfg:          cfg,
-		logger:       log,
-		runner:       helpers.NewOSCommandRunner(),
-		cacheManager: cacheManager,
+		BaseBackend:  base,
+		cacheManager: cache.NewCacheManagerWithRunner(runner),
 	}
 }
 
@@ -64,36 +61,28 @@ func (b *BinaryBackend) Name() string {
 // Detect checks if this backend can handle the package
 func (b *BinaryBackend) Detect(ctx context.Context, packagePath string) (bool, error) {
 	// Check if file exists
-	if _, err := os.Stat(packagePath); err != nil {
+	if _, err := b.Fs.Stat(packagePath); err != nil {
 		return false, nil
 	}
 
-	// Check if it's an ELF binary
-	isElf, err := helpers.IsELF(packagePath)
+	fileType, err := helpers.DetectFileType(packagePath)
 	if err != nil {
 		return false, err
 	}
 
-	// Check if it's NOT an AppImage (AppImage is also ELF)
-	if isElf {
-		isAppImage, _ := helpers.IsAppImage(packagePath)
-		if isAppImage {
-			return false, nil // Let AppImage backend handle it
-		}
-	}
-
-	return isElf, nil
+	// DetectFileType already differentiates AppImage vs plain ELF.
+	return fileType == helpers.FileTypeELF, nil
 }
 
 // Install installs the binary package
 func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
-	b.logger.Info().
+	b.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
 		Msg("installing binary package")
 
 	// Validate package exists
-	if _, err := os.Stat(packagePath); err != nil {
+	if _, err := b.Fs.Stat(packagePath); err != nil {
 		return nil, fmt.Errorf("package not found: %w", err)
 	}
 
@@ -113,71 +102,71 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 	installID := helpers.GenerateInstallID(binName)
 
 	// Create ~/.local/bin directory
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	binDir := filepath.Join(homeDir, ".local", "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
+	binDir := b.Paths.GetBinDir()
+	if err := b.Fs.MkdirAll(binDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create bin directory: %w", err)
 	}
 
 	// Copy binary to ~/.local/bin/
 	destPath := filepath.Join(binDir, binName)
-	if _, err := os.Stat(destPath); err == nil {
+	if _, err := b.Fs.Stat(destPath); err == nil {
 		if !opts.Force {
 			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", destPath)
 		}
-		if err := os.Remove(destPath); err != nil && !os.IsNotExist(err) {
+		if err := b.Fs.Remove(destPath); err != nil {
 			return nil, fmt.Errorf("remove existing binary: %w", err)
 		}
 	}
-	if err := helpers.CopyFile(packagePath, destPath); err != nil {
+
+	if err := b.copyBinary(packagePath, destPath); err != nil {
 		return nil, fmt.Errorf("failed to copy binary: %w", err)
 	}
 
 	// Make executable
-	if err := os.Chmod(destPath, 0755); err != nil {
+	if err := b.Fs.Chmod(destPath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to make executable: %w", err)
 	}
 
 	if tx != nil {
+		path := destPath
 		tx.Add("remove binary", func() error {
-			if err := os.Remove(destPath); err != nil && !os.IsNotExist(err) {
+			if err := b.Fs.Remove(path); err != nil {
 				return err
 			}
 			return nil
 		})
 	}
 
-	b.logger.Debug().
+	b.Log.Debug().
 		Str("source", packagePath).
 		Str("dest", destPath).
 		Msg("binary copied and made executable")
 
 	// Create .desktop file if not skipped
-	var desktopPath string
+	var (
+		desktopPath string
+		err         error
+	)
 	if !opts.SkipDesktop {
 		if opts.Force {
-			appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-			_ = os.Remove(filepath.Join(appsDir, binName+".desktop"))
+			appsDir := b.Paths.GetAppsDir()
+			_ = b.Fs.Remove(filepath.Join(appsDir, binName+".desktop"))
 		}
 		desktopPath, err = b.createDesktopFile(appName, binName, destPath, opts)
 		if err != nil {
 			// Clean up binary on desktop file creation failure
-			_ = os.Remove(destPath)
+			_ = b.Fs.Remove(destPath)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
-		b.logger.Debug().
+		b.Log.Debug().
 			Str("desktop_file", desktopPath).
 			Msg("desktop file created")
 
 		if tx != nil && desktopPath != "" {
 			path := desktopPath
 			tx.Add("remove desktop file", func() error {
-				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				if err := b.Fs.Remove(path); err != nil {
 					return err
 				}
 				return nil
@@ -185,8 +174,8 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 		}
 
 		// Update desktop database
-		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.logger)
+		appsDir := b.Paths.GetAppsDir()
+		_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log)
 	}
 
 	// Create install record
@@ -204,7 +193,7 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 		},
 	}
 
-	b.logger.Info().
+	b.Log.Info().
 		Str("install_id", installID).
 		Str("name", appName).
 		Str("path", destPath).
@@ -213,49 +202,69 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 	return record, nil
 }
 
+func (b *BinaryBackend) copyBinary(srcPath, destPath string) error {
+	srcFile, err := b.Fs.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("open source binary: %w", err)
+	}
+	defer func() { _ = srcFile.Close() }()
+
+	dstFile, err := b.Fs.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("create destination binary: %w", err)
+	}
+	defer func() { _ = dstFile.Close() }()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return fmt.Errorf("copy binary contents: %w", err)
+	}
+
+	return nil
+}
+
 // Uninstall removes the installed binary package
 func (b *BinaryBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
-	b.logger.Info().
+	b.Log.Info().
 		Str("install_id", record.InstallID).
 		Str("name", record.Name).
 		Msg("uninstalling binary package")
 
 	// Remove binary
 	if record.InstallPath != "" {
-		if err := os.Remove(record.InstallPath); err != nil && !os.IsNotExist(err) {
-			b.logger.Warn().
+		if err := b.Fs.Remove(record.InstallPath); err != nil {
+			b.Log.Warn().
 				Err(err).
 				Str("path", record.InstallPath).
 				Msg("failed to remove binary")
 		} else {
-			b.logger.Debug().
+			b.Log.Debug().
 				Str("path", record.InstallPath).
 				Msg("binary removed")
 		}
 	}
 
-	// Remove .desktop file
-	if record.DesktopFile != "" {
-		if err := os.Remove(record.DesktopFile); err != nil && !os.IsNotExist(err) {
-			b.logger.Warn().
+	// Remove .desktop file(s)
+	for _, desktopPath := range record.GetDesktopFiles() {
+		if desktopPath == "" {
+			continue
+		}
+		if err := b.Fs.Remove(desktopPath); err != nil {
+			b.Log.Warn().
 				Err(err).
-				Str("path", record.DesktopFile).
+				Str("path", desktopPath).
 				Msg("failed to remove desktop file")
 		} else {
-			b.logger.Debug().
-				Str("path", record.DesktopFile).
+			b.Log.Debug().
+				Str("path", desktopPath).
 				Msg("desktop file removed")
 		}
 	}
 
 	// Update desktop database
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.logger)
-	}
+	appsDir := b.Paths.GetAppsDir()
+	_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log)
 
-	b.logger.Info().
+	b.Log.Info().
 		Str("install_id", record.InstallID).
 		Msg("binary package uninstalled successfully")
 
@@ -264,13 +273,8 @@ func (b *BinaryBackend) Uninstall(ctx context.Context, record *core.InstallRecor
 
 // createDesktopFile creates a .desktop file for the binary
 func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opts core.InstallOptions) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-	if err := os.MkdirAll(appsDir, 0755); err != nil {
+	appsDir := b.Paths.GetAppsDir()
+	if err := b.Fs.MkdirAll(appsDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create applications directory: %w", err)
 	}
 
@@ -292,9 +296,9 @@ func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opt
 	}
 
 	// Inject Wayland environment variables if enabled
-	if b.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
-		if err := desktop.InjectWaylandEnvVars(entry, b.cfg.Desktop.CustomEnvVars); err != nil {
-			b.logger.Warn().
+	if b.Cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
+		if err := desktop.InjectWaylandEnvVars(entry, b.Cfg.Desktop.CustomEnvVars); err != nil {
+			b.Log.Warn().
 				Err(err).
 				Str("app", appName).
 				Msg("invalid custom Wayland env vars, injecting defaults only")
@@ -302,18 +306,21 @@ func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opt
 		}
 	}
 
-	// Write desktop file
-	if err := desktop.WriteDesktopFile(desktopFilePath, entry); err != nil {
-		return "", fmt.Errorf("failed to write desktop file: %w", err)
+	var buf bytes.Buffer
+	if err := desktop.Write(&buf, entry); err != nil {
+		return "", fmt.Errorf("write desktop entry: %w", err)
+	}
+	if err := afero.WriteFile(b.Fs, desktopFilePath, buf.Bytes(), 0644); err != nil {
+		return "", fmt.Errorf("write desktop file: %w", err)
 	}
 
 	// Validate desktop file
-	if b.runner.CommandExists("desktop-file-validate") {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if b.Runner.CommandExists("desktop-file-validate") {
+		validateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if _, err := b.runner.RunCommand(ctx, "desktop-file-validate", desktopFilePath); err != nil {
-			b.logger.Warn().
+		if _, err := b.Runner.RunCommand(validateCtx, "desktop-file-validate", desktopFilePath); err != nil {
+			b.Log.Warn().
 				Err(err).
 				Str("desktop_file", desktopFilePath).
 				Msg("desktop file validation failed")
@@ -322,5 +329,3 @@ func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opt
 
 	return desktopFilePath, nil
 }
-
-// No local helper functions - using shared helpers from internal/helpers/common.go

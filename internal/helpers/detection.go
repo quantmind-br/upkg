@@ -83,7 +83,7 @@ func DetectFileType(filePath string) (FileType, error) {
 	// ELF magic: 0x7F 'E' 'L' 'F'
 	if len(header) >= 4 && bytes.Equal(header[:4], []byte{0x7F, 'E', 'L', 'F'}) {
 		// Check if it's an AppImage (ELF with embedded squashfs)
-		if isAppImage, _ := hasSquashFS(f); isAppImage {
+		if hasSquashFS(f) {
 			return FileTypeAppImage, nil
 		}
 		return FileTypeELF, nil
@@ -162,7 +162,7 @@ func IsELF(filePath string) (bool, error) {
 	if err != nil {
 		return false, nil // Invalid ELF structure
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Check if it's an executable or dynamic library
 	return f.Type == elf.ET_EXEC || f.Type == elf.ET_DYN, nil
@@ -181,12 +181,12 @@ func IsAppImage(filePath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	return hasSquashFS(f)
+	return hasSquashFS(f), nil
 }
 
-func hasSquashFS(f *os.File) (bool, error) {
+func hasSquashFS(f *os.File) bool {
 	// squashfs magic: "hsqs" (little-endian) or "sqsh" (big-endian)
 	// AppImages embed squashfs at various offsets, scan incrementally to find it
 
@@ -223,12 +223,12 @@ func hasSquashFS(f *os.File) (bool, error) {
 			if bytes.Equal(buf[i:i+4], magicLE) || bytes.Equal(buf[i:i+4], magicBE) {
 				// Found squashfs signature
 				// Actual offset is: offset + i
-				return true, nil
+				return true
 			}
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // GetArchiveType returns the archive type based on file extension

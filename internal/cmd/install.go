@@ -41,6 +41,13 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			packagePath := args[0]
 
+			absPath, err := filepath.Abs(packagePath)
+			if err != nil {
+				color.Red("Error: invalid package path: %v", err)
+				return fmt.Errorf("invalid package path: %w", err)
+			}
+			packagePath = absPath
+
 			log.Info().
 				Str("package", packagePath).
 				Bool("force", force).
@@ -50,6 +57,14 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			if err := security.ValidatePath(packagePath); err != nil {
 				color.Red("Error: invalid package path: %v", err)
 				return fmt.Errorf("invalid package path: %w", err)
+			}
+
+			if customName != "" {
+				customName = security.SanitizeString(customName)
+				if err := security.ValidatePackageName(customName); err != nil {
+					color.Red("Error: invalid custom name: %v", err)
+					return fmt.Errorf("invalid custom name: %w", err)
+				}
 			}
 
 			// Validate package exists
@@ -68,7 +83,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				color.Red("Error: failed to open database: %v", err)
 				return fmt.Errorf("failed to open database: %w", err)
 			}
-			defer database.Close()
+			defer func() { _ = database.Close() }()
 
 			// Create backend registry
 			registry := backends.NewRegistry(cfg, log)
@@ -88,6 +103,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			defer func() {
 				if err := tx.Rollback(); err != nil {
 					log.Warn().Err(err).Msg("transaction rollback failed")
+					color.Red("Error: rollback failed: %v", err)
 				}
 			}()
 
@@ -121,6 +137,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 					"wrapper_script":  record.Metadata.WrapperScript,
 					"wayland_support": record.Metadata.WaylandSupport,
 					"install_method":  record.Metadata.InstallMethod,
+					"desktop_files":   record.Metadata.DesktopFiles,
 				},
 			}
 

@@ -38,7 +38,7 @@ func NewUninstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				color.Red("Error: failed to open database: %v", err)
 				return fmt.Errorf("failed to open database: %w", err)
 			}
-			defer database.Close()
+			defer func() { _ = database.Close() }()
 
 			registry := backends.NewRegistry(cfg, log)
 
@@ -296,6 +296,16 @@ func dbInstallToCore(dbRecord *db.Install) *core.InstallRecord {
 		if installMethod, ok := dbRecord.Metadata["install_method"].(string); ok && installMethod != "" {
 			record.Metadata.InstallMethod = installMethod
 		}
+
+		if desktopFiles, ok := dbRecord.Metadata["desktop_files"].([]string); ok {
+			record.Metadata.DesktopFiles = desktopFiles
+		} else if desktopFilesInterface, ok := dbRecord.Metadata["desktop_files"].([]interface{}); ok {
+			for _, item := range desktopFilesInterface {
+				if str, ok := item.(string); ok {
+					record.Metadata.DesktopFiles = append(record.Metadata.DesktopFiles, str)
+				}
+			}
+		}
 	}
 
 	if record.Metadata.InstallMethod == "" {
@@ -336,7 +346,7 @@ func calculatePackageSize(installPath string) (int64, int) {
 	}
 
 	// If it's a directory, walk through it
-	filepath.Walk(installPath, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(installPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // Skip errors
 		}

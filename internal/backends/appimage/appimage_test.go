@@ -13,6 +13,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func TestNewWithRunner(t *testing.T) {
 
 	assert.NotNil(t, backend)
 	assert.Equal(t, "appimage", backend.Name())
-	assert.Equal(t, mockRunner, backend.runner)
+	assert.Equal(t, mockRunner, backend.Runner)
 }
 
 func TestNewWithCacheManager(t *testing.T) {
@@ -179,15 +180,9 @@ func TestUninstall(t *testing.T) {
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return false },
 	}
-	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
 
 	cfg := &config.Config{}
-	backend := &AppImageBackend{
-		cfg:          cfg,
-		logger:       &logger,
-		runner:       mockRunner,
-		cacheManager: cacheManager,
-	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 	t.Run("uninstalls all files", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -359,24 +354,18 @@ func contains(s, substr string) bool {
 func TestInstall_AlreadyInstalled(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
-	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
-	}
-	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
-
-	cfg := &config.Config{}
-	backend := &AppImageBackend{
-		cfg:          cfg,
-		logger:       &logger,
-		runner:       mockRunner,
-		cacheManager: cacheManager,
-	}
-
 	tmpDir := t.TempDir()
 
 	origHomeDir := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHomeDir)
+
+	mockRunner := &helpers.MockCommandRunner{
+		CommandExistsFunc: func(name string) bool { return false },
+	}
+
+	cfg := &config.Config{}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 	// Create source AppImage
 	sourceAppImage := filepath.Join(tmpDir, "source", "test.AppImage")
@@ -422,15 +411,15 @@ func TestInstallRecord(t *testing.T) {
 
 func TestTransactionRollback(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	cfg := &config.Config{}
-	backend := New(cfg, &logger)
-	tx := transaction.NewManager(&logger)
-
 	tmpDir := t.TempDir()
 
 	origHomeDir := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHomeDir)
+
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+	tx := transaction.NewManager(&logger)
 
 	// Create a fake AppImage
 	fakeAppImage := filepath.Join(tmpDir, "test.AppImage")

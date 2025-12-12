@@ -1,4 +1,4 @@
-.PHONY: build test lint install clean fmt vet coverage help
+.PHONY: build test lint install clean fmt vet coverage help clean-db e2e-test
 
 # Build variables
 BINARY_NAME=upkg
@@ -82,6 +82,16 @@ clean:
 	@rm -rf $(BUILD_DIR)
 	@rm -f coverage.out coverage.html
 	@echo "Clean complete"
+
+## clean-db: Remove local upkg database (override with DB_PATH)
+DB_PATH ?= $(HOME)/.local/share/upkg/upkg.db
+clean-db:
+	@echo "Removing database at $(DB_PATH)..."
+	@rm -f "$(DB_PATH)" "$(DB_PATH)-wal" "$(DB_PATH)-shm"
+
+## e2e-test: Run end-to-end baseline tests
+e2e-test:
+	@bash scripts/e2e-test.sh
 
 ## validate: Run all validation checks (fmt, vet, lint, test)
 validate: fmt vet lint test

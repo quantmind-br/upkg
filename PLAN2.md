@@ -2,13 +2,13 @@
 
 ## 1. Executive Summary & Goals
 
-O objetivo deste plano é consolidar as melhorias estruturais, de eficiência, segurança e novas funcionalidades propostas em uma sequência lógica e de baixo risco. A prioridade máxima é a **Refatoração Core** (Injeção de Dependência) e a **Segurança**, que pavimentam o caminho para todas as outras otimizações e novos recursos.
+O objetivo deste plano é consolidar as melhorias estruturais, de eficiência, segurança e novas funcionalidades propostas em uma sequência lógica e de baixo risco. A prioridade máxima continua sendo **Segurança** e **qualidade de código**, agora sobre uma base de DI já implementada.
 
-### Key Goals:
+### Key Goals (atualizado):
 
-1.  **Estabelecer a Injeção de Dependência Core:** Universalizar a injeção de `helpers.CommandRunner` e `afero.Fs` nos backends para garantir 100% de testabilidade e aderência ao `PLAN.md`.
-2.  **Aumentar a Robustez e Segurança:** Centralizar a lógica de caminhos, aplicar sanitização de *todos* os inputs na camada CLI, e garantir validação de *output* em extrações.
-3.  **Implementar Otimizações Chave:** Adicionar *caching* de comandos e aprimorar a extração ASAR nativa para ganhos imediatos de desempenho.
+1.  **Consolidar a Injeção de Dependência Core (concluída):** `helpers.CommandRunner` e `afero.Fs` já são injetados via `internal/backends/base`, e os backends concretos usam essas dependências.
+2.  **Aumentar a Robustez e Segurança (foco atual):** Sanitizar *todos* os inputs na camada CLI e garantir validação de *output* em extrações/cópias.
+3.  **Manter/Otimizar Hot Paths (parcialmente concluído):** Cache de `CommandExists` já existe; restam otimizações específicas (ex.: ASAR nativa) e redução de I/O desnecessário.
 
 ## 2. Current Situation Analysis
 
@@ -18,25 +18,21 @@ O projeto `upkg` possui uma arquitetura modular baseada no Padrão Estratégia (
 
 | Aspecto | Status | Evidência |
 |---------|--------|-----------|
-| **CommandRunner injetado** | ✅ Implementado | Todos os backends têm `NewWithRunner()` |
-| **afero.Fs injetado** | ❌ Não implementado | 20+ chamadas `os.*` só em `appimage.go` |
-| **Lógica de paths duplicada** | ❌ Extensiva | 20+ padrões `filepath.Join()` idênticos |
-| **Sanitização de customName** | ❌ Dispersa nos backends | Deveria estar na CLI |
-| **Cache de CommandExists** | ❌ Inexistente | `exec.LookPath()` chamado toda vez |
+| **CommandRunner injetado** | ✅ Implementado | Todos os backends expõem `NewWithDeps()` e embedam `BaseBackend.Runner` |
+| **afero.Fs injetado** | ✅ Implementado | Backends usam `BaseBackend.Fs` (exceto `backend.go` na detecção) |
+| **Lógica de paths duplicada** | ⚠️ Residual | `internal/paths` centraliza dirs; sobra join manual pontual em `rpm.go` (ícones) |
+| **Sanitização de customName** | ❌ Dispersa nos backends | Ainda deveria estar na CLI |
+| **Cache de CommandExists** | ✅ Implementado | `OSCommandRunner` tem cache interno (`sync.Map`) |
 | **Pacote security** | ✅ Bem desenvolvido | 10+ funções de validação disponíveis |
 | **Funções security subutilizadas** | ❌ Sim | `copyDir()` não usa `ValidateSymlink()` |
-| **Metadata.DesktopFiles** | ❌ Ausente | Apenas campo singular `DesktopFile` |
+| **Metadata.DesktopFiles** | ✅ Implementado | `core.Metadata.DesktopFiles` + `InstallRecord.GetDesktopFiles()` |
 
 ### 2.2. Pontos de Acoplamento Identificados
 
-* **`internal/backends/appimage/appimage.go`**: `runner` é injetável, mas `os.*` é usado diretamente (~20 ocorrências: `os.Chmod`, `os.MkdirAll`, `os.Stat`, `os.Remove`, `os.WriteFile`).
-* **`internal/backends/binary/binary.go`**: Similar ao AppImage.
-* **`internal/backends/tarball/tarball.go`**: Similar, com lógica adicional de extração.
-* **`internal/backends/deb/deb.go`**: Similar.
-* **`internal/backends/rpm/rpm.go`**: Similar, com `copyDir()` contendo validação manual de symlinks.
-* **`internal/config/config.go`**: Lógica de diretórios como `~/.local/bin` e `~/.local/share/applications` está duplicada em vários backends.
-* **`internal/helpers/exec.go`**: A checagem de `CommandExists` não tem cache e chama `exec.LookPath` a cada invocação.
-* **`internal/helpers/archive.go`**: Potencial vulnerabilidade de Path Traversal não auditada.
+* **`internal/backends/backend.go`**: Ainda usa `os.Open` para detecção de tipo (aceitável fora da DI).
+* **`internal/backends/rpm/rpm.go`**: `copyDir()` valida symlinks manualmente e há lógica residual de paths para ícones.
+* **`internal/helpers/archive.go`**: Extração segura precisa ser auditada/centralizada com `security.ValidateExtractPath` e `ValidateSymlink`.
+* **`internal/cmd/install.go`**: Sanitização de `customName`, `version` e `packagePath` ainda não é centralizada na CLI.
 
 ### 2.3. Inputs Não Sanitizados na CLI
 
@@ -79,13 +75,13 @@ graph TD
 
 | Componente | Tipo | Responsabilidade / Mudança Principal |
 |:-----------|:-----|:-------------------------------------|
-| `internal/paths` (New) | Refatoração | Centralizar a lógica de `filepath.Join(homeDir, ...)` para `~/.local/bin`, `~/.local/share/applications`, etc. e validar permissões. |
-| `internal/helpers/exec.go` | Otimização | Implementar `sync.Map` para cache de `CommandExists`. |
-| `internal/backends/base.go` (New) | Refatoração | Criar `BaseBackend` struct com `afero.Fs`, `CommandRunner` e `PathResolver` injetados. |
-| `internal/backends/*/*` | Refatoração | Migrar todos os backends para usar `BaseBackend` e eliminar chamadas diretas a `os.*`. |
-| `internal/cmd/install.go` | Segurança | Sanitizar TODOS os inputs (`customName`, `version`, `packagePath`) antes de passar ao backend. |
-| `internal/helpers/archive.go` | Segurança | Auditar e aplicar `security.ValidateExtractPath` consistentemente. |
-| `internal/core/models.go` | Feature | Adicionar `DesktopFiles []string` ao `core.Metadata`. |
+| `internal/paths` | Refatoração (concluída) | Centraliza a lógica de diretórios (`~/.local/bin`, `~/.local/share/applications`, etc.). |
+| `internal/helpers/exec.go` | Otimização (concluída) | Cache de `CommandExists` via `sync.Map`. |
+| `internal/backends/base` | Refatoração (concluída) | `BaseBackend` com `afero.Fs`, `CommandRunner` e `PathResolver`. |
+| `internal/backends/*/*` | Refatoração (concluída, com restos) | Backends migrados para DI; eliminar joins residuais. |
+| `internal/cmd/install.go` | Segurança (pendente) | Sanitizar TODOS os inputs (`customName`, `version`, `packagePath`) antes de passar ao backend. |
+| `internal/helpers/archive.go` | Segurança (pendente) | Auditar e aplicar `security.ValidateExtractPath`/`ValidateSymlink` consistentemente. |
+| `internal/core/models.go` | Feature (concluída) | `DesktopFiles []string` no `core.Metadata` + fallback. |
 
 ### 3.3. Detailed Action Plan / Phases
 
@@ -114,6 +110,7 @@ A ordem é estritamente sequencial, priorizando os habilitadores (`Enabler`), se
 
 **Objective(s):** Injetar dependências de I/O e centralizar caminhos.
 **Priority:** Critical
+**Status atual:** ✅ Concluída (ver `internal/backends/base`, `internal/paths`, backends migrados).
 
 ##### Sub-phase 1.1: Infraestrutura Base
 
@@ -244,6 +241,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 **Objective(s):** Melhorar a eficiência e a usabilidade para o desenvolvedor.
 **Priority:** Medium
+**Status atual:** Cache de `CommandExists` (Task 3.1) já implementado em `internal/helpers/exec.go`.
 
 | Task | Rationale/Goal | Effort | Deliverable/Criteria |
 |:-----|:---------------|:-------|:---------------------|
@@ -287,6 +285,7 @@ func (r *OSCommandRunner) CommandExists(name string) bool {
 
 **Objective(s):** Adicionar funcionalidades solicitadas e aumentar a modularidade.
 **Priority:** Low/Medium
+**Status atual:** Tasks 4.3a–4.3e (DesktopFiles + migração) já implementadas.
 
 | Task | Rationale/Goal | Effort | Deliverable/Criteria |
 |:-----|:---------------|:-------|:---------------------|

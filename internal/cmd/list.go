@@ -17,7 +17,7 @@ import (
 )
 
 // NewListCmd creates the list command
-func NewListCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
+func NewListCmd(cfg *config.Config, _ *zerolog.Logger) *cobra.Command {
 	var (
 		jsonOutput  bool
 		filterType  string
@@ -30,7 +30,7 @@ func NewListCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		Use:   "list",
 		Short: "List installed packages",
 		Long:  `List all installed packages with filtering and sorting options.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := context.Background()
 
 			// Open database
@@ -76,9 +76,13 @@ func NewListCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 
 			// Table output
 			if showDetails {
-				printDetailedTable(cmd, filtered)
+				if err := printDetailedTable(cmd, filtered); err != nil {
+					return err
+				}
 			} else {
-				printCompactTable(cmd, filtered)
+				if err := printCompactTable(cmd, filtered); err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -202,7 +206,7 @@ func printSummary(all, filtered []db.Install, filterType, filterName string) {
 }
 
 // printCompactTable prints a compact table view
-func printCompactTable(cmd *cobra.Command, installs []db.Install) {
+func printCompactTable(cmd *cobra.Command, installs []db.Install) error {
 	table := tablewriter.NewTable(cmd.OutOrStdout(),
 		tablewriter.WithHeader([]string{"Name", "Type", "Version", "Install Date"}),
 		tablewriter.WithAlignment(tw.MakeAlign(4, tw.AlignLeft)),
@@ -215,19 +219,24 @@ func printCompactTable(cmd *cobra.Command, installs []db.Install) {
 			version = "-"
 		}
 
-		table.Append(
+		if err := table.Append(
 			install.Name,
 			ui.ColorizePackageType(install.PackageType),
 			version,
 			install.InstallDate.Format("2006-01-02 15:04"),
-		)
+		); err != nil {
+			return fmt.Errorf("append table row: %w", err)
+		}
 	}
 
-	table.Render()
+	if err := table.Render(); err != nil {
+		return fmt.Errorf("render table: %w", err)
+	}
+	return nil
 }
 
 // printDetailedTable prints a detailed table view
-func printDetailedTable(cmd *cobra.Command, installs []db.Install) {
+func printDetailedTable(cmd *cobra.Command, installs []db.Install) error {
 	table := tablewriter.NewTable(cmd.OutOrStdout(),
 		tablewriter.WithHeader([]string{"Name", "Type", "Version", "Install Date", "Install ID", "Path"}),
 		tablewriter.WithAlignment(tw.MakeAlign(6, tw.AlignLeft)),
@@ -252,15 +261,20 @@ func printDetailedTable(cmd *cobra.Command, installs []db.Install) {
 			installID = installID[:20] + "..."
 		}
 
-		table.Append(
+		if err := table.Append(
 			install.Name,
 			ui.ColorizePackageType(install.PackageType),
 			version,
 			install.InstallDate.Format("2006-01-02"),
 			installID,
 			path,
-		)
+		); err != nil {
+			return fmt.Errorf("append table row: %w", err)
+		}
 	}
 
-	table.Render()
+	if err := table.Render(); err != nil {
+		return fmt.Errorf("render table: %w", err)
+	}
+	return nil
 }

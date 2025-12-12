@@ -107,7 +107,11 @@ func (r *Registry) DetectBackend(ctx context.Context, packagePath string) (Backe
 // createDetectionError creates a detailed error message for unsupported packages
 func (r *Registry) createDetectionError(packagePath string) error {
 	// Try to detect file type
-	fileType, _ := r.detectFileType(packagePath)
+	fileType, detectErr := r.detectFileType(packagePath)
+	if detectErr != nil {
+		r.logger.Debug().Err(detectErr).Str("package_path", packagePath).Msg("failed to detect file type")
+		fileType = ""
+	}
 
 	errorMsg := fmt.Sprintf("cannot detect package type for: %s", packagePath)
 
@@ -142,6 +146,8 @@ func (r *Registry) createDetectionError(packagePath string) error {
 }
 
 // detectFileType attempts to detect the file type
+//
+//nolint:gocyclo // file type detection is a set of signature checks.
 func (r *Registry) detectFileType(packagePath string) (string, error) {
 	// Use the file command to detect type
 	// This is a simplified version - could be more sophisticated

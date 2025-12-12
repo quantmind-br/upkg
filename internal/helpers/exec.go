@@ -54,7 +54,10 @@ func NewOSCommandRunner() *OSCommandRunner {
 // CommandExists checks if a command is available in PATH
 func (r *OSCommandRunner) CommandExists(name string) bool {
 	if cached, ok := r.commandCache.Load(name); ok {
-		return cached.(bool)
+		if exists, ok := cached.(bool); ok {
+			return exists
+		}
+		r.commandCache.Delete(name)
 	}
 
 	_, err := exec.LookPath(name)

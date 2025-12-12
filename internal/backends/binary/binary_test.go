@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const desktopValidateCmd = "desktop-file-validate"
+
 func setTempHome(t *testing.T) (string, func()) {
 	t.Helper()
 	tmpDir := t.TempDir()
@@ -147,7 +149,7 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 	defer restore()
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 
 	cfg := &config.Config{}
@@ -175,8 +177,8 @@ func TestInstall_ForceReinstall(t *testing.T) {
 	defer restore()
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return name == "desktop-file-validate" },
-		RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
+		RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", nil
 		},
 	}
@@ -209,8 +211,8 @@ func TestInstall_WithCustomName(t *testing.T) {
 	defer restore()
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return name == "desktop-file-validate" },
-		RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
+		RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", nil
 		},
 	}
@@ -238,7 +240,7 @@ func TestInstall_SkipDesktop(t *testing.T) {
 	defer restore()
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 
 	cfg := &config.Config{}
@@ -264,8 +266,8 @@ func TestInstall_WithTransaction(t *testing.T) {
 	defer restore()
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return name == "desktop-file-validate" },
-		RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
+		RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", nil
 		},
 	}
@@ -297,7 +299,7 @@ func TestUninstall(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 	cfg := &config.Config{}
 
@@ -351,8 +353,8 @@ func TestCreateDesktopFile(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return name == "desktop-file-validate" },
-		RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
+		RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", nil
 		},
 	}
@@ -423,8 +425,8 @@ func TestInstallRecord(t *testing.T) {
 	defer restore()
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return name == "desktop-file-validate" },
-		RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
+		RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", nil
 		},
 	}

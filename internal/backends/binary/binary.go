@@ -22,6 +22,8 @@ import (
 )
 
 // BinaryBackend handles standalone ELF binary installations
+//
+//nolint:revive // exported backend names are kept for consistency across packages.
 type BinaryBackend struct {
 	*backendbase.BaseBackend
 	cacheManager *cache.CacheManager
@@ -59,7 +61,7 @@ func (b *BinaryBackend) Name() string {
 }
 
 // Detect checks if this backend can handle the package
-func (b *BinaryBackend) Detect(ctx context.Context, packagePath string) (bool, error) {
+func (b *BinaryBackend) Detect(_ context.Context, packagePath string) (bool, error) {
 	// Check if file exists
 	if _, err := b.Fs.Stat(packagePath); err != nil {
 		return false, nil
@@ -75,7 +77,9 @@ func (b *BinaryBackend) Detect(ctx context.Context, packagePath string) (bool, e
 }
 
 // Install installs the binary package
-func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+//
+//nolint:gocyclo // install flow includes optional desktop integration and rollback hooks.
+func (b *BinaryBackend) Install(_ context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	b.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
@@ -130,10 +134,7 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 	if tx != nil {
 		path := destPath
 		tx.Add("remove binary", func() error {
-			if err := b.Fs.Remove(path); err != nil {
-				return err
-			}
-			return nil
+			return b.Fs.Remove(path)
 		})
 	}
 
@@ -150,12 +151,17 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 	if !opts.SkipDesktop {
 		if opts.Force {
 			appsDir := b.Paths.GetAppsDir()
-			_ = b.Fs.Remove(filepath.Join(appsDir, binName+".desktop"))
+			oldDesktopPath := filepath.Join(appsDir, binName+".desktop")
+			if removeErr := b.Fs.Remove(oldDesktopPath); removeErr != nil {
+				b.Log.Debug().Err(removeErr).Str("desktop_file", oldDesktopPath).Msg("failed to remove existing desktop file")
+			}
 		}
 		desktopPath, err = b.createDesktopFile(appName, binName, destPath, opts)
 		if err != nil {
 			// Clean up binary on desktop file creation failure
-			_ = b.Fs.Remove(destPath)
+			if removeErr := b.Fs.Remove(destPath); removeErr != nil {
+				b.Log.Warn().Err(removeErr).Str("path", destPath).Msg("failed to remove binary after desktop file error")
+			}
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
@@ -166,16 +172,15 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 		if tx != nil && desktopPath != "" {
 			path := desktopPath
 			tx.Add("remove desktop file", func() error {
-				if err := b.Fs.Remove(path); err != nil {
-					return err
-				}
-				return nil
+				return b.Fs.Remove(path)
 			})
 		}
 
 		// Update desktop database
 		appsDir := b.Paths.GetAppsDir()
-		_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log)
+		if cacheErr := b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log); cacheErr != nil {
+			b.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
+		}
 	}
 
 	// Create install record
@@ -207,13 +212,21 @@ func (b *BinaryBackend) copyBinary(srcPath, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("open source binary: %w", err)
 	}
-	defer func() { _ = srcFile.Close() }()
+	defer func() {
+		if closeErr := srcFile.Close(); closeErr != nil {
+			b.Log.Debug().Err(closeErr).Str("path", srcPath).Msg("failed to close source binary")
+		}
+	}()
 
 	dstFile, err := b.Fs.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("create destination binary: %w", err)
 	}
-	defer func() { _ = dstFile.Close() }()
+	defer func() {
+		if closeErr := dstFile.Close(); closeErr != nil {
+			b.Log.Debug().Err(closeErr).Str("path", destPath).Msg("failed to close destination binary")
+		}
+	}()
 
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return fmt.Errorf("copy binary contents: %w", err)
@@ -223,7 +236,7 @@ func (b *BinaryBackend) copyBinary(srcPath, destPath string) error {
 }
 
 // Uninstall removes the installed binary package
-func (b *BinaryBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
+func (b *BinaryBackend) Uninstall(_ context.Context, record *core.InstallRecord) error {
 	b.Log.Info().
 		Str("install_id", record.InstallID).
 		Str("name", record.Name).
@@ -262,7 +275,9 @@ func (b *BinaryBackend) Uninstall(ctx context.Context, record *core.InstallRecor
 
 	// Update desktop database
 	appsDir := b.Paths.GetAppsDir()
-	_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log)
+	if cacheErr := b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log); cacheErr != nil {
+		b.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
+	}
 
 	b.Log.Info().
 		Str("install_id", record.InstallID).
@@ -302,7 +317,9 @@ func (b *BinaryBackend) createDesktopFile(appName, binName, execPath string, opt
 				Err(err).
 				Str("app", appName).
 				Msg("invalid custom Wayland env vars, injecting defaults only")
-			_ = desktop.InjectWaylandEnvVars(entry, nil)
+			if fallbackErr := desktop.InjectWaylandEnvVars(entry, nil); fallbackErr != nil {
+				b.Log.Warn().Err(fallbackErr).Str("app", appName).Msg("failed to inject default Wayland env vars")
+			}
 		}
 	}
 

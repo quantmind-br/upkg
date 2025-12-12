@@ -146,7 +146,10 @@ func (p *ProgressTracker) AdvancePhase() {
 		p.stopDeterministicRefresh()
 		// Add weight of completed phase only if not in spinner mode
 		currentWeight := p.phases[p.currentPhase].Weight
-		_ = p.bar.Add(currentWeight)
+		if addErr := p.bar.Add(currentWeight); addErr != nil {
+			// Best-effort progress update; ignore render errors.
+			_ = addErr
+		}
 	}
 
 	// Move to next phase
@@ -218,7 +221,10 @@ func (p *ProgressTracker) SetProgress(current, total int) {
 	// Calculate progress within current phase's weight
 	if total > 0 {
 		phaseProgress := (current * phase.Weight) / total
-		_ = p.bar.Set(p.getCompletedWeight() + phaseProgress)
+		if setErr := p.bar.Set(p.getCompletedWeight() + phaseProgress); setErr != nil {
+			// Best-effort progress update; ignore render errors.
+			_ = setErr
+		}
 	}
 }
 
@@ -236,7 +242,10 @@ func (p *ProgressTracker) Finish() {
 		fmt.Fprintln(p.originalWriter)
 		p.inSpinnerMode = false
 	} else {
-		_ = p.bar.Finish()
+		if finishErr := p.bar.Finish(); finishErr != nil {
+			// Best-effort progress update; ignore render errors.
+			_ = finishErr
+		}
 	}
 }
 
@@ -247,7 +256,10 @@ func (p *ProgressTracker) Clear() {
 	}
 
 	p.stopDeterministicRefresh()
-	_ = p.bar.Clear()
+	if clearErr := p.bar.Clear(); clearErr != nil {
+		// Best-effort progress update; ignore render errors.
+		_ = clearErr
+	}
 }
 
 // IsEnabled returns whether progress tracking is enabled

@@ -101,6 +101,8 @@ func ValidateVersion(version string) error {
 }
 
 // ValidateFilePath validates a file path for dangerous patterns
+//
+//nolint:gocyclo // validation performs multiple security checks.
 func ValidateFilePath(path string) error {
 	// 1. Validar não-vazio
 	if path == "" {
@@ -174,6 +176,8 @@ func ValidateFilePath(path string) error {
 // - Preserves: alphanumeric, underscores, dots, hyphens
 // - Normalizes multiple hyphens to single hyphen
 // - Trims leading/trailing whitespace and hyphens
+//
+//nolint:gocyclo // sanitization applies multiple normalization rules.
 func SanitizeString(input string) string {
 	// 1. Remove null bytes
 	result := strings.ReplaceAll(input, "\x00", "")

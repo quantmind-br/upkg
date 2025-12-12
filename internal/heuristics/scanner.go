@@ -31,7 +31,10 @@ func FindExecutables(dir string) ([]string, error) {
 			}
 
 			// Check if it's an ELF binary using helper
-			isElf, _ := helpers.IsELF(path)
+			isElf, elfErr := helpers.IsELF(path)
+			if elfErr != nil {
+				return nil // Skip unreadable or invalid files
+			}
 			if isElf {
 				executables = append(executables, path)
 			}

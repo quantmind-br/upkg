@@ -264,7 +264,7 @@ func TestIsDebtapInitialized(t *testing.T) {
 	// Since we can't mock the filesystem easily for this function,
 	// we test the logic indirectly
 
-	t.Run("returns false when cache dir doesn't exist", func(t *testing.T) {
+	t.Run("returns false when cache dir doesn't exist", func(_ *testing.T) {
 		// The default debtap cache directory likely doesn't exist in CI
 		// This tests the expected behavior
 		result := isDebtapInitialized()
@@ -305,7 +305,7 @@ func TestInstall_PackageNotFound(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		RequireCommandFunc: func(name string) error { return nil },
+		RequireCommandFunc: func(_ string) error { return nil },
 	}
 
 	cfg := &config.Config{}
@@ -323,7 +323,7 @@ func TestUninstall_PackageNotInPacman(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
 
@@ -355,7 +355,7 @@ func TestUninstall_Success(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
 
@@ -389,7 +389,7 @@ func TestQueryDebName(t *testing.T) {
 
 	t.Run("returns error when dpkg-deb not found", func(t *testing.T) {
 		mockRunner := &helpers.MockCommandRunner{
-			CommandExistsFunc: func(name string) bool {
+			CommandExistsFunc: func(_ string) bool {
 				return false
 			},
 		}
@@ -412,7 +412,7 @@ func TestQueryDebName(t *testing.T) {
 			CommandExistsFunc: func(name string) bool {
 				return name == "dpkg-deb"
 			},
-			RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+			RunCommandFunc: func(_ context.Context, name string, _ ...string) (string, error) {
 				if name == "dpkg-deb" {
 					return "my-awesome-package\n", nil
 				}
@@ -559,23 +559,23 @@ func (m *mockSyspkgProvider) Name() string {
 	return "mock"
 }
 
-func (m *mockSyspkgProvider) Install(ctx context.Context, packagePath string) error {
+func (m *mockSyspkgProvider) Install(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockSyspkgProvider) Remove(ctx context.Context, packageName string) error {
+func (m *mockSyspkgProvider) Remove(_ context.Context, _ string) error {
 	m.removeCalled = true
 	return m.removeErr
 }
 
-func (m *mockSyspkgProvider) IsInstalled(ctx context.Context, packageName string) (bool, error) {
+func (m *mockSyspkgProvider) IsInstalled(_ context.Context, _ string) (bool, error) {
 	return m.isInstalled, nil
 }
 
-func (m *mockSyspkgProvider) GetInfo(ctx context.Context, packageName string) (*syspkg.PackageInfo, error) {
+func (m *mockSyspkgProvider) GetInfo(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
 	return &syspkg.PackageInfo{Name: packageName, Version: "1.0.0"}, nil
 }
 
-func (m *mockSyspkgProvider) ListFiles(ctx context.Context, packageName string) ([]string, error) {
+func (m *mockSyspkgProvider) ListFiles(_ context.Context, _ string) ([]string, error) {
 	return []string{}, nil
 }

@@ -105,17 +105,21 @@ func PrintSubheader(text string) {
 
 // ColorizePackageType returns a colored package type string
 func ColorizePackageType(pkgType string) string {
+	if color.NoColor {
+		return pkgType
+	}
+
 	switch pkgType {
 	case "appimage":
-		return TypeAppImage.Sprint(pkgType)
+		return TypeAppImage.Sprintf("%s", pkgType)
 	case "binary":
-		return TypeBinary.Sprint(pkgType)
+		return TypeBinary.Sprintf("%s", pkgType)
 	case "tarball":
-		return TypeTarball.Sprint(pkgType)
+		return TypeTarball.Sprintf("%s", pkgType)
 	case "deb":
-		return TypeDEB.Sprint(pkgType)
+		return TypeDEB.Sprintf("%s", pkgType)
 	case "rpm":
-		return TypeRPM.Sprint(pkgType)
+		return TypeRPM.Sprintf("%s", pkgType)
 	default:
 		return pkgType
 	}

@@ -28,6 +28,8 @@ const (
 )
 
 // DetectFileType identifies the type of a file based on extension and magic numbers
+//
+//nolint:gocyclo // detection relies on multiple signature checks.
 func DetectFileType(filePath string) (FileType, error) {
 	// Check extension first for quick detection
 	ext := strings.ToLower(filepath.Ext(filePath))

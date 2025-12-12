@@ -10,6 +10,8 @@ import (
 
 // BaseBackend contém dependências comuns a todos os backends.
 // Ele não implementa a interface Backend; é embedado pelos backends concretos.
+//
+//nolint:revive // exported name is kept for clarity across internal packages.
 type BaseBackend struct {
 	Fs     afero.Fs
 	Runner helpers.CommandRunner

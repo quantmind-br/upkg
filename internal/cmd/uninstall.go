@@ -27,7 +27,7 @@ func NewUninstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		Short: "Uninstall a package",
 		Long:  `Uninstall a previously installed package by name or install ID. Run without arguments for an interactive selector.`,
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			// Create context with timeout
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSecs)*time.Second)
 			defer cancel()
@@ -257,6 +257,8 @@ func performUninstall(ctx context.Context, registry *backends.Registry, database
 }
 
 // dbInstallToCore converts db.Install to core.InstallRecord
+//
+//nolint:gocyclo // metadata decoding handles several legacy shapes.
 func dbInstallToCore(dbRecord *db.Install) *core.InstallRecord {
 	record := &core.InstallRecord{
 		InstallID:    dbRecord.InstallID,
@@ -346,7 +348,7 @@ func calculatePackageSize(installPath string) (int64, int) {
 	}
 
 	// If it's a directory, walk through it
-	_ = filepath.Walk(installPath, func(path string, info os.FileInfo, err error) error {
+	if walkErr := filepath.Walk(installPath, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // Skip errors
 		}
@@ -355,7 +357,10 @@ func calculatePackageSize(installPath string) (int64, int) {
 			fileCount++
 		}
 		return nil
-	})
+	}); walkErr != nil {
+		// Best-effort size calculation; ignore walk errors.
+		_ = walkErr
+	}
 
 	return totalSize, fileCount
 }

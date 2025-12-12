@@ -19,12 +19,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const rpmName = "rpm"
+
 func TestName(t *testing.T) {
 	t.Parallel()
 	logger := zerolog.New(io.Discard)
 	backend := New(&config.Config{}, &logger)
-	if backend.Name() != "rpm" {
-		t.Errorf("Name() = %q, want %q", backend.Name(), "rpm")
+	if backend.Name() != rpmName {
+		t.Errorf("Name() = %q, want %q", backend.Name(), rpmName)
 	}
 }
 
@@ -37,7 +39,7 @@ func TestNewWithRunner(t *testing.T) {
 	backend := NewWithRunner(cfg, &logger, mockRunner)
 
 	assert.NotNil(t, backend)
-	assert.Equal(t, "rpm", backend.Name())
+	assert.Equal(t, rpmName, backend.Name())
 	assert.Equal(t, mockRunner, backend.Runner)
 }
 
@@ -50,7 +52,7 @@ func TestNewWithCacheManager(t *testing.T) {
 	backend := NewWithCacheManager(cfg, &logger, mockCacheMgr)
 
 	assert.NotNil(t, backend)
-	assert.Equal(t, "rpm", backend.Name())
+	assert.Equal(t, rpmName, backend.Name())
 	assert.Equal(t, mockCacheMgr, backend.cacheManager)
 }
 
@@ -192,7 +194,7 @@ func TestInstall_NoInstallationMethod(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool {
+		CommandExistsFunc: func(_ string) bool {
 			// Neither rpmextract.sh nor debtap/pacman available
 			return false
 		},
@@ -361,7 +363,7 @@ func TestUninstall_ExtractedMethod(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 
 	cfg := &config.Config{}
@@ -443,7 +445,7 @@ func TestUninstall_PacmanMethod(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 
 	cfg := &config.Config{}
@@ -498,7 +500,7 @@ func TestQueryRpmName(t *testing.T) {
 
 	t.Run("returns error when rpm not found", func(t *testing.T) {
 		mockRunner := &helpers.MockCommandRunner{
-			CommandExistsFunc: func(name string) bool {
+			CommandExistsFunc: func(_ string) bool {
 				return false
 			},
 		}
@@ -512,17 +514,17 @@ func TestQueryRpmName(t *testing.T) {
 
 		name, err := backend.queryRpmName(context.Background(), fakeRpm)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "rpm")
+		assert.Contains(t, err.Error(), rpmName)
 		assert.Empty(t, name)
 	})
 
 	t.Run("returns package name successfully", func(t *testing.T) {
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(name string) bool {
-				return name == "rpm"
+				return name == rpmName
 			},
-			RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
-				if name == "rpm" {
+			RunCommandFunc: func(_ context.Context, name string, _ ...string) (string, error) {
+				if name == rpmName {
 					return "my-package", nil
 				}
 				return "", nil
@@ -611,6 +613,9 @@ func TestInstallRecord(t *testing.T) {
 	assert.Equal(t, "test-install-id", record.InstallID)
 	assert.Equal(t, core.PackageTypeRpm, record.PackageType)
 	assert.Equal(t, "test-package", record.Name)
+	assert.Equal(t, "/home/user/.local/share/upkg/apps/test-package", record.InstallPath)
+	assert.Equal(t, "/home/user/.local/share/applications/test-package.desktop", record.DesktopFile)
+	assert.Equal(t, "/path/to/package.rpm", record.OriginalFile)
 	assert.Equal(t, core.InstallMethodLocal, record.Metadata.InstallMethod)
 }
 
@@ -625,23 +630,23 @@ func (m *mockSyspkgProvider) Name() string {
 	return "mock"
 }
 
-func (m *mockSyspkgProvider) Install(ctx context.Context, packagePath string) error {
+func (m *mockSyspkgProvider) Install(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockSyspkgProvider) Remove(ctx context.Context, packageName string) error {
+func (m *mockSyspkgProvider) Remove(_ context.Context, _ string) error {
 	m.removeCalled = true
 	return m.removeErr
 }
 
-func (m *mockSyspkgProvider) IsInstalled(ctx context.Context, packageName string) (bool, error) {
+func (m *mockSyspkgProvider) IsInstalled(_ context.Context, _ string) (bool, error) {
 	return m.isInstalled, nil
 }
 
-func (m *mockSyspkgProvider) GetInfo(ctx context.Context, packageName string) (*syspkg.PackageInfo, error) {
+func (m *mockSyspkgProvider) GetInfo(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
 	return &syspkg.PackageInfo{Name: packageName, Version: "1.0.0"}, nil
 }
 
-func (m *mockSyspkgProvider) ListFiles(ctx context.Context, packageName string) ([]string, error) {
+func (m *mockSyspkgProvider) ListFiles(_ context.Context, _ string) ([]string, error) {
 	return []string{}, nil
 }

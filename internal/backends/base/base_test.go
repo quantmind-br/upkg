@@ -1,10 +1,9 @@
-package backends
+package base
 
 import (
 	"io"
 	"testing"
 
-	"github.com/quantmind-br/upkg/internal/backends/base"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/rs/zerolog"
@@ -12,20 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewRegistry_OrderIsPreserved(t *testing.T) {
-	t.Parallel()
-	logger := zerolog.New(io.Discard)
-	registry := NewRegistry(&config.Config{}, &logger)
-
-	require.Equal(t, []string{"deb", "rpm", "appimage", "binary", "tarball"}, registry.ListBackends())
-}
-
-func TestBaseBackend_New(t *testing.T) {
-	t.Parallel()
+func TestNew(t *testing.T) {
 	cfg := &config.Config{}
 	logger := zerolog.New(io.Discard)
 
-	backend := base.New(cfg, &logger)
+	backend := New(cfg, &logger)
 
 	require.NotNil(t, backend)
 	require.Equal(t, cfg, backend.Cfg)
@@ -35,14 +25,13 @@ func TestBaseBackend_New(t *testing.T) {
 	require.NotNil(t, backend.Paths)
 }
 
-func TestBaseBackend_NewWithDeps(t *testing.T) {
-	t.Parallel()
+func TestNewWithDeps(t *testing.T) {
 	cfg := &config.Config{}
 	logger := zerolog.New(io.Discard)
 	fs := afero.NewMemMapFs()
 	runner := &helpers.MockCommandRunner{}
 
-	backend := base.NewWithDeps(cfg, &logger, fs, runner)
+	backend := NewWithDeps(cfg, &logger, fs, runner)
 
 	require.NotNil(t, backend)
 	require.Equal(t, cfg, backend.Cfg)
@@ -52,11 +41,10 @@ func TestBaseBackend_NewWithDeps(t *testing.T) {
 	require.NotNil(t, backend.Paths)
 }
 
-func TestBaseBackend_NewWithNilConfig(t *testing.T) {
-	t.Parallel()
+func TestNewWithNilConfig(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
-	backend := base.New(nil, &logger)
+	backend := New(nil, &logger)
 
 	require.NotNil(t, backend)
 	require.Nil(t, backend.Cfg)
@@ -66,11 +54,10 @@ func TestBaseBackend_NewWithNilConfig(t *testing.T) {
 	require.NotNil(t, backend.Paths)
 }
 
-func TestBaseBackend_NewWithNilLogger(t *testing.T) {
-	t.Parallel()
+func TestNewWithNilLogger(t *testing.T) {
 	cfg := &config.Config{}
 
-	backend := base.New(cfg, nil)
+	backend := New(cfg, nil)
 
 	require.NotNil(t, backend)
 	require.Equal(t, cfg, backend.Cfg)

@@ -19,7 +19,7 @@ func NewInfoCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		Short: "Show package information",
 		Long:  `Show detailed information about an installed package.`,
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			identifier := args[0]
 			ctx := context.Background()
 

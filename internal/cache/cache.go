@@ -11,6 +11,8 @@ import (
 )
 
 // CacheManager handles cache updates
+//
+//nolint:revive // exported name is kept for clarity across internal packages.
 type CacheManager struct {
 	runner helpers.CommandRunner
 }

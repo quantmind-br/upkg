@@ -18,7 +18,9 @@ import (
 )
 
 // NewDoctorCmd creates the doctor command
-func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
+//
+//nolint:gocyclo // diagnostics command performs many sequential checks.
+func NewDoctorCmd(cfg *config.Config, _ *zerolog.Logger) *cobra.Command {
 	var verbose bool
 	var fix bool
 
@@ -26,7 +28,7 @@ func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		Use:   "doctor",
 		Short: "Check system dependencies and integrity",
 		Long:  `Check system dependencies, configuration, database integrity, and installed packages.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			ui.PrintHeader("System Diagnostics")
 			fmt.Println()
 
@@ -211,10 +213,12 @@ func checkDirectory(path, _ string, fix bool) bool {
 	// Check if writable
 	if fix {
 		testFile := filepath.Join(path, ".upkg-test")
-		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+		if err := os.WriteFile(testFile, []byte("test"), 0600); err != nil {
 			return false
 		}
-		_ = os.Remove(testFile)
+		if removeErr := os.Remove(testFile); removeErr != nil {
+			return false
+		}
 		return true
 	}
 
@@ -231,6 +235,8 @@ type brokenInstall struct {
 }
 
 // checkPackageIntegrity checks if installed packages have their files intact
+//
+//nolint:gocyclo // integrity check aggregates multiple missing-file heuristics.
 func checkPackageIntegrity(installs []db.Install) []brokenInstall {
 	var broken []brokenInstall
 

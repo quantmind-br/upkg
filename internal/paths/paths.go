@@ -16,7 +16,10 @@ type Resolver struct {
 
 // NewResolver cria um Resolver usando o HOME do usuário atual.
 func NewResolver(cfg *config.Config) *Resolver {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		homeDir = os.Getenv("HOME")
+	}
 	return &Resolver{
 		homeDir: homeDir,
 		cfg:     cfg,

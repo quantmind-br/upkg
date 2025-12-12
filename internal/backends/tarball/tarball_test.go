@@ -301,7 +301,7 @@ func TestRemoveIcons(t *testing.T) {
 		backend.removeIcons([]string{nonexistent})
 	})
 
-	t.Run("handles empty list", func(t *testing.T) {
+	t.Run("handles empty list", func(_ *testing.T) {
 		// Should not panic
 		backend.removeIcons([]string{})
 	})
@@ -365,7 +365,7 @@ func TestUninstall(t *testing.T) {
 
 	// Create mock cache manager to avoid real cache updates
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
@@ -485,7 +485,7 @@ func TestCreateDesktopFile(t *testing.T) {
 		CommandExistsFunc: func(name string) bool {
 			return name == "desktop-file-validate"
 		},
-		RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+		RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", nil
 		},
 	}
@@ -660,6 +660,63 @@ func TestTransactionRollback(t *testing.T) {
 	installDir := filepath.Join(tmpDir, ".local", "share", "upkg", "apps")
 	entries, _ := os.ReadDir(installDir)
 	assert.Empty(t, entries, "install directory should be empty after rollback")
+}
+
+func TestBaseBackend_Embedded(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	// Check that BaseBackend is properly embedded
+	assert.NotNil(t, backend.BaseBackend)
+	assert.Equal(t, cfg, backend.Cfg)
+	assert.Equal(t, &logger, backend.Log)
+	assert.NotNil(t, backend.Fs)
+	assert.NotNil(t, backend.Runner)
+	assert.NotNil(t, backend.Paths)
+}
+
+func TestBaseBackend_NewWithDeps(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	fs := afero.NewMemMapFs()
+	runner := &helpers.MockCommandRunner{}
+
+	backend := NewWithDeps(cfg, &logger, fs, runner)
+
+	// Check that BaseBackend is properly initialized with dependencies
+	assert.NotNil(t, backend.BaseBackend)
+	assert.Equal(t, cfg, backend.Cfg)
+	assert.Equal(t, &logger, backend.Log)
+	assert.Equal(t, fs, backend.Fs)
+	assert.Equal(t, runner, backend.Runner)
+	assert.NotNil(t, backend.Paths)
+}
+
+func TestBaseBackend_NewWithNilConfig(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	backend := New(nil, &logger)
+
+	// Check that BaseBackend handles nil config
+	assert.NotNil(t, backend.BaseBackend)
+	assert.Nil(t, backend.Cfg)
+	assert.Equal(t, &logger, backend.Log)
+	assert.NotNil(t, backend.Fs)
+	assert.NotNil(t, backend.Runner)
+	assert.NotNil(t, backend.Paths)
+}
+
+func TestBaseBackend_NewWithNilLogger(t *testing.T) {
+	cfg := &config.Config{}
+	backend := New(cfg, nil)
+
+	// Check that BaseBackend handles nil logger
+	assert.NotNil(t, backend.BaseBackend)
+	assert.Equal(t, cfg, backend.Cfg)
+	assert.Nil(t, backend.Log)
+	assert.NotNil(t, backend.Fs)
+	assert.NotNil(t, backend.Runner)
+	assert.NotNil(t, backend.Paths)
 }
 
 // createMinimalTar creates a minimal valid tar archive header for testing

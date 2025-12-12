@@ -10,7 +10,7 @@ import (
 )
 
 // NewCompletionCmd creates the completion command
-func NewCompletionCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
+func NewCompletionCmd(_ *config.Config, log *zerolog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion [bash|zsh|fish|powershell]",
 		Short: "Generate shell completion scripts",

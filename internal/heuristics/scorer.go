@@ -56,6 +56,8 @@ func (s *DefaultScorer) ChooseBest(executables []string, baseName, installDir st
 }
 
 // ScoreExecutable assigns a score to an executable based on various heuristics
+//
+//nolint:gocyclo // scoring uses a set of heuristic rules.
 func (s *DefaultScorer) ScoreExecutable(execPath, baseName, installDir string) int {
 	score := 0
 	filename := strings.ToLower(filepath.Base(execPath))
@@ -104,7 +106,10 @@ partialMatchLoop:
 		"^main$", "^app$", "^game$", "^application$",
 	}
 	for _, pattern := range bonusPatterns {
-		matched, _ := regexp.MatchString(pattern, filename)
+		matched, matchErr := regexp.MatchString(pattern, filename)
+		if matchErr != nil {
+			continue
+		}
 		if matched {
 			score += 80
 		}

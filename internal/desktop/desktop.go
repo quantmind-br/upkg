@@ -12,6 +12,8 @@ import (
 )
 
 // Parse parses a .desktop file from a reader
+//
+//nolint:gocyclo // parser handles many key variants and validations.
 func Parse(r io.Reader) (*core.DesktopEntry, error) {
 	de := &core.DesktopEntry{}
 	scanner := bufio.NewScanner(r)

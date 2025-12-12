@@ -80,7 +80,13 @@ func Load() (*Config, error) {
 
 // setDefaults sets default configuration values
 func setDefaults() {
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil || homeDir == "" {
+		homeDir = os.Getenv("HOME")
+	}
+	if homeDir == "" {
+		homeDir = "."
+	}
 
 	viper.SetDefault("paths.data_dir", filepath.Join(homeDir, ".local", "share", "upkg"))
 	viper.SetDefault("paths.db_file", filepath.Join(homeDir, ".local", "share", "upkg", "installed.db"))

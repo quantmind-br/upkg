@@ -167,7 +167,10 @@ func (m *Manager) InstallIcon(srcPath, normalizedName, size string) (string, err
 // DiscoverIcons finds icons in a directory (convenience function)
 func DiscoverIcons(sourceDir string) []core.IconFile {
 	m := NewManager(afero.NewOsFs(), "")
-	icons, _ := m.DiscoverIcons(sourceDir)
+	icons, err := m.DiscoverIcons(sourceDir)
+	if err != nil {
+		return nil
+	}
 	return icons
 }
 

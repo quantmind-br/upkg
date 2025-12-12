@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -143,6 +144,7 @@ func ExtractTarBz2(archivePath, destDir string) error {
 	return extractTar(bzr, destDir, limiter)
 }
 
+//nolint:gocyclo // tar extraction handles multiple entry types and security checks.
 func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 	tr := tar.NewReader(r)
 
@@ -160,11 +162,12 @@ func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 			return fmt.Errorf("invalid path in archive: %w", err)
 		}
 
+		//nolint:gosec // G305: header.Name is validated by ValidateExtractPath above.
 		target := filepath.Join(destDir, header.Name)
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+			if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
 
@@ -174,7 +177,7 @@ func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 				return fmt.Errorf("archive bomb protection triggered: %w", err)
 			}
 
-			if err := extractFile(tr, target, header.Mode); err != nil {
+			if err := extractFile(tr, target, header.FileInfo().Mode()); err != nil {
 				return fmt.Errorf("failed to extract file %s: %w", header.Name, err)
 			}
 
@@ -190,6 +193,7 @@ func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 
 		case tar.TypeLink:
 			// Hard link - validate and create
+			//nolint:gosec // G305: header.Linkname is validated by ValidateExtractPath above.
 			linkTarget := filepath.Join(destDir, header.Linkname)
 			if err := security.ValidateExtractPath(destDir, header.Linkname); err != nil {
 				return fmt.Errorf("invalid hard link target: %w", err)
@@ -208,14 +212,14 @@ func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 	return nil
 }
 
-func extractFile(r io.Reader, target string, mode int64) error {
+func extractFile(r io.Reader, target string, mode os.FileMode) error {
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 		return fmt.Errorf("failed to create parent directory: %w", err)
 	}
 
 	// Create file with proper permissions
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(mode))
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
@@ -249,6 +253,7 @@ func ExtractZip(archivePath, destDir string) error {
 			return fmt.Errorf("invalid path in zip: %w", err)
 		}
 
+		//nolint:gosec // G305: f.Name is validated by ValidateExtractPath above.
 		target := filepath.Join(destDir, f.Name)
 
 		if f.FileInfo().IsDir() {
@@ -258,12 +263,17 @@ func ExtractZip(archivePath, destDir string) error {
 			continue
 		}
 
+		if f.UncompressedSize64 > math.MaxInt64 {
+			return fmt.Errorf("zip entry too large: %d bytes", f.UncompressedSize64)
+		}
+		uncompressedSize := int64(f.UncompressedSize64) //nolint:gosec // G115: guarded by MaxInt64 check above.
+
 		// Check extraction limits before extracting file
-		if err := limiter.checkLimits(int64(f.UncompressedSize64)); err != nil {
+		if err := limiter.checkLimits(uncompressedSize); err != nil {
 			return fmt.Errorf("archive bomb protection triggered: %w", err)
 		}
 
-		if err := extractZipFile(f, target); err != nil {
+		if err := extractZipFile(f, target, uncompressedSize); err != nil {
 			return fmt.Errorf("failed to extract %s: %w", f.Name, err)
 		}
 	}
@@ -271,7 +281,7 @@ func ExtractZip(archivePath, destDir string) error {
 	return nil
 }
 
-func extractZipFile(f *zip.File, target string) error {
+func extractZipFile(f *zip.File, target string, expectedSize int64) error {
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
 		return fmt.Errorf("failed to create parent directory: %w", err)
@@ -289,8 +299,13 @@ func extractZipFile(f *zip.File, target string) error {
 	}
 	defer outFile.Close()
 
-	if _, err := io.Copy(outFile, rc); err != nil {
+	limitedReader := io.LimitReader(rc, expectedSize)
+	written, err := io.Copy(outFile, limitedReader)
+	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
+	}
+	if expectedSize > 0 && written < expectedSize {
+		return fmt.Errorf("zip entry truncated: expected %d bytes, wrote %d", expectedSize, written)
 	}
 
 	return nil

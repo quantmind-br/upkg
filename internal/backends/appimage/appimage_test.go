@@ -178,7 +178,7 @@ func TestUninstall(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 
 	cfg := &config.Config{}
@@ -287,7 +287,7 @@ func TestRemoveIcons(t *testing.T) {
 		backend.removeIcons([]string{nonexistent})
 	})
 
-	t.Run("handles empty list", func(t *testing.T) {
+	t.Run("handles empty list", func(_ *testing.T) {
 		// Should not panic
 		backend.removeIcons([]string{})
 	})
@@ -299,8 +299,6 @@ func TestTauriAppDetection(t *testing.T) {
 
 	t.Run("detects Tauri app from StartupWMClass", func(t *testing.T) {
 		entry := &core.DesktopEntry{
-			Name:           "Test App",
-			Exec:           "/usr/bin/test-app",
 			StartupWMClass: "tauri-myapp",
 		}
 
@@ -311,8 +309,6 @@ func TestTauriAppDetection(t *testing.T) {
 
 	t.Run("not Tauri without tauri WMClass", func(t *testing.T) {
 		entry := &core.DesktopEntry{
-			Name:           "Test App",
-			Exec:           "/usr/bin/test-app",
 			StartupWMClass: "electron-myapp",
 		}
 
@@ -361,7 +357,7 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 	defer os.Setenv("HOME", origHomeDir)
 
 	mockRunner := &helpers.MockCommandRunner{
-		CommandExistsFunc: func(name string) bool { return false },
+		CommandExistsFunc: func(_ string) bool { return false },
 	}
 
 	cfg := &config.Config{}
@@ -406,6 +402,9 @@ func TestInstallRecord(t *testing.T) {
 	assert.Equal(t, "test-install-id", record.InstallID)
 	assert.Equal(t, core.PackageTypeAppImage, record.PackageType)
 	assert.Equal(t, "MyApp", record.Name)
+	assert.Equal(t, "/home/user/.local/bin/MyApp.AppImage", record.InstallPath)
+	assert.Equal(t, "/home/user/.local/share/applications/MyApp.desktop", record.DesktopFile)
+	assert.Equal(t, "/path/to/MyApp.AppImage", record.OriginalFile)
 	assert.Equal(t, core.InstallMethodLocal, record.Metadata.InstallMethod)
 }
 

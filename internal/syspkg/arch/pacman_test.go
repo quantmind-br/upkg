@@ -16,7 +16,7 @@ func TestPacmanProvider_Install(t *testing.T) {
 
 	// Test case: Successful installation
 	t.Run("successful installation", func(t *testing.T) {
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, name string, args ...string) (string, error) {
 			assert.Equal(t, "sudo", name)
 			assert.Equal(t, []string{"pacman", "-U", "--noconfirm", "test.pkg.tar.zst"}, args)
 			return "", nil
@@ -29,7 +29,7 @@ func TestPacmanProvider_Install(t *testing.T) {
 	// Test case: Failed installation
 	t.Run("failed installation", func(t *testing.T) {
 		expectedErr := errors.New("pacman installation failed")
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", expectedErr
 		}
 
@@ -46,7 +46,7 @@ func TestPacmanProvider_Remove(t *testing.T) {
 
 	// Test case: Successful removal
 	t.Run("successful removal", func(t *testing.T) {
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, name string, args ...string) (string, error) {
 			assert.Equal(t, "sudo", name)
 			assert.Equal(t, []string{"pacman", "-R", "--noconfirm", "test-package"}, args)
 			return "", nil
@@ -59,7 +59,7 @@ func TestPacmanProvider_Remove(t *testing.T) {
 	// Test case: Failed removal
 	t.Run("failed removal", func(t *testing.T) {
 		expectedErr := errors.New("pacman removal failed")
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", expectedErr
 		}
 
@@ -76,7 +76,7 @@ func TestPacmanProvider_IsInstalled(t *testing.T) {
 
 	// Test case: Package is installed
 	t.Run("package is installed", func(t *testing.T) {
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, name string, args ...string) (string, error) {
 			assert.Equal(t, "pacman", name)
 			assert.Equal(t, []string{"-Qi", "test-package"}, args)
 			return "Name: test-package\nVersion: 1.0.0", nil
@@ -89,7 +89,7 @@ func TestPacmanProvider_IsInstalled(t *testing.T) {
 
 	// Test case: Package is not installed
 	t.Run("package is not installed", func(t *testing.T) {
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", errors.New("package not found")
 		}
 
@@ -106,7 +106,7 @@ func TestPacmanProvider_GetInfo(t *testing.T) {
 
 	// Test case: Get package info
 	t.Run("get package info", func(t *testing.T) {
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, name string, args ...string) (string, error) {
 			assert.Equal(t, "pacman", name)
 			assert.Equal(t, []string{"-Qi", "test-package"}, args)
 			return "Name: test-package\nVersion: 1.0.0\nDescription: Test package", nil
@@ -122,7 +122,7 @@ func TestPacmanProvider_GetInfo(t *testing.T) {
 	// Test case: Package not found
 	t.Run("package not found", func(t *testing.T) {
 		expectedErr := errors.New("package not found")
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", expectedErr
 		}
 
@@ -139,7 +139,7 @@ func TestPacmanProvider_ListFiles(t *testing.T) {
 
 	// Test case: List package files
 	t.Run("list package files", func(t *testing.T) {
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, name string, args ...string) (string, error) {
 			assert.Equal(t, "pacman", name)
 			assert.Equal(t, []string{"-Ql", "test-package"}, args)
 			return "test-package /usr/bin/test\ntest-package /usr/share/test/data", nil
@@ -153,7 +153,7 @@ func TestPacmanProvider_ListFiles(t *testing.T) {
 	// Test case: Package not found
 	t.Run("package not found", func(t *testing.T) {
 		expectedErr := errors.New("package not found")
-		mockRunner.RunCommandFunc = func(ctx context.Context, name string, args ...string) (string, error) {
+		mockRunner.RunCommandFunc = func(_ context.Context, _ string, _ ...string) (string, error) {
 			return "", expectedErr
 		}
 

@@ -62,7 +62,7 @@ func TestExpandPath(t *testing.T) {
 	}
 }
 
-func TestSetDefaults(t *testing.T) {
+func TestSetDefaults(_ *testing.T) {
 	setDefaults()
 
 	// Verify defaults were set (via viper)

@@ -26,6 +26,8 @@ import (
 )
 
 // TarballBackend handles tarball and zip archive installations
+//
+//nolint:revive // exported backend names are kept for consistency across packages.
 type TarballBackend struct {
 	*backendbase.BaseBackend
 	scorer       heuristics.Scorer
@@ -73,7 +75,7 @@ func (t *TarballBackend) Name() string {
 }
 
 // Detect checks if this backend can handle the package
-func (t *TarballBackend) Detect(ctx context.Context, packagePath string) (bool, error) {
+func (t *TarballBackend) Detect(_ context.Context, packagePath string) (bool, error) {
 	// Check if file exists
 	if _, err := t.Fs.Stat(packagePath); err != nil {
 		return false, nil
@@ -94,7 +96,9 @@ func (t *TarballBackend) Detect(ctx context.Context, packagePath string) (bool, 
 }
 
 // Install installs the tarball/zip package
-func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+//
+//nolint:gocyclo // archive install handles multiple formats, icons, desktop and rollback.
+func (t *TarballBackend) Install(_ context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	t.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
@@ -160,9 +164,15 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		}
 		// Best-effort cleanup of expected wrapper/desktop paths
 		binDir := t.Paths.GetBinDir()
-		_ = t.Fs.Remove(filepath.Join(binDir, normalizedName))
+		oldWrapper := filepath.Join(binDir, normalizedName)
+		if removeErr := t.Fs.Remove(oldWrapper); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("path", oldWrapper).Msg("failed to remove existing wrapper")
+		}
 		appsDbDir := t.Paths.GetAppsDir()
-		_ = t.Fs.Remove(filepath.Join(appsDbDir, normalizedName+".desktop"))
+		oldDesktop := filepath.Join(appsDbDir, normalizedName+".desktop")
+		if removeErr := t.Fs.Remove(oldDesktop); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("desktop_file", oldDesktop).Msg("failed to remove existing desktop file")
+		}
 	}
 
 	// Create installation directory
@@ -182,15 +192,19 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		Str("dest", installDir).
 		Msg("extracting archive")
 
-	if err := t.extractArchive(packagePath, installDir, archiveType); err != nil {
-		_ = t.Fs.RemoveAll(installDir)
-		return nil, fmt.Errorf("failed to extract archive: %w", err)
+	if extractErr := t.extractArchive(packagePath, installDir, archiveType); extractErr != nil {
+		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after extract error")
+		}
+		return nil, fmt.Errorf("failed to extract archive: %w", extractErr)
 	}
 
 	// Find executable(s)
 	executables, err := heuristics.FindExecutables(installDir)
 	if err != nil || len(executables) == 0 {
-		_ = t.Fs.RemoveAll(installDir)
+		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after no executables")
+		}
 		return nil, fmt.Errorf("no executables found in archive")
 	}
 
@@ -208,15 +222,19 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 
 	// Create wrapper script in ~/.local/bin/
 	binDir := t.Paths.GetBinDir()
-	if err := t.Fs.MkdirAll(binDir, 0755); err != nil {
-		_ = t.Fs.RemoveAll(installDir)
-		return nil, fmt.Errorf("failed to create bin directory: %w", err)
+	if mkdirErr := t.Fs.MkdirAll(binDir, 0755); mkdirErr != nil {
+		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after mkdir error")
+		}
+		return nil, fmt.Errorf("failed to create bin directory: %w", mkdirErr)
 	}
 
 	wrapperPath := filepath.Join(binDir, normalizedName)
-	if err := t.createWrapper(wrapperPath, primaryExec); err != nil {
-		_ = t.Fs.RemoveAll(installDir)
-		return nil, fmt.Errorf("failed to create wrapper script: %w", err)
+	if wrapperErr := t.createWrapper(wrapperPath, primaryExec); wrapperErr != nil {
+		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after wrapper error")
+		}
+		return nil, fmt.Errorf("failed to create wrapper script: %w", wrapperErr)
 	}
 	if tx != nil {
 		path := wrapperPath
@@ -248,8 +266,12 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		desktopPath, err = t.createDesktopFile(installDir, appName, normalizedName, wrapperPath, opts)
 		if err != nil {
 			// Clean up on failure
-			_ = t.Fs.RemoveAll(installDir)
-			_ = t.Fs.Remove(wrapperPath)
+			if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
+				t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after desktop error")
+			}
+			if removeErr := t.Fs.Remove(wrapperPath); removeErr != nil {
+				t.Log.Debug().Err(removeErr).Str("path", wrapperPath).Msg("failed to cleanup wrapper after desktop error")
+			}
 			t.removeIcons(iconPaths)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
@@ -267,10 +289,14 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 
 		// Update caches
 		appsDbDir := t.Paths.GetAppsDir()
-		_ = t.cacheManager.UpdateDesktopDatabase(appsDbDir, t.Log)
+		if cacheErr := t.cacheManager.UpdateDesktopDatabase(appsDbDir, t.Log); cacheErr != nil {
+			t.Log.Warn().Err(cacheErr).Str("apps_dir", appsDbDir).Msg("failed to update desktop database")
+		}
 
 		iconsDir := t.Paths.GetIconsDir()
-		_ = t.cacheManager.UpdateIconCache(iconsDir, t.Log)
+		if cacheErr := t.cacheManager.UpdateIconCache(iconsDir, t.Log); cacheErr != nil {
+			t.Log.Warn().Err(cacheErr).Str("icons_dir", iconsDir).Msg("failed to update icon cache")
+		}
 	}
 
 	// Create install record
@@ -300,7 +326,7 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 }
 
 // Uninstall removes the installed tarball/zip package
-func (t *TarballBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
+func (t *TarballBackend) Uninstall(_ context.Context, record *core.InstallRecord) error {
 	t.Log.Info().
 		Str("install_id", record.InstallID).
 		Str("name", record.Name).
@@ -335,10 +361,14 @@ func (t *TarballBackend) Uninstall(ctx context.Context, record *core.InstallReco
 
 	// Update caches
 	appsDir := t.Paths.GetAppsDir()
-	_ = t.cacheManager.UpdateDesktopDatabase(appsDir, t.Log)
+	if cacheErr := t.cacheManager.UpdateDesktopDatabase(appsDir, t.Log); cacheErr != nil {
+		t.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
+	}
 
 	iconsDir := t.Paths.GetIconsDir()
-	_ = t.cacheManager.UpdateIconCache(iconsDir, t.Log)
+	if cacheErr := t.cacheManager.UpdateIconCache(iconsDir, t.Log); cacheErr != nil {
+		t.Log.Warn().Err(cacheErr).Str("icons_dir", iconsDir).Msg("failed to update icon cache")
+	}
 
 	t.Log.Info().
 		Str("install_id", record.InstallID).
@@ -417,8 +447,8 @@ func (t *TarballBackend) isElectronApp(execPath string) bool {
 	// Check for *.asar in parent directory and subdirectories
 	parentDir := filepath.Dir(execDir)
 	var asarFound bool
-	_ = filepath.Walk(parentDir, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
+	if walkErr := filepath.Walk(parentDir, func(path string, info fs.FileInfo, entryErr error) error {
+		if entryErr != nil {
 			return nil // Continue on errors
 		}
 		if !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".asar") {
@@ -426,7 +456,9 @@ func (t *TarballBackend) isElectronApp(execPath string) bool {
 			return filepath.SkipAll // Found one, stop walking
 		}
 		return nil
-	})
+	}); walkErr != nil {
+		t.Log.Debug().Err(walkErr).Str("dir", parentDir).Msg("failed walking for asar detection")
+	}
 	return asarFound
 }
 
@@ -477,6 +509,8 @@ func (t *TarballBackend) installIcons(installDir, normalizedName string) ([]stri
 // extractIconsFromAsarNative extracts icons using native Go ASAR library
 // This is significantly faster than spawning npx for each ASAR file
 // Returns extracted icons and any error encountered
+//
+//nolint:gocyclo // ASAR extraction handles multiple filesystem and naming cases.
 func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, _ string) ([]core.IconFile, error) {
 	t.Log.Debug().
 		Str("asar", asarPath).
@@ -487,7 +521,11 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, _ stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ASAR: %w", err)
 	}
-	defer func() { _ = f.Close() }()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			t.Log.Debug().Err(closeErr).Str("asar", asarPath).Msg("failed to close ASAR file")
+		}
+	}()
 
 	// Decode ASAR archive
 	archive, err := asar.Decode(f)
@@ -500,14 +538,18 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, _ stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer func() { _ = t.Fs.RemoveAll(tempDir) }()
+	defer func() {
+		if removeErr := t.Fs.RemoveAll(tempDir); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("temp_dir", tempDir).Msg("failed to remove temp dir")
+		}
+	}()
 
 	// Track extracted icon files
 	var extractedPaths []string
 
 	// Walk ASAR and extract only icon files
-	walkErr := archive.Walk(func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
+	walkErr := archive.Walk(func(path string, info fs.FileInfo, entryErr error) error {
+		if entryErr != nil {
 			return nil // Continue on errors
 		}
 
@@ -544,7 +586,7 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, _ stri
 		targetPath := filepath.Join(tempDir, filepath.Base(path))
 
 		// Handle duplicate filenames by appending path component
-		if _, err := t.Fs.Stat(targetPath); err == nil {
+		if _, statErr := t.Fs.Stat(targetPath); statErr == nil {
 			// File exists, make unique by adding directory name
 			dirName := filepath.Base(filepath.Dir(path))
 			if dirName != "." && dirName != "/" {
@@ -565,7 +607,11 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, _ stri
 			t.Log.Warn().Err(err).Str("path", path).Msg("failed to create icon file")
 			return nil // Continue on error
 		}
-		defer func() { _ = outFile.Close() }()
+		defer func() {
+			if closeErr := outFile.Close(); closeErr != nil {
+				t.Log.Debug().Err(closeErr).Str("path", targetPath).Msg("failed to close icon file")
+			}
+		}()
 
 		// Copy contents
 		if _, err := io.Copy(outFile, reader); err != nil {
@@ -624,6 +670,8 @@ func (t *TarballBackend) extractIconsFromAsarNative(asarPath, installDir, _ stri
 
 // extractIconsFromAsar extracts icons from Electron ASAR archives
 // Uses native Go ASAR library with fallback to npx if needed
+//
+//nolint:gocyclo // ASAR scanning and dual extraction paths are inherently branching.
 func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string) ([]core.IconFile, error) {
 	// Find .asar files recursively
 	var asarFiles []string
@@ -697,7 +745,9 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 				Msg("failed to extract asar file with npx")
 			// OPTIMIZATION: Release resources immediately after failure
 			cancel()
-			_ = t.Fs.RemoveAll(tempDir)
+			if removeErr := t.Fs.RemoveAll(tempDir); removeErr != nil {
+				t.Log.Debug().Err(removeErr).Str("temp_dir", tempDir).Msg("failed to remove temp dir after asar failure")
+			}
 			continue
 		}
 
@@ -737,7 +787,9 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		// OPTIMIZATION: Release resources at end of each iteration instead of defer
 		// This frees disk space and cancels timers immediately
 		cancel()
-		_ = t.Fs.RemoveAll(tempDir)
+		if removeErr := t.Fs.RemoveAll(tempDir); removeErr != nil {
+			t.Log.Debug().Err(removeErr).Str("temp_dir", tempDir).Msg("failed to remove temp dir after asar extraction")
+		}
 	}
 
 	return allIcons, nil
@@ -785,6 +837,8 @@ func (t *TarballBackend) removeIcons(iconPaths []string) {
 }
 
 // createDesktopFile creates a .desktop file
+//
+//nolint:gocyclo // desktop generation handles multiple discovery and environment cases.
 func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, execPath string, opts core.InstallOptions) (string, error) {
 	appsDir := t.Paths.GetAppsDir()
 	if err := t.Fs.MkdirAll(appsDir, 0755); err != nil {
@@ -795,12 +849,23 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 
 	// Try to find existing .desktop file in installDir
 	var entry *core.DesktopEntry
-	desktopFiles, _ := afero.Glob(t.Fs, filepath.Join(installDir, "*.desktop"))
+	desktopFiles, globErr := afero.Glob(t.Fs, filepath.Join(installDir, "*.desktop"))
+	if globErr != nil {
+		t.Log.Debug().Err(globErr).Str("dir", installDir).Msg("failed to glob desktop files")
+	}
 	if len(desktopFiles) > 0 {
 		file, err := t.Fs.Open(desktopFiles[0])
 		if err == nil {
-			defer func() { _ = file.Close() }()
-			entry, _ = desktop.Parse(file)
+			defer func() {
+				if closeErr := file.Close(); closeErr != nil {
+					t.Log.Debug().Err(closeErr).Str("desktop_file", desktopFiles[0]).Msg("failed to close desktop file")
+				}
+			}()
+			if parsed, parseErr := desktop.Parse(file); parseErr == nil {
+				entry = parsed
+			} else {
+				t.Log.Debug().Err(parseErr).Str("desktop_file", desktopFiles[0]).Msg("failed to parse desktop file")
+			}
 		}
 	}
 
@@ -833,7 +898,9 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 				Err(err).
 				Str("app", appName).
 				Msg("invalid custom Wayland env vars, injecting defaults only")
-			_ = desktop.InjectWaylandEnvVars(entry, nil)
+			if fallbackErr := desktop.InjectWaylandEnvVars(entry, nil); fallbackErr != nil {
+				t.Log.Warn().Err(fallbackErr).Str("app", appName).Msg("failed to inject default Wayland env vars")
+			}
 		}
 	}
 

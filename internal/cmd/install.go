@@ -23,6 +23,8 @@ import (
 )
 
 // NewInstallCmd creates the install command
+//
+//nolint:gocyclo // command wiring includes validation and multiple optional flows.
 func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	var (
 		force          bool
@@ -38,7 +40,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		Short: "Install a package",
 		Long:  `Install a package from the specified file (AppImage, DEB, RPM, Tarball, or Binary).`,
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			packagePath := args[0]
 
 			absPath, err := filepath.Abs(packagePath)
@@ -54,23 +56,23 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				Bool("skip_desktop", skipDesktop).
 				Msg("starting installation")
 
-			if err := security.ValidatePath(packagePath); err != nil {
-				color.Red("Error: invalid package path: %v", err)
-				return fmt.Errorf("invalid package path: %w", err)
+			if validateErr := security.ValidatePath(packagePath); validateErr != nil {
+				color.Red("Error: invalid package path: %v", validateErr)
+				return fmt.Errorf("invalid package path: %w", validateErr)
 			}
 
 			if customName != "" {
 				customName = security.SanitizeString(customName)
-				if err := security.ValidatePackageName(customName); err != nil {
-					color.Red("Error: invalid custom name: %v", err)
-					return fmt.Errorf("invalid custom name: %w", err)
+				if validateErr := security.ValidatePackageName(customName); validateErr != nil {
+					color.Red("Error: invalid custom name: %v", validateErr)
+					return fmt.Errorf("invalid custom name: %w", validateErr)
 				}
 			}
 
 			// Validate package exists
-			if _, err := os.Stat(packagePath); err != nil {
+			if _, statErr := os.Stat(packagePath); statErr != nil {
 				color.Red("Error: package file not found: %s", packagePath)
-				return fmt.Errorf("package not found: %w", err)
+				return fmt.Errorf("package not found: %w", statErr)
 			}
 
 			// Create context with timeout
@@ -101,9 +103,9 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			// Initialize transaction manager
 			tx := transaction.NewManager(log)
 			defer func() {
-				if err := tx.Rollback(); err != nil {
-					log.Warn().Err(err).Msg("transaction rollback failed")
-					color.Red("Error: rollback failed: %v", err)
+				if rollbackErr := tx.Rollback(); rollbackErr != nil {
+					log.Warn().Err(rollbackErr).Msg("transaction rollback failed")
+					color.Red("Error: rollback failed: %v", rollbackErr)
 				}
 			}()
 
@@ -207,6 +209,8 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 
 // fixDockIcon prompts user to open app, captures initialClass, and renames .desktop file for dock compatibility.
 // Returns the new desktop file path if renamed, empty string if not renamed, or error if failed.
+//
+//nolint:gocyclo // interactive flow with Hyprland probing is naturally branching.
 func fixDockIcon(ctx context.Context, record *core.InstallRecord, dbRecord *db.Install, database *db.DB, log *zerolog.Logger) (string, error) {
 	// Ask user if they want to fix dock icon
 	color.Cyan("\n→ Dock icon fix (Hyprland)")
@@ -228,9 +232,9 @@ func fixDockIcon(ctx context.Context, record *core.InstallRecord, dbRecord *db.I
 	if execPath == "" {
 		return "", fmt.Errorf("no executable path available")
 	}
-	info, err := os.Stat(execPath)
-	if err != nil {
-		return "", fmt.Errorf("stat executable path: %w", err)
+	info, statErr := os.Stat(execPath)
+	if statErr != nil {
+		return "", fmt.Errorf("stat executable path: %w", statErr)
 	}
 	if info.IsDir() {
 		return "", fmt.Errorf("executable path is a directory: %s", execPath)
@@ -243,8 +247,8 @@ func fixDockIcon(ctx context.Context, record *core.InstallRecord, dbRecord *db.I
 		Setpgid: true, // Create new process group so we can kill it later
 	}
 
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("start application: %w", err)
+	if startErr := cmd.Start(); startErr != nil {
+		return "", fmt.Errorf("start application: %w", startErr)
 	}
 
 	pid := cmd.Process.Pid
@@ -257,14 +261,16 @@ func fixDockIcon(ctx context.Context, record *core.InstallRecord, dbRecord *db.I
 	// Kill the application regardless of whether we found the window
 	defer func() {
 		// Kill the entire process group
-		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-			log.Debug().Err(err).Int("pid", pid).Msg("failed to kill process group, trying direct kill")
-			if killErr := cmd.Process.Kill(); killErr != nil {
-				log.Warn().Err(killErr).Int("pid", pid).Msg("failed to kill process")
+		if killErr := syscall.Kill(-pid, syscall.SIGTERM); killErr != nil {
+			log.Debug().Err(killErr).Int("pid", pid).Msg("failed to kill process group, trying direct kill")
+			if directKillErr := cmd.Process.Kill(); directKillErr != nil {
+				log.Warn().Err(directKillErr).Int("pid", pid).Msg("failed to kill process")
 			}
 		}
 		// Wait to avoid zombies
-		_ = cmd.Wait()
+		if waitErr := cmd.Wait(); waitErr != nil {
+			log.Debug().Err(waitErr).Int("pid", pid).Msg("application wait failed")
+		}
 	}()
 
 	if err != nil {

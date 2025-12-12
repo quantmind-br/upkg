@@ -364,8 +364,8 @@ func TestDetectFileTypeWithMockFiles(t *testing.T) {
 			defer tmpfile.Close()
 
 			// Write content
-			if _, err := tmpfile.Write(tt.content); err != nil {
-				t.Fatalf("Failed to write content: %v", err)
+			if _, writeErr := tmpfile.Write(tt.content); writeErr != nil {
+				t.Fatalf("Failed to write content: %v", writeErr)
 			}
 
 			// Test detection

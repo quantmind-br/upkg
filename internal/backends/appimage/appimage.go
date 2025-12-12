@@ -22,6 +22,8 @@ import (
 )
 
 // AppImageBackend handles AppImage installations
+//
+//nolint:revive // exported backend names are kept for consistency across packages.
 type AppImageBackend struct {
 	*backendbase.BaseBackend
 	cacheManager *cache.CacheManager
@@ -65,7 +67,7 @@ func (a *AppImageBackend) Name() string {
 }
 
 // Detect checks if this backend can handle the package
-func (a *AppImageBackend) Detect(ctx context.Context, packagePath string) (bool, error) {
+func (a *AppImageBackend) Detect(_ context.Context, packagePath string) (bool, error) {
 	// Check if file exists
 	if _, err := a.Fs.Stat(packagePath); err != nil {
 		return false, nil
@@ -81,6 +83,8 @@ func (a *AppImageBackend) Detect(ctx context.Context, packagePath string) (bool,
 }
 
 // Install installs the AppImage package
+//
+//nolint:gocyclo // install flow is inherently branching (metadata, icons, desktop, tx).
 func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	a.Log.Info().
 		Str("package_path", packagePath).
@@ -102,17 +106,21 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer func() { _ = a.Fs.RemoveAll(tmpDir) }()
+	defer func() {
+		if removeErr := a.Fs.RemoveAll(tmpDir); removeErr != nil {
+			a.Log.Debug().Err(removeErr).Str("tmp_dir", tmpDir).Msg("failed to remove temp dir")
+		}
+	}()
 
 	// Extract AppImage
-	if err := a.extractAppImage(ctx, packagePath, tmpDir); err != nil {
-		return nil, fmt.Errorf("failed to extract AppImage: %w", err)
+	if extractErr := a.extractAppImage(ctx, packagePath, tmpDir); extractErr != nil {
+		return nil, fmt.Errorf("failed to extract AppImage: %w", extractErr)
 	}
 
 	// Find squashfs-root directory
 	squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
-	if _, err := a.Fs.Stat(squashfsRoot); err != nil {
-		return nil, fmt.Errorf("squashfs-root not found after extraction: %w", err)
+	if _, statErr := a.Fs.Stat(squashfsRoot); statErr != nil {
+		return nil, fmt.Errorf("squashfs-root not found after extraction: %w", statErr)
 	}
 
 	// Parse metadata from extracted content
@@ -139,8 +147,8 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 
 	// Normalize name
 	binName := helpers.NormalizeFilename(appName)
-	if err := security.ValidatePackageName(binName); err != nil {
-		return nil, fmt.Errorf("invalid normalized name %q: %w", binName, err)
+	if validateErr := security.ValidatePackageName(binName); validateErr != nil {
+		return nil, fmt.Errorf("invalid normalized name %q: %w", binName, validateErr)
 	}
 	installID := helpers.GenerateInstallID(binName)
 
@@ -150,17 +158,17 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 
 	// Copy AppImage to ~/.local/bin/
 	binDir := a.Paths.GetBinDir()
-	if err := a.Fs.MkdirAll(binDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create bin directory: %w", err)
+	if mkdirErr := a.Fs.MkdirAll(binDir, 0755); mkdirErr != nil {
+		return nil, fmt.Errorf("failed to create bin directory: %w", mkdirErr)
 	}
 
 	destPath := filepath.Join(binDir, binName+".appimage")
-	if _, err := a.Fs.Stat(destPath); err == nil {
+	if _, statErr := a.Fs.Stat(destPath); statErr == nil {
 		if !opts.Force {
 			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", destPath)
 		}
-		if err := a.Fs.Remove(destPath); err != nil {
-			return nil, fmt.Errorf("remove existing AppImage: %w", err)
+		if removeErr := a.Fs.Remove(destPath); removeErr != nil {
+			return nil, fmt.Errorf("remove existing AppImage: %w", removeErr)
 		}
 	}
 
@@ -168,13 +176,15 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read AppImage: %w", err)
 	}
-	if err := afero.WriteFile(a.Fs, destPath, content, 0755); err != nil {
-		return nil, fmt.Errorf("failed to copy AppImage: %w", err)
+	if writeErr := afero.WriteFile(a.Fs, destPath, content, 0755); writeErr != nil {
+		return nil, fmt.Errorf("failed to copy AppImage: %w", writeErr)
 	}
 
-	if err := a.Fs.Chmod(destPath, 0755); err != nil {
-		_ = a.Fs.Remove(destPath)
-		return nil, fmt.Errorf("failed to make AppImage executable: %w", err)
+	if chmodErr := a.Fs.Chmod(destPath, 0755); chmodErr != nil {
+		if removeErr := a.Fs.Remove(destPath); removeErr != nil {
+			a.Log.Warn().Err(removeErr).Str("path", destPath).Msg("failed to remove AppImage after chmod error")
+		}
+		return nil, fmt.Errorf("failed to make AppImage executable: %w", chmodErr)
 	}
 
 	if tx != nil {
@@ -207,12 +217,17 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	if !opts.SkipDesktop {
 		if opts.Force {
 			appsDir := a.Paths.GetAppsDir()
-			_ = a.Fs.Remove(filepath.Join(appsDir, binName+".desktop"))
+			oldDesktopPath := filepath.Join(appsDir, binName+".desktop")
+			if removeErr := a.Fs.Remove(oldDesktopPath); removeErr != nil {
+				a.Log.Debug().Err(removeErr).Str("desktop_file", oldDesktopPath).Msg("failed to remove existing desktop file")
+			}
 		}
 		desktopPath, err = a.createDesktopFile(squashfsRoot, appName, binName, destPath, metadata, opts)
 		if err != nil {
 			// Clean up on failure
-			_ = a.Fs.Remove(destPath)
+			if removeErr := a.Fs.Remove(destPath); removeErr != nil {
+				a.Log.Warn().Err(removeErr).Str("path", destPath).Msg("failed to remove AppImage after desktop file error")
+			}
 			a.removeIcons(iconPaths)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
@@ -230,10 +245,14 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 
 		// Update caches
 		appsDir := a.Paths.GetAppsDir()
-		_ = a.cacheManager.UpdateDesktopDatabase(appsDir, a.Log)
+		if cacheErr := a.cacheManager.UpdateDesktopDatabase(appsDir, a.Log); cacheErr != nil {
+			a.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
+		}
 
 		iconsDir := a.Paths.GetIconsDir()
-		_ = a.cacheManager.UpdateIconCache(iconsDir, a.Log)
+		if cacheErr := a.cacheManager.UpdateIconCache(iconsDir, a.Log); cacheErr != nil {
+			a.Log.Warn().Err(cacheErr).Str("icons_dir", iconsDir).Msg("failed to update icon cache")
+		}
 	}
 
 	// Create install record
@@ -267,7 +286,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 }
 
 // Uninstall removes the installed AppImage package
-func (a *AppImageBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
+func (a *AppImageBackend) Uninstall(_ context.Context, record *core.InstallRecord) error {
 	a.Log.Info().
 		Str("install_id", record.InstallID).
 		Str("name", record.Name).
@@ -295,10 +314,14 @@ func (a *AppImageBackend) Uninstall(ctx context.Context, record *core.InstallRec
 
 	// Update caches
 	appsDir := a.Paths.GetAppsDir()
-	_ = a.cacheManager.UpdateDesktopDatabase(appsDir, a.Log)
+	if cacheErr := a.cacheManager.UpdateDesktopDatabase(appsDir, a.Log); cacheErr != nil {
+		a.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
+	}
 
 	iconsDir := a.Paths.GetIconsDir()
-	_ = a.cacheManager.UpdateIconCache(iconsDir, a.Log)
+	if cacheErr := a.cacheManager.UpdateIconCache(iconsDir, a.Log); cacheErr != nil {
+		a.Log.Warn().Err(cacheErr).Str("icons_dir", iconsDir).Msg("failed to update icon cache")
+	}
 
 	a.Log.Info().
 		Str("install_id", record.InstallID).
@@ -434,6 +457,8 @@ func (a *AppImageBackend) removeIcons(iconPaths []string) {
 }
 
 // createDesktopFile creates or updates the .desktop file
+//
+//nolint:gocyclo // desktop generation handles multiple formats and environment cases.
 func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, execPath string, metadata *appImageMetadata, opts core.InstallOptions) (string, error) {
 	appsDir := a.Paths.GetAppsDir()
 	if err := a.Fs.MkdirAll(appsDir, 0755); err != nil {
@@ -448,8 +473,16 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 	if metadata.desktopFile != "" {
 		file, err := a.Fs.Open(metadata.desktopFile)
 		if err == nil {
-			defer func() { _ = file.Close() }()
-			entry, _ = desktop.Parse(file)
+			defer func() {
+				if closeErr := file.Close(); closeErr != nil {
+					a.Log.Debug().Err(closeErr).Str("desktop_file", metadata.desktopFile).Msg("failed to close desktop file")
+				}
+			}()
+			if parsed, parseErr := desktop.Parse(file); parseErr == nil {
+				entry = parsed
+			} else {
+				a.Log.Debug().Err(parseErr).Str("desktop_file", metadata.desktopFile).Msg("failed to parse desktop file from AppImage")
+			}
 		}
 	}
 
@@ -499,7 +532,9 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 				Err(err).
 				Str("app", appName).
 				Msg("invalid custom Wayland env vars, injecting defaults only")
-			_ = desktop.InjectWaylandEnvVars(entry, nil)
+			if fallbackErr := desktop.InjectWaylandEnvVars(entry, nil); fallbackErr != nil {
+				a.Log.Warn().Err(fallbackErr).Str("app", appName).Msg("failed to inject default Wayland env vars")
+			}
 		}
 	} else if isTauriApp {
 		a.Log.Info().

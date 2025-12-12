@@ -86,10 +86,15 @@ func runInteractiveUninstall(ctx context.Context, database *db.DB, registry *bac
 		// Don't calculate size here to avoid UI delay
 		// Size will be calculated only for selected packages
 		dateStr := install.InstallDate.Format("2006-01-02")
-		label := fmt.Sprintf("%s (%s) - %s",
+		shortID := install.InstallID
+		if len(shortID) > 8 {
+			shortID = shortID[:8]
+		}
+		label := fmt.Sprintf("%s (%s) - %s [id:%s]",
 			install.Name,
 			install.PackageType,
 			dateStr,
+			shortID,
 		)
 		options = append(options, label)
 		optionMap[label] = install
@@ -287,6 +292,14 @@ func dbInstallToCore(dbRecord *db.Install) *core.InstallRecord {
 		if originalDesktopFile, ok := dbRecord.Metadata["original_desktop_file"].(string); ok {
 			record.Metadata.OriginalDesktopFile = originalDesktopFile
 		}
+
+		if installMethod, ok := dbRecord.Metadata["install_method"].(string); ok && installMethod != "" {
+			record.Metadata.InstallMethod = installMethod
+		}
+	}
+
+	if record.Metadata.InstallMethod == "" {
+		record.Metadata.InstallMethod = core.InstallMethodLocal
 	}
 
 	return record

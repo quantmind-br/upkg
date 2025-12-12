@@ -43,6 +43,10 @@ test-coverage:
 ## lint: Run golangci-lint
 lint:
 	@echo "Running linter..."
+	@command -v $(GOLINT) >/dev/null 2>&1 || { \
+		echo "golangci-lint not found. Install from https://golangci-lint.run/usage/install/"; \
+		exit 1; \
+	}
 	$(GOLINT) run ./...
 
 ## fmt: Format Go code

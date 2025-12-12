@@ -98,6 +98,36 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		return fmt.Errorf("create schema: %w", err)
 	}
 
+	if err := db.applyMigrations(ctx); err != nil {
+		return fmt.Errorf("apply migrations: %w", err)
+	}
+
+	return nil
+}
+
+const currentSchemaVersion = 1
+
+// applyMigrations records/applies schema migrations.
+// For now we only stamp the initial schema version if none exists.
+func (db *DB) applyMigrations(ctx context.Context) error {
+	var current int
+	if err := db.write.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&current); err != nil {
+		return fmt.Errorf("read migrations version: %w", err)
+	}
+
+	if current >= currentSchemaVersion {
+		return nil
+	}
+
+	_, err := db.write.ExecContext(ctx,
+		`INSERT INTO schema_migrations (version, description) VALUES (?, ?)`,
+		currentSchemaVersion,
+		"initial schema",
+	)
+	if err != nil {
+		return fmt.Errorf("insert migration version: %w", err)
+	}
+
 	return nil
 }
 

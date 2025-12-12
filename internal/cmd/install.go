@@ -15,6 +15,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
 	"github.com/quantmind-br/upkg/internal/hyprland"
+	"github.com/quantmind-br/upkg/internal/security"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
@@ -45,6 +46,11 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				Bool("force", force).
 				Bool("skip_desktop", skipDesktop).
 				Msg("starting installation")
+
+			if err := security.ValidatePath(packagePath); err != nil {
+				color.Red("Error: invalid package path: %v", err)
+				return fmt.Errorf("invalid package path: %w", err)
+			}
 
 			// Validate package exists
 			if _, err := os.Stat(packagePath); err != nil {
@@ -88,6 +94,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			// Install package
 			color.Cyan("→ Installing package...")
 			installOpts := core.InstallOptions{
+				Force:          force,
 				SkipDesktop:    skipDesktop,
 				CustomName:     customName,
 				SkipWaylandEnv: skipWaylandEnv,
@@ -113,6 +120,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 					"icon_files":      record.Metadata.IconFiles,
 					"wrapper_script":  record.Metadata.WrapperScript,
 					"wayland_support": record.Metadata.WaylandSupport,
+					"install_method":  record.Metadata.InstallMethod,
 				},
 			}
 
@@ -137,7 +145,10 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			tx.Commit()
 
 			// Try to fix dock icon if we have a desktop file and Hyprland is running
-			if record.DesktopFile != "" && !skipIconFix && hyprland.IsHyprlandRunning() {
+			if record.DesktopFile != "" &&
+				!skipIconFix &&
+				hyprland.IsHyprlandRunning() &&
+				record.Metadata.InstallMethod != core.InstallMethodPacman {
 				if newDesktopPath, err := fixDockIcon(ctx, record, dbRecord, database, log); err != nil {
 					log.Warn().Err(err).Msg("dock icon fix failed")
 				} else if newDesktopPath != "" {
@@ -193,9 +204,19 @@ func fixDockIcon(ctx context.Context, record *core.InstallRecord, dbRecord *db.I
 	}
 
 	// Get executable from install path or desktop file
-	execPath := record.InstallPath
+	execPath := record.Metadata.WrapperScript
+	if execPath == "" {
+		execPath = record.InstallPath
+	}
 	if execPath == "" {
 		return "", fmt.Errorf("no executable path available")
+	}
+	info, err := os.Stat(execPath)
+	if err != nil {
+		return "", fmt.Errorf("stat executable path: %w", err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("executable path is a directory: %s", execPath)
 	}
 
 	// Start the application

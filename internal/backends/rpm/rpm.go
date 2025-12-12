@@ -16,6 +16,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/heuristics"
 	"github.com/quantmind-br/upkg/internal/icons"
+	"github.com/quantmind-br/upkg/internal/security"
 	"github.com/quantmind-br/upkg/internal/syspkg"
 	"github.com/quantmind-br/upkg/internal/syspkg/arch"
 	"github.com/quantmind-br/upkg/internal/transaction"
@@ -24,19 +25,47 @@ import (
 
 // RpmBackend handles RPM package installations
 type RpmBackend struct {
-	cfg    *config.Config
-	logger *zerolog.Logger
-	scorer heuristics.Scorer
-	sys    syspkg.Provider
+	cfg         *config.Config
+	logger      *zerolog.Logger
+	scorer      heuristics.Scorer
+	sys         syspkg.Provider
+	runner      helpers.CommandRunner
+	cacheManager *cache.CacheManager
 }
 
 // New creates a new RPM backend
 func New(cfg *config.Config, log *zerolog.Logger) *RpmBackend {
 	return &RpmBackend{
-		cfg:    cfg,
-		logger: log,
-		scorer: heuristics.NewScorer(log),
-		sys:    arch.NewPacmanProvider(),
+		cfg:         cfg,
+		logger:      log,
+		scorer:      heuristics.NewScorer(log),
+		sys:         arch.NewPacmanProvider(),
+		runner:      helpers.NewOSCommandRunner(),
+		cacheManager: cache.NewCacheManager(),
+	}
+}
+
+// NewWithRunner creates a new RPM backend with a custom command runner
+func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *RpmBackend {
+	return &RpmBackend{
+		cfg:         cfg,
+		logger:      log,
+		scorer:      heuristics.NewScorer(log),
+		sys:         arch.NewPacmanProvider(),
+		runner:      runner,
+		cacheManager: cache.NewCacheManager(),
+	}
+}
+
+// NewWithCacheManager creates a new RPM backend with a custom cache manager
+func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *RpmBackend {
+	return &RpmBackend{
+		cfg:         cfg,
+		logger:      log,
+		scorer:      heuristics.NewScorer(log),
+		sys:         arch.NewPacmanProvider(),
+		runner:      helpers.NewOSCommandRunner(),
+		cacheManager: cacheManager,
 	}
 }
 
@@ -92,15 +121,18 @@ func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.
 	}
 
 	normalizedName := helpers.NormalizeFilename(pkgName)
+	if err := security.ValidatePackageName(normalizedName); err != nil {
+		return nil, fmt.Errorf("invalid normalized name %q: %w", normalizedName, err)
+	}
 	installID := helpers.GenerateInstallID(normalizedName)
 
 	// Check if rpmextract.sh is available (preferred method)
-	if helpers.CommandExists("rpmextract.sh") {
+	if r.runner.CommandExists("rpmextract.sh") {
 		return r.installWithExtract(ctx, packagePath, normalizedName, installID, opts, tx)
 	}
 
 	// Fallback: check if we can use debtap (on Arch)
-	if helpers.CommandExists("debtap") && helpers.CommandExists("pacman") {
+	if r.runner.CommandExists("debtap") && r.runner.CommandExists("pacman") {
 		r.logger.Info().Msg("using debtap/pacman method for RPM installation")
 		return r.installWithDebtap(ctx, packagePath, normalizedName, installID, opts, tx)
 	}
@@ -145,7 +177,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	extractCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	_, err = helpers.RunCommand(extractCtx, "rpmextract.sh", absPackagePath)
+	_, err = r.runner.RunCommand(extractCtx, "rpmextract.sh", absPackagePath)
 	if err != nil {
 		return nil, fmt.Errorf("rpmextract.sh failed: %w", err)
 	}
@@ -157,11 +189,27 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	installDir := filepath.Join(appsDir, normalizedName)
 
 	if _, err := os.Stat(installDir); err == nil {
-		return nil, fmt.Errorf("package already installed at: %s", installDir)
+		if !opts.Force {
+			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", installDir)
+		}
+		if err := os.RemoveAll(installDir); err != nil {
+			return nil, fmt.Errorf("remove existing installation directory: %w", err)
+		}
+		// Best-effort cleanup of expected wrapper/desktop paths
+		binDir := filepath.Join(homeDir, ".local", "bin")
+		_ = os.Remove(filepath.Join(binDir, normalizedName))
+		appsDbDir := filepath.Join(homeDir, ".local", "share", "applications")
+		_ = os.Remove(filepath.Join(appsDbDir, normalizedName+".desktop"))
 	}
 
 	if err := os.MkdirAll(installDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create installation directory: %w", err)
+	}
+	if tx != nil {
+		dir := installDir
+		tx.Add("remove rpm installation directory", func() error {
+			return os.RemoveAll(dir)
+		})
 	}
 
 	// Move extracted content to installation directory
@@ -209,11 +257,27 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 		os.RemoveAll(installDir)
 		return nil, fmt.Errorf("failed to create wrapper script: %w", err)
 	}
+	if tx != nil {
+		path := wrapperPath
+		tx.Add("remove rpm wrapper script", func() error {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			return nil
+		})
+	}
 
 	// Install icons
 	iconPaths, err := r.installIcons(installDir, normalizedName)
 	if err != nil {
 		r.logger.Warn().Err(err).Msg("failed to install icons")
+	}
+	if tx != nil && len(iconPaths) > 0 {
+		paths := append([]string(nil), iconPaths...)
+		tx.Add("remove rpm icons", func() error {
+			r.removeIcons(paths)
+			return nil
+		})
 	}
 
 	// Create .desktop file
@@ -228,12 +292,22 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
+		if tx != nil && desktopPath != "" {
+			path := desktopPath
+			tx.Add("remove rpm desktop file", func() error {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					return err
+				}
+				return nil
+			})
+		}
+
 		// Update caches
 		appsDbDir := filepath.Join(homeDir, ".local", "share", "applications")
-		cache.UpdateDesktopDatabase(appsDbDir, r.logger)
+		r.cacheManager.UpdateDesktopDatabase(appsDbDir, r.logger)
 
 		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		cache.UpdateIconCache(iconsDir, r.logger)
+		r.cacheManager.UpdateIconCache(iconsDir, r.logger)
 	}
 
 	// Create install record
@@ -249,6 +323,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 			IconFiles:      iconPaths,
 			WrapperScript:  wrapperPath,
 			WaylandSupport: string(core.WaylandUnknown),
+			InstallMethod:  core.InstallMethodLocal,
 		},
 	}
 
@@ -293,7 +368,7 @@ func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normali
 	convertCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
-	_, err = helpers.RunCommand(convertCtx, "debtap", "-q", "-Q", absPackagePath)
+	_, err = r.runner.RunCommand(convertCtx, "debtap", "-q", "-Q", absPackagePath)
 	if err != nil {
 		return nil, fmt.Errorf("debtap conversion failed: %w", err)
 	}
@@ -315,6 +390,14 @@ func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normali
 	err = r.sys.Install(installCtx, archPkgPath)
 	if err != nil {
 		return nil, fmt.Errorf("pacman installation failed: %w", err)
+	}
+	if tx != nil {
+		pkgName := normalizedName
+		tx.Add("remove pacman package", func() error {
+			removeCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer cancel()
+			return r.sys.Remove(removeCtx, pkgName)
+		})
 	}
 
 	// Get package info
@@ -340,10 +423,10 @@ func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normali
 
 	// Update caches
 	if len(desktopFiles) > 0 {
-		cache.UpdateDesktopDatabase("/usr/share/applications", r.logger)
+		r.cacheManager.UpdateDesktopDatabase("/usr/share/applications", r.logger)
 	}
 	if len(iconFiles) > 0 {
-		cache.UpdateIconCache("/usr/share/icons/hicolor", r.logger)
+		r.cacheManager.UpdateIconCache("/usr/share/icons/hicolor", r.logger)
 	}
 
 	// Create install record
@@ -354,11 +437,12 @@ func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normali
 		Version:      pkgInfo.version,
 		InstallDate:  time.Now(),
 		OriginalFile: packagePath,
-		InstallPath:  fmt.Sprintf("/usr (managed by pacman: %s)", normalizedName),
+		InstallPath:  "",
 		DesktopFile:  primaryDesktopFile,
 		Metadata: core.Metadata{
 			IconFiles:      iconFiles,
 			WaylandSupport: string(core.WaylandUnknown),
+			InstallMethod:  core.InstallMethodPacman,
 		},
 	}
 
@@ -378,7 +462,8 @@ func (r *RpmBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 		Msg("uninstalling RPM package")
 
 	// Check if it was installed via pacman or extracted
-	if strings.Contains(record.InstallPath, "pacman") {
+	if record.Metadata.InstallMethod == core.InstallMethodPacman ||
+		strings.Contains(record.InstallPath, "pacman") { // backward compatibility
 		// Installed via pacman
 		return r.uninstallPacman(ctx, record)
 	}
@@ -411,8 +496,8 @@ func (r *RpmBackend) uninstallPacman(ctx context.Context, record *core.InstallRe
 	}
 
 	// Update caches
-	cache.UpdateDesktopDatabase("/usr/share/applications", r.logger)
-	cache.UpdateIconCache("/usr/share/icons/hicolor", r.logger)
+	r.cacheManager.UpdateDesktopDatabase("/usr/share/applications", r.logger)
+	r.cacheManager.UpdateIconCache("/usr/share/icons/hicolor", r.logger)
 
 	return nil
 }
@@ -447,10 +532,10 @@ func (r *RpmBackend) uninstallExtracted(ctx context.Context, record *core.Instal
 	homeDir, _ := os.UserHomeDir()
 	if homeDir != "" {
 		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		cache.UpdateDesktopDatabase(appsDir, r.logger)
+		r.cacheManager.UpdateDesktopDatabase(appsDir, r.logger)
 
 		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		cache.UpdateIconCache(iconsDir, r.logger)
+		r.cacheManager.UpdateIconCache(iconsDir, r.logger)
 	}
 
 	return nil
@@ -558,7 +643,13 @@ func (r *RpmBackend) createDesktopFile(installDir, normalizedName, wrapperPath s
 
 	// Inject Wayland vars
 	if r.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
-		desktop.InjectWaylandEnvVars(entry, r.cfg.Desktop.CustomEnvVars)
+		if err := desktop.InjectWaylandEnvVars(entry, r.cfg.Desktop.CustomEnvVars); err != nil {
+			r.logger.Warn().
+				Err(err).
+				Str("app", normalizedName).
+				Msg("invalid custom Wayland env vars, injecting defaults only")
+			_ = desktop.InjectWaylandEnvVars(entry, nil)
+		}
 	}
 
 	return desktopFilePath, desktop.WriteDesktopFile(desktopFilePath, entry)
@@ -619,7 +710,7 @@ type packageInfo struct {
 // instead of parsing the filename which may not match the actual package name.
 func (r *RpmBackend) queryRpmName(ctx context.Context, packagePath string) (string, error) {
 	// Check if rpm command is available
-	if !helpers.CommandExists("rpm") {
+	if !r.runner.CommandExists("rpm") {
 		return "", fmt.Errorf("rpm command not found")
 	}
 
@@ -633,7 +724,7 @@ func (r *RpmBackend) queryRpmName(ctx context.Context, packagePath string) (stri
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := helpers.RunCommand(queryCtx, "rpm", "-qp", "--queryformat", "%{NAME}", absPath)
+	output, err := r.runner.RunCommand(queryCtx, "rpm", "-qp", "--queryformat", "%{NAME}", absPath)
 	if err != nil {
 		return "", fmt.Errorf("rpm query failed: %w", err)
 	}

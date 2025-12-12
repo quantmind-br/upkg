@@ -20,6 +20,11 @@
 - **System Diagnostics**: Built-in doctor command for system health checks
 - **Shell Completion**: Generates completion scripts for bash, zsh, fish, and powershell
 
+### Usage Notes
+- `upkg install` fails if a target name/path already exists; use `--force` for a clean reinstall on local backends.
+- DEB/RPM installs via pacman are treated as system-managed. `doctor` skips their file integrity checks and Hyprland dock icon fix is not attempted for them.
+- `upkg doctor` is read-only by default; use `--fix` to create missing directories and verify writability.
+
 ### Likely Intended Use Cases
 - Linux users who need a unified interface for managing software from different sources
 - System administrators who require reliable package installation with rollback capabilities

@@ -6,17 +6,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 )
 
 // NewDoctorCmd creates the doctor command
 func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	var verbose bool
+	var fix bool
 
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -88,7 +92,7 @@ func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			}
 
 			for _, dir := range dirs {
-				if checkDirectory(dir.path, dir.name) {
+				if checkDirectory(dir.path, dir.name, fix) {
 					ui.PrintSuccess("%s: %s", dir.name, dir.path)
 				} else {
 					ui.PrintError("%s: NOT ACCESSIBLE (%s)", dir.name, dir.path)
@@ -169,6 +173,7 @@ func NewDoctorCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "verbose output with integrity checks")
+	cmd.Flags().BoolVar(&fix, "fix", false, "create missing directories and try to fix permissions")
 
 	return cmd
 }
@@ -180,11 +185,14 @@ func checkDependency(command, name, purpose string, required bool) bool {
 }
 
 // checkDirectory checks if a directory exists and is writable
-func checkDirectory(path, name string) bool {
+func checkDirectory(path, name string, fix bool) bool {
 	info, err := os.Stat(path)
 	if err != nil {
 		// Try to create if it doesn't exist
 		if os.IsNotExist(err) {
+			if !fix {
+				return false
+			}
 			if err := os.MkdirAll(path, 0755); err != nil {
 				return false
 			}
@@ -198,11 +206,18 @@ func checkDirectory(path, name string) bool {
 	}
 
 	// Check if writable
-	testFile := filepath.Join(path, ".upkg-test")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+	if fix {
+		testFile := filepath.Join(path, ".upkg-test")
+		if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+			return false
+		}
+		_ = os.Remove(testFile)
+		return true
+	}
+
+	if err := unix.Access(path, unix.W_OK); err != nil {
 		return false
 	}
-	os.Remove(testFile)
 
 	return true
 }
@@ -212,6 +227,10 @@ func checkPackageIntegrity(installs []db.Install) []db.Install {
 	var broken []db.Install
 
 	for _, install := range installs {
+		if isSystemManagedInstall(install) {
+			continue
+		}
+
 		// Check if install path exists
 		if install.InstallPath != "" {
 			if _, err := os.Stat(install.InstallPath); os.IsNotExist(err) {
@@ -229,6 +248,17 @@ func checkPackageIntegrity(installs []db.Install) []db.Install {
 	}
 
 	return broken
+}
+
+func isSystemManagedInstall(install db.Install) bool {
+	if install.Metadata != nil {
+		if method, ok := install.Metadata["install_method"].(string); ok && method != "" {
+			return method == core.InstallMethodPacman
+		}
+	}
+
+	// Backward compatibility: older records used a descriptive InstallPath.
+	return strings.Contains(install.InstallPath, "pacman")
 }
 
 // checkEnvironment checks environment variables

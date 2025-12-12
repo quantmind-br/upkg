@@ -10,11 +10,22 @@ import (
 )
 
 // PacmanProvider implements the Provider interface for Arch Linux
-type PacmanProvider struct{}
+type PacmanProvider struct {
+	runner helpers.CommandRunner
+}
 
 // NewPacmanProvider creates a new Pacman provider
 func NewPacmanProvider() *PacmanProvider {
-	return &PacmanProvider{}
+	return &PacmanProvider{
+		runner: helpers.NewOSCommandRunner(),
+	}
+}
+
+// NewPacmanProviderWithRunner creates a new Pacman provider with a custom command runner
+func NewPacmanProviderWithRunner(runner helpers.CommandRunner) *PacmanProvider {
+	return &PacmanProvider{
+		runner: runner,
+	}
 }
 
 func (p *PacmanProvider) Name() string {
@@ -23,7 +34,7 @@ func (p *PacmanProvider) Name() string {
 
 // Install installs a package from a local path using pacman
 func (p *PacmanProvider) Install(ctx context.Context, pkgPath string) error {
-	_, err := helpers.RunCommand(ctx, "sudo", "pacman", "-U", "--noconfirm", pkgPath)
+	_, err := p.runner.RunCommand(ctx, "sudo", "pacman", "-U", "--noconfirm", pkgPath)
 	if err != nil {
 		return fmt.Errorf("pacman installation failed: %w", err)
 	}
@@ -32,7 +43,7 @@ func (p *PacmanProvider) Install(ctx context.Context, pkgPath string) error {
 
 // Remove removes a package by name
 func (p *PacmanProvider) Remove(ctx context.Context, pkgName string) error {
-	_, err := helpers.RunCommand(ctx, "sudo", "pacman", "-R", "--noconfirm", pkgName)
+	_, err := p.runner.RunCommand(ctx, "sudo", "pacman", "-R", "--noconfirm", pkgName)
 	if err != nil {
 		return fmt.Errorf("pacman removal failed: %w", err)
 	}
@@ -41,7 +52,7 @@ func (p *PacmanProvider) Remove(ctx context.Context, pkgName string) error {
 
 // IsInstalled checks if a package is installed
 func (p *PacmanProvider) IsInstalled(ctx context.Context, pkgName string) (bool, error) {
-	_, err := helpers.RunCommand(ctx, "pacman", "-Qi", pkgName)
+	_, err := p.runner.RunCommand(ctx, "pacman", "-Qi", pkgName)
 	if err != nil {
 		return false, nil // Not installed (or error, but usually not installed)
 	}
@@ -50,7 +61,7 @@ func (p *PacmanProvider) IsInstalled(ctx context.Context, pkgName string) (bool,
 
 // GetInfo retrieves package information
 func (p *PacmanProvider) GetInfo(ctx context.Context, pkgName string) (*syspkg.PackageInfo, error) {
-	output, err := helpers.RunCommand(ctx, "pacman", "-Qi", pkgName)
+	output, err := p.runner.RunCommand(ctx, "pacman", "-Qi", pkgName)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +82,7 @@ func (p *PacmanProvider) GetInfo(ctx context.Context, pkgName string) (*syspkg.P
 
 // ListFiles lists files owned by the package
 func (p *PacmanProvider) ListFiles(ctx context.Context, pkgName string) ([]string, error) {
-	output, err := helpers.RunCommand(ctx, "pacman", "-Ql", pkgName)
+	output, err := p.runner.RunCommand(ctx, "pacman", "-Ql", pkgName)
 	if err != nil {
 		return nil, err
 	}

@@ -162,3 +162,224 @@ func TestIsAppImage(t *testing.T) {
 		})
 	}
 }
+
+func TestIsELF(t *testing.T) {
+	tests := []struct {
+		name        string
+		filePath    string
+		wantResult  bool
+		wantErr     bool
+	}{
+		{
+			name:        "regular ELF binary",
+			filePath:    "/bin/ls",
+			wantResult:  true,
+			wantErr:     false,
+		},
+		{
+			name:        "non-existent file",
+			filePath:    "/nonexistent/file",
+			wantResult:  false,
+			wantErr:     false,
+		},
+		{
+			name:        "text file",
+			filePath:    "/etc/hosts",
+			wantResult:  false,
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := os.Stat(tt.filePath); os.IsNotExist(err) && tt.name != "non-existent file" {
+				t.Skipf("File %s does not exist, skipping test", tt.filePath)
+			}
+
+			result, err := IsELF(tt.filePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("IsELF() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if result != tt.wantResult {
+				t.Errorf("IsELF() = %v, want %v", result, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestGetArchiveType(t *testing.T) {
+	tests := []struct {
+		name        string
+		filePath    string
+		wantResult  string
+	}{
+		{
+			name:        "tar.gz file",
+			filePath:    "test.tar.gz",
+			wantResult:  "tar.gz",
+		},
+		{
+			name:        "tgz file",
+			filePath:    "test.tgz",
+			wantResult:  "tar.gz",
+		},
+		{
+			name:        "tar.bz2 file",
+			filePath:    "test.tar.bz2",
+			wantResult:  "tar.bz2",
+		},
+		{
+			name:        "tbz2 file",
+			filePath:    "test.tbz2",
+			wantResult:  "tar.bz2",
+		},
+		{
+			name:        "tar.xz file",
+			filePath:    "test.tar.xz",
+			wantResult:  "tar.xz",
+		},
+		{
+			name:        "txz file",
+			filePath:    "test.txz",
+			wantResult:  "tar.xz",
+		},
+		{
+			name:        "tar file",
+			filePath:    "test.tar",
+			wantResult:  "tar",
+		},
+		{
+			name:        "zip file",
+			filePath:    "test.zip",
+			wantResult:  "zip",
+		},
+		{
+			name:        "unknown file",
+			filePath:    "test.txt",
+			wantResult:  "",
+		},
+		{
+			name:        "case insensitive",
+			filePath:    "test.TAR.GZ",
+			wantResult:  "tar.gz",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetArchiveType(tt.filePath)
+			if result != tt.wantResult {
+				t.Errorf("GetArchiveType() = %v, want %v", result, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestDetectFileTypeWithMockFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		filePath    string
+		content     []byte
+		wantType    FileType
+		wantErr     bool
+	}{
+		{
+			name:        "ELF file",
+			filePath:    "test.elf",
+			content:     []byte{0x7F, 'E', 'L', 'F'}, // ELF magic
+			wantType:    FileTypeELF,
+			wantErr:     false,
+		},
+		{
+			name:        "shell script",
+			filePath:    "test.sh",
+			content:     []byte{'#', '!', '/', 'b', 'i', 'n', '/', 'b', 'a', 's', 'h'},
+			wantType:    FileTypeScript,
+			wantErr:     false,
+		},
+		{
+			name:        "DEB file",
+			filePath:    "test.deb",
+			content:     []byte("!<arch>\ndebian-binary   "),
+			wantType:    FileTypeDEB,
+			wantErr:     false,
+		},
+		{
+			name:        "RPM file",
+			filePath:    "test.rpm",
+			content:     []byte{0xED, 0xAB, 0xEE, 0xDB},
+			wantType:    FileTypeRPM,
+			wantErr:     false,
+		},
+		{
+			name:        "TAR file",
+			filePath:    "test.tar",
+			content:     make([]byte, 262),
+			wantType:    FileTypeTar,
+			wantErr:     false,
+		},
+		{
+			name:        "GZIP file",
+			filePath:    "test.gz",
+			content:     []byte{0x1F, 0x8B},
+			wantType:    FileTypeTarGz,
+			wantErr:     false,
+		},
+		{
+			name:        "XZ file",
+			filePath:    "test.xz",
+			content:     []byte{0xFD, '7', 'z', 'X', 'Z', 0x00},
+			wantType:    FileTypeTarXz,
+			wantErr:     false,
+		},
+		{
+			name:        "BZ2 file",
+			filePath:    "test.bz2",
+			content:     []byte{'B', 'Z', 'h'},
+			wantType:    FileTypeTarBz2,
+			wantErr:     false,
+		},
+		{
+			name:        "ZIP file",
+			filePath:    "test.zip",
+			content:     []byte{'P', 'K'},
+			wantType:    FileTypeZip,
+			wantErr:     false,
+		},
+		{
+			name:        "unknown file",
+			filePath:    "test.unknown",
+			content:     []byte{'X', 'Y', 'Z'},
+			wantType:    FileTypeUnknown,
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary file
+			tmpfile, err := os.CreateTemp("", "test_*"+filepath.Ext(tt.filePath))
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpfile.Name())
+			defer tmpfile.Close()
+
+			// Write content
+			if _, err := tmpfile.Write(tt.content); err != nil {
+				t.Fatalf("Failed to write content: %v", err)
+			}
+
+			// Test detection
+			fileType, err := DetectFileType(tmpfile.Name())
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DetectFileType() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if fileType != tt.wantType {
+				t.Errorf("DetectFileType() = %v, want %v", fileType, tt.wantType)
+			}
+		})
+	}
+}

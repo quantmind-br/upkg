@@ -26,17 +26,43 @@ import (
 
 // DebBackend handles DEB package installations via debtap
 type DebBackend struct {
-	cfg    *config.Config
-	logger *zerolog.Logger
-	sys    syspkg.Provider
+	cfg         *config.Config
+	logger      *zerolog.Logger
+	sys         syspkg.Provider
+	runner      helpers.CommandRunner
+	cacheManager *cache.CacheManager
 }
 
 // New creates a new DEB backend
 func New(cfg *config.Config, log *zerolog.Logger) *DebBackend {
 	return &DebBackend{
-		cfg:    cfg,
-		logger: log,
-		sys:    arch.NewPacmanProvider(),
+		cfg:         cfg,
+		logger:      log,
+		sys:         arch.NewPacmanProvider(),
+		runner:      helpers.NewOSCommandRunner(),
+		cacheManager: cache.NewCacheManager(),
+	}
+}
+
+// NewWithRunner creates a new DEB backend with a custom command runner
+func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *DebBackend {
+	return &DebBackend{
+		cfg:         cfg,
+		logger:      log,
+		sys:         arch.NewPacmanProvider(),
+		runner:      runner,
+		cacheManager: cache.NewCacheManager(),
+	}
+}
+
+// NewWithCacheManager creates a new DEB backend with a custom cache manager
+func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *DebBackend {
+	return &DebBackend{
+		cfg:         cfg,
+		logger:      log,
+		sys:         arch.NewPacmanProvider(),
+		runner:      helpers.NewOSCommandRunner(),
+		cacheManager: cacheManager,
 	}
 }
 
@@ -87,12 +113,12 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	progress.StartPhase(0)
 
 	// Check if debtap is installed
-	if err := helpers.RequireCommand("debtap"); err != nil {
+	if err := d.runner.RequireCommand("debtap"); err != nil {
 		return nil, fmt.Errorf("debtap is required for DEB installation: %w\nInstall with: yay -S debtap", err)
 	}
 
 	// Check if pacman is available (we're on Arch)
-	if err := helpers.RequireCommand("pacman"); err != nil {
+	if err := d.runner.RequireCommand("pacman"); err != nil {
 		return nil, fmt.Errorf("pacman not found - DEB backend requires Arch Linux")
 	}
 
@@ -212,6 +238,14 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	if err != nil {
 		return nil, fmt.Errorf("pacman installation failed: %w", err)
 	}
+	if tx != nil {
+		pkgName := pacmanPkgName
+		tx.Add("remove pacman package", func() error {
+			removeCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer cancel()
+			return d.sys.Remove(removeCtx, pkgName)
+		})
+	}
 
 	d.logger.Info().Msg("package installed successfully via pacman")
 
@@ -272,7 +306,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	// Update caches
 	if len(desktopFiles) > 0 {
 		appsDir := filepath.Dir(desktopFiles[0])
-		cache.UpdateDesktopDatabase(appsDir, d.logger)
+		d.cacheManager.UpdateDesktopDatabase(appsDir, d.logger)
 	}
 
 	if len(iconFiles) > 0 {
@@ -280,7 +314,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		for _, iconFile := range iconFiles {
 			if strings.Contains(iconFile, "hicolor") {
 				hicolorDir := filepath.Dir(filepath.Dir(filepath.Dir(iconFile)))
-				cache.UpdateIconCache(hicolorDir, d.logger)
+				d.cacheManager.UpdateIconCache(hicolorDir, d.logger)
 				break
 			}
 		}
@@ -294,11 +328,12 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		Version:      pkgInfo.version,
 		InstallDate:  time.Now(),
 		OriginalFile: packagePath,
-		InstallPath:  fmt.Sprintf("/usr (managed by pacman: %s)", pacmanPkgName),
+		InstallPath:  "",
 		DesktopFile:  primaryDesktopFile,
 		Metadata: core.Metadata{
 			IconFiles:      iconFiles,
 			WaylandSupport: string(core.WaylandUnknown),
+			InstallMethod:  core.InstallMethodPacman,
 			ExtractedMeta: core.ExtractedMetadata{
 				Comment: fmt.Sprintf("Installed via debtap/pacman"),
 			},
@@ -349,8 +384,8 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 	}
 
 	// Update caches
-	cache.UpdateDesktopDatabase("/usr/share/applications", d.logger)
-	cache.UpdateIconCache("/usr/share/icons/hicolor", d.logger)
+	d.cacheManager.UpdateDesktopDatabase("/usr/share/applications", d.logger)
+	d.cacheManager.UpdateIconCache("/usr/share/icons/hicolor", d.logger)
 
 	d.logger.Info().
 		Str("install_id", record.InstallID).
@@ -598,7 +633,13 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 
 	// Inject Wayland vars
 	if err := desktop.InjectWaylandEnvVars(entry, d.cfg.Desktop.CustomEnvVars); err != nil {
-		return err
+		d.logger.Warn().
+			Err(err).
+			Str("desktop_file", desktopPath).
+			Msg("invalid custom Wayland env vars, injecting defaults only")
+		if err2 := desktop.InjectWaylandEnvVars(entry, nil); err2 != nil {
+			return err2
+		}
 	}
 
 	// Write back (need sudo for system files)
@@ -618,7 +659,7 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err = helpers.RunCommand(ctx, "sudo", "mv", tmpPath, desktopPath)
+	_, err = d.runner.RunCommand(ctx, "sudo", "mv", tmpPath, desktopPath)
 	if err != nil {
 		os.Remove(tmpPath)
 		return err
@@ -639,7 +680,7 @@ type packageInfo struct {
 // instead of parsing the filename which may not match the actual package name.
 func (d *DebBackend) queryDebName(ctx context.Context, packagePath string) (string, error) {
 	// Check if dpkg-deb command is available
-	if !helpers.CommandExists("dpkg-deb") {
+	if !d.runner.CommandExists("dpkg-deb") {
 		return "", fmt.Errorf("dpkg-deb command not found")
 	}
 
@@ -653,7 +694,7 @@ func (d *DebBackend) queryDebName(ctx context.Context, packagePath string) (stri
 	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := helpers.RunCommand(queryCtx, "dpkg-deb", "--field", absPath, "Package")
+	output, err := d.runner.RunCommand(queryCtx, "dpkg-deb", "--field", absPath, "Package")
 	if err != nil {
 		return "", fmt.Errorf("dpkg-deb query failed: %w", err)
 	}

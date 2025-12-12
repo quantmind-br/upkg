@@ -53,7 +53,8 @@ func NewInfoCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				lowerIdentifier := strings.ToLower(identifier)
 				for _, install := range allInstalls {
 					if strings.ToLower(install.Name) == lowerIdentifier {
-						dbRecord = &install
+						installCopy := install
+						dbRecord = &installCopy
 						break
 					}
 				}

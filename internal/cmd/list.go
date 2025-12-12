@@ -170,7 +170,13 @@ func printSummary(all, filtered []db.Install, filterType, filterName string) {
 	if len(typeCounts) > 0 && len(filtered) == len(all) {
 		fmt.Print("  ")
 		first := true
-		for pkgType, count := range typeCounts {
+		types := make([]string, 0, len(typeCounts))
+		for pkgType := range typeCounts {
+			types = append(types, pkgType)
+		}
+		sort.Strings(types)
+		for _, pkgType := range types {
+			count := typeCounts[pkgType]
 			if !first {
 				fmt.Print(" | ")
 			}

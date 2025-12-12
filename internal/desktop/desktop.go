@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/quantmind-br/upkg/internal/core"
+	"github.com/quantmind-br/upkg/internal/security"
 )
 
 // Parse parses a .desktop file from a reader
@@ -116,7 +117,26 @@ func InjectWaylandEnvVars(de *core.DesktopEntry, customVars []string) error {
 		"MOZ_ENABLE_WAYLAND=1",
 		"ELECTRON_OZONE_PLATFORM_HINT=auto",
 	}
-	envVars = append(envVars, customVars...)
+	validCustom := make([]string, 0, len(customVars))
+	var invalid []string
+	for _, raw := range customVars {
+		parts := strings.SplitN(raw, "=", 2)
+		if len(parts) != 2 {
+			invalid = append(invalid, raw)
+			continue
+		}
+		name := parts[0]
+		value := parts[1]
+		if err := security.ValidateEnvironmentVariable(name, value); err != nil {
+			invalid = append(invalid, raw)
+			continue
+		}
+		validCustom = append(validCustom, raw)
+	}
+	if len(invalid) > 0 {
+		return fmt.Errorf("invalid custom env vars: %v", invalid)
+	}
+	envVars = append(envVars, validCustom...)
 
 	for i, val := range envVars {
 		envVars[i] = escapeExecToken(val)

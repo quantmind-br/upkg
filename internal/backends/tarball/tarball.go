@@ -16,6 +16,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/heuristics"
 	"github.com/quantmind-br/upkg/internal/icons"
+	"github.com/quantmind-br/upkg/internal/security"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"layeh.com/asar"
@@ -23,17 +24,43 @@ import (
 
 // TarballBackend handles tarball and zip archive installations
 type TarballBackend struct {
-	cfg    *config.Config
-	logger *zerolog.Logger
-	scorer heuristics.Scorer
+	cfg         *config.Config
+	logger      *zerolog.Logger
+	scorer      heuristics.Scorer
+	runner      helpers.CommandRunner
+	cacheManager *cache.CacheManager
 }
 
 // New creates a new tarball backend
 func New(cfg *config.Config, log *zerolog.Logger) *TarballBackend {
 	return &TarballBackend{
-		cfg:    cfg,
-		logger: log,
-		scorer: heuristics.NewScorer(log),
+		cfg:         cfg,
+		logger:      log,
+		scorer:      heuristics.NewScorer(log),
+		runner:      helpers.NewOSCommandRunner(),
+		cacheManager: cache.NewCacheManager(),
+	}
+}
+
+// NewWithRunner creates a new tarball backend with a custom command runner
+func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *TarballBackend {
+	return &TarballBackend{
+		cfg:         cfg,
+		logger:      log,
+		scorer:      heuristics.NewScorer(log),
+		runner:      runner,
+		cacheManager: cache.NewCacheManager(),
+	}
+}
+
+// NewWithCacheManager creates a new tarball backend with a custom cache manager
+func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *TarballBackend {
+	return &TarballBackend{
+		cfg:         cfg,
+		logger:      log,
+		scorer:      heuristics.NewScorer(log),
+		runner:      helpers.NewOSCommandRunner(),
+		cacheManager: cacheManager,
 	}
 }
 
@@ -107,6 +134,9 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 
 	// Normalize name
 	normalizedName := helpers.NormalizeFilename(appName)
+	if err := security.ValidatePackageName(normalizedName); err != nil {
+		return nil, fmt.Errorf("invalid normalized name %q: %w", normalizedName, err)
+	}
 	installID := helpers.GenerateInstallID(normalizedName)
 
 	homeDir, err := os.UserHomeDir()
@@ -120,12 +150,28 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 
 	// Check if already exists
 	if _, err := os.Stat(installDir); err == nil {
-		return nil, fmt.Errorf("package already installed at: %s", installDir)
+		if !opts.Force {
+			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", installDir)
+		}
+		if err := os.RemoveAll(installDir); err != nil {
+			return nil, fmt.Errorf("remove existing installation directory: %w", err)
+		}
+		// Best-effort cleanup of expected wrapper/desktop paths
+		binDir := filepath.Join(homeDir, ".local", "bin")
+		_ = os.Remove(filepath.Join(binDir, normalizedName))
+		appsDbDir := filepath.Join(homeDir, ".local", "share", "applications")
+		_ = os.Remove(filepath.Join(appsDbDir, normalizedName+".desktop"))
 	}
 
 	// Create installation directory
 	if err := os.MkdirAll(installDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create installation directory: %w", err)
+	}
+	if tx != nil {
+		dir := installDir
+		tx.Add("remove installation directory", func() error {
+			return os.RemoveAll(dir)
+		})
 	}
 
 	// Extract archive
@@ -170,6 +216,15 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 		os.RemoveAll(installDir)
 		return nil, fmt.Errorf("failed to create wrapper script: %w", err)
 	}
+	if tx != nil {
+		path := wrapperPath
+		tx.Add("remove wrapper script", func() error {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			return nil
+		})
+	}
 
 	t.logger.Debug().
 		Str("wrapper", wrapperPath).
@@ -179,6 +234,13 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 	iconPaths, err := t.installIcons(installDir, normalizedName)
 	if err != nil {
 		t.logger.Warn().Err(err).Msg("failed to install icons")
+	}
+	if tx != nil && len(iconPaths) > 0 {
+		paths := append([]string(nil), iconPaths...)
+		tx.Add("remove tarball icons", func() error {
+			t.removeIcons(paths)
+			return nil
+		})
 	}
 
 	// Create .desktop file
@@ -197,12 +259,22 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 			Str("desktop_file", desktopPath).
 			Msg("desktop file created")
 
+		if tx != nil && desktopPath != "" {
+			path := desktopPath
+			tx.Add("remove desktop file", func() error {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					return err
+				}
+				return nil
+			})
+		}
+
 		// Update caches
 		appsDbDir := filepath.Join(homeDir, ".local", "share", "applications")
-		cache.UpdateDesktopDatabase(appsDbDir, t.logger)
+		t.cacheManager.UpdateDesktopDatabase(appsDbDir, t.logger)
 
 		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		cache.UpdateIconCache(iconsDir, t.logger)
+		t.cacheManager.UpdateIconCache(iconsDir, t.logger)
 	}
 
 	// Create install record
@@ -218,6 +290,7 @@ func (t *TarballBackend) Install(ctx context.Context, packagePath string, opts c
 			IconFiles:      iconPaths,
 			WrapperScript:  wrapperPath,
 			WaylandSupport: string(core.WaylandUnknown),
+			InstallMethod:  core.InstallMethodLocal,
 		},
 	}
 
@@ -265,10 +338,10 @@ func (t *TarballBackend) Uninstall(ctx context.Context, record *core.InstallReco
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
 		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		cache.UpdateDesktopDatabase(appsDir, t.logger)
+		t.cacheManager.UpdateDesktopDatabase(appsDir, t.logger)
 
 		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		cache.UpdateIconCache(iconsDir, t.logger)
+		t.cacheManager.UpdateIconCache(iconsDir, t.logger)
 	}
 
 	t.logger.Info().
@@ -602,7 +675,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		}
 
 		// Fallback to npx method if native extraction fails
-		if !helpers.CommandExists("npx") {
+		if !t.runner.CommandExists("npx") {
 			t.logger.Warn().
 				Str("asar", filepath.Base(asarFile)).
 				Msg("native ASAR failed and npx not available, skipping")
@@ -624,7 +697,7 @@ func (t *TarballBackend) extractIconsFromAsar(installDir, normalizedName string)
 		// OPTIMIZATION: Use streaming variant to avoid buffering large outputs
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
-		extractErr := helpers.RunCommandStreaming(ctx, nil, nil, "npx", "--yes", "asar", "extract", asarFile, tempDir)
+		extractErr := t.runner.RunCommandStreaming(ctx, nil, nil, "npx", "--yes", "asar", "extract", asarFile, tempDir)
 		if extractErr != nil {
 			t.logger.Warn().
 				Err(extractErr).
@@ -768,7 +841,13 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 
 	// Inject Wayland environment variables
 	if t.cfg.Desktop.WaylandEnvVars && !opts.SkipWaylandEnv {
-		desktop.InjectWaylandEnvVars(entry, t.cfg.Desktop.CustomEnvVars)
+		if err := desktop.InjectWaylandEnvVars(entry, t.cfg.Desktop.CustomEnvVars); err != nil {
+			t.logger.Warn().
+				Err(err).
+				Str("app", appName).
+				Msg("invalid custom Wayland env vars, injecting defaults only")
+			_ = desktop.InjectWaylandEnvVars(entry, nil)
+		}
 	}
 
 	// Write desktop file
@@ -777,11 +856,11 @@ func (t *TarballBackend) createDesktopFile(installDir, appName, normalizedName, 
 	}
 
 	// Validate
-	if helpers.CommandExists("desktop-file-validate") {
+	if t.runner.CommandExists("desktop-file-validate") {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if _, err := helpers.RunCommand(ctx, "desktop-file-validate", desktopFilePath); err != nil {
+		if _, err := t.runner.RunCommand(ctx, "desktop-file-validate", desktopFilePath); err != nil {
 			t.logger.Warn().
 				Err(err).
 				Str("desktop_file", desktopFilePath).

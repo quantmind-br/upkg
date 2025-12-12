@@ -9,15 +9,54 @@ import (
 	"time"
 )
 
+// CommandRunner defines an interface for executing system commands
+// This allows for mocking in tests and dependency injection
+type CommandRunner interface {
+	// CommandExists checks if a command is available in PATH
+	CommandExists(name string) bool
+
+	// RequireCommand ensures a command exists or returns error
+	RequireCommand(name string) error
+
+	// RunCommand executes a command with timeout and returns stdout
+	RunCommand(ctx context.Context, name string, args ...string) (string, error)
+
+	// RunCommandInDir executes a command in a specific working directory
+	RunCommandInDir(ctx context.Context, dir, name string, args ...string) (string, error)
+
+	// RunCommandWithOutput runs a command and returns both stdout and stderr
+	RunCommandWithOutput(ctx context.Context, name string, args ...string) (stdout, stderr string, err error)
+
+	// GetExitCode extracts the exit code from a command error
+	GetExitCode(err error) int
+
+	// RunCommandStreaming executes a command and streams output to provided writers
+	RunCommandStreaming(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error
+
+	// RunCommandInDirStreaming executes a command in a specific directory with streaming output
+	RunCommandInDirStreaming(ctx context.Context, dir string, stdout, stderr io.Writer, name string, args ...string) error
+
+	// PrepareCommand prepares a command but does not execute it
+	PrepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd
+}
+
+// OSCommandRunner is the default implementation using os/exec
+type OSCommandRunner struct{}
+
+// NewOSCommandRunner creates a new OSCommandRunner instance
+func NewOSCommandRunner() *OSCommandRunner {
+	return &OSCommandRunner{}
+}
+
 // CommandExists checks if a command is available in PATH
-func CommandExists(name string) bool {
+func (r *OSCommandRunner) CommandExists(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
 }
 
 // RequireCommand ensures a command exists or returns error
-func RequireCommand(name string) error {
-	if !CommandExists(name) {
+func (r *OSCommandRunner) RequireCommand(name string) error {
+	if !r.CommandExists(name) {
 		return fmt.Errorf("required command %q not found in PATH", name)
 	}
 	return nil
@@ -25,7 +64,7 @@ func RequireCommand(name string) error {
 
 // RunCommand executes a command with timeout and returns stdout
 // SECURITY: Uses exec.CommandContext with separate arguments to prevent command injection
-func RunCommand(ctx context.Context, name string, args ...string) (string, error) {
+func (r *OSCommandRunner) RunCommand(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 
 	var stdout, stderr bytes.Buffer
@@ -41,7 +80,7 @@ func RunCommand(ctx context.Context, name string, args ...string) (string, error
 
 // RunCommandInDir executes a command in a specific working directory
 // SECURITY: Uses exec.CommandContext with separate arguments to prevent command injection
-func RunCommandInDir(ctx context.Context, dir, name string, args ...string) (string, error) {
+func (r *OSCommandRunner) RunCommandInDir(ctx context.Context, dir, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 
@@ -57,7 +96,7 @@ func RunCommandInDir(ctx context.Context, dir, name string, args ...string) (str
 }
 
 // RunCommandWithOutput runs a command and returns both stdout and stderr
-func RunCommandWithOutput(ctx context.Context, name string, args ...string) (stdout, stderr string, err error) {
+func (r *OSCommandRunner) RunCommandWithOutput(ctx context.Context, name string, args ...string) (stdout, stderr string, err error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 
 	var outBuf, errBuf bytes.Buffer
@@ -76,7 +115,7 @@ func RunCommandWithOutput(ctx context.Context, name string, args ...string) (std
 }
 
 // GetExitCode extracts the exit code from a command error
-func GetExitCode(err error) int {
+func (r *OSCommandRunner) GetExitCode(err error) int {
 	if err == nil {
 		return 0
 	}
@@ -92,7 +131,7 @@ func GetExitCode(err error) int {
 // This avoids buffering large outputs in memory, reducing memory pressure
 // Pass nil for stdout/stderr to discard output (equivalent to > /dev/null)
 // SECURITY: Uses exec.CommandContext with separate arguments to prevent command injection
-func RunCommandStreaming(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error {
+func (r *OSCommandRunner) RunCommandStreaming(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 
 	if stdout != nil {
@@ -111,7 +150,7 @@ func RunCommandStreaming(ctx context.Context, stdout, stderr io.Writer, name str
 
 // RunCommandInDirStreaming executes a command in a specific directory with streaming output
 // SECURITY: Uses exec.CommandContext with separate arguments to prevent command injection
-func RunCommandInDirStreaming(ctx context.Context, dir string, stdout, stderr io.Writer, name string, args ...string) error {
+func (r *OSCommandRunner) RunCommandInDirStreaming(ctx context.Context, dir string, stdout, stderr io.Writer, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 
@@ -133,21 +172,22 @@ func RunCommandInDirStreaming(ctx context.Context, dir string, stdout, stderr io
 // Callers can configure Stdout/Stderr/Stdin and other settings before calling Run() or Start()
 // This provides maximum flexibility for custom command execution
 // SECURITY: Uses exec.CommandContext with separate arguments to prevent command injection
-func PrepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+func (r *OSCommandRunner) PrepareCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, name, args...)
 }
 
 // ValidateDesktopFile validates a .desktop file and returns warnings/errors
 // Returns (validationOutput, isValid, error)
 func ValidateDesktopFile(desktopFilePath string) (string, bool, error) {
-	if !CommandExists("desktop-file-validate") {
+	runner := NewOSCommandRunner()
+	if !runner.CommandExists("desktop-file-validate") {
 		return "", true, nil // Tool not available, skip validation
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	stdout, stderr, err := RunCommandWithOutput(ctx, "desktop-file-validate", desktopFilePath)
+	stdout, stderr, err := runner.RunCommandWithOutput(ctx, "desktop-file-validate", desktopFilePath)
 
 	// Combine stdout and stderr for validation output
 	output := stdout

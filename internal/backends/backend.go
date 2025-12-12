@@ -127,7 +127,7 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 	if err != nil {
 		return "unknown", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Read first 512 bytes for magic number detection
 	buf := make([]byte, 512)

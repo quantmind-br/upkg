@@ -24,20 +24,20 @@ import (
 
 // TarballBackend handles tarball and zip archive installations
 type TarballBackend struct {
-	cfg         *config.Config
-	logger      *zerolog.Logger
-	scorer      heuristics.Scorer
-	runner      helpers.CommandRunner
+	cfg          *config.Config
+	logger       *zerolog.Logger
+	scorer       heuristics.Scorer
+	runner       helpers.CommandRunner
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new tarball backend
 func New(cfg *config.Config, log *zerolog.Logger) *TarballBackend {
 	return &TarballBackend{
-		cfg:         cfg,
-		logger:      log,
-		scorer:      heuristics.NewScorer(log),
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		scorer:       heuristics.NewScorer(log),
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -45,10 +45,10 @@ func New(cfg *config.Config, log *zerolog.Logger) *TarballBackend {
 // NewWithRunner creates a new tarball backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *TarballBackend {
 	return &TarballBackend{
-		cfg:         cfg,
-		logger:      log,
-		scorer:      heuristics.NewScorer(log),
-		runner:      runner,
+		cfg:          cfg,
+		logger:       log,
+		scorer:       heuristics.NewScorer(log),
+		runner:       runner,
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -56,10 +56,10 @@ func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.Comma
 // NewWithCacheManager creates a new tarball backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *TarballBackend {
 	return &TarballBackend{
-		cfg:         cfg,
-		logger:      log,
-		scorer:      heuristics.NewScorer(log),
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		scorer:       heuristics.NewScorer(log),
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cacheManager,
 	}
 }

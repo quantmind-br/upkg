@@ -8,15 +8,15 @@ import (
 
 // MockCommandRunner is a mock implementation of CommandRunner for testing
 type MockCommandRunner struct {
-	CommandExistsFunc          func(name string) bool
-	RequireCommandFunc         func(name string) error
-	RunCommandFunc             func(ctx context.Context, name string, args ...string) (string, error)
-	RunCommandInDirFunc        func(ctx context.Context, dir, name string, args ...string) (string, error)
-	RunCommandWithOutputFunc   func(ctx context.Context, name string, args ...string) (stdout, stderr string, err error)
-	GetExitCodeFunc            func(err error) int
-	RunCommandStreamingFunc    func(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error
+	CommandExistsFunc            func(name string) bool
+	RequireCommandFunc           func(name string) error
+	RunCommandFunc               func(ctx context.Context, name string, args ...string) (string, error)
+	RunCommandInDirFunc          func(ctx context.Context, dir, name string, args ...string) (string, error)
+	RunCommandWithOutputFunc     func(ctx context.Context, name string, args ...string) (stdout, stderr string, err error)
+	GetExitCodeFunc              func(err error) int
+	RunCommandStreamingFunc      func(ctx context.Context, stdout, stderr io.Writer, name string, args ...string) error
 	RunCommandInDirStreamingFunc func(ctx context.Context, dir string, stdout, stderr io.Writer, name string, args ...string) error
-	PrepareCommandFunc         func(ctx context.Context, name string, args ...string) *exec.Cmd
+	PrepareCommandFunc           func(ctx context.Context, name string, args ...string) *exec.Cmd
 }
 
 // CommandExists implements CommandRunner.CommandExists

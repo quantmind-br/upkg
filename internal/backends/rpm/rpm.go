@@ -25,22 +25,22 @@ import (
 
 // RpmBackend handles RPM package installations
 type RpmBackend struct {
-	cfg         *config.Config
-	logger      *zerolog.Logger
-	scorer      heuristics.Scorer
-	sys         syspkg.Provider
-	runner      helpers.CommandRunner
+	cfg          *config.Config
+	logger       *zerolog.Logger
+	scorer       heuristics.Scorer
+	sys          syspkg.Provider
+	runner       helpers.CommandRunner
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new RPM backend
 func New(cfg *config.Config, log *zerolog.Logger) *RpmBackend {
 	return &RpmBackend{
-		cfg:         cfg,
-		logger:      log,
-		scorer:      heuristics.NewScorer(log),
-		sys:         arch.NewPacmanProvider(),
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		scorer:       heuristics.NewScorer(log),
+		sys:          arch.NewPacmanProvider(),
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -48,11 +48,11 @@ func New(cfg *config.Config, log *zerolog.Logger) *RpmBackend {
 // NewWithRunner creates a new RPM backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *RpmBackend {
 	return &RpmBackend{
-		cfg:         cfg,
-		logger:      log,
-		scorer:      heuristics.NewScorer(log),
-		sys:         arch.NewPacmanProvider(),
-		runner:      runner,
+		cfg:          cfg,
+		logger:       log,
+		scorer:       heuristics.NewScorer(log),
+		sys:          arch.NewPacmanProvider(),
+		runner:       runner,
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -60,11 +60,11 @@ func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.Comma
 // NewWithCacheManager creates a new RPM backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *RpmBackend {
 	return &RpmBackend{
-		cfg:         cfg,
-		logger:      log,
-		scorer:      heuristics.NewScorer(log),
-		sys:         arch.NewPacmanProvider(),
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		scorer:       heuristics.NewScorer(log),
+		sys:          arch.NewPacmanProvider(),
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cacheManager,
 	}
 }

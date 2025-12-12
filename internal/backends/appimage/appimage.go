@@ -21,18 +21,18 @@ import (
 
 // AppImageBackend handles AppImage installations
 type AppImageBackend struct {
-	cfg         *config.Config
-	logger      *zerolog.Logger
-	runner      helpers.CommandRunner
+	cfg          *config.Config
+	logger       *zerolog.Logger
+	runner       helpers.CommandRunner
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new AppImage backend
 func New(cfg *config.Config, log *zerolog.Logger) *AppImageBackend {
 	return &AppImageBackend{
-		cfg:         cfg,
-		logger:      log,
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -40,9 +40,9 @@ func New(cfg *config.Config, log *zerolog.Logger) *AppImageBackend {
 // NewWithRunner creates a new AppImage backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *AppImageBackend {
 	return &AppImageBackend{
-		cfg:         cfg,
-		logger:      log,
-		runner:      runner,
+		cfg:          cfg,
+		logger:       log,
+		runner:       runner,
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -50,9 +50,9 @@ func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.Comma
 // NewWithCacheManager creates a new AppImage backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *AppImageBackend {
 	return &AppImageBackend{
-		cfg:         cfg,
-		logger:      log,
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cacheManager,
 	}
 }
@@ -100,7 +100,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Extract AppImage
 	if err := a.extractAppImage(ctx, packagePath, tmpDir); err != nil {
@@ -168,7 +168,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 
 	// Make destination executable
 	if err := os.Chmod(destPath, 0755); err != nil {
-		os.Remove(destPath)
+		_ = os.Remove(destPath)
 		return nil, fmt.Errorf("failed to make AppImage executable: %w", err)
 	}
 
@@ -209,7 +209,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 		desktopPath, err = a.createDesktopFile(squashfsRoot, appName, binName, destPath, metadata, opts)
 		if err != nil {
 			// Clean up on failure
-			os.Remove(destPath)
+			_ = os.Remove(destPath)
 			a.removeIcons(iconPaths)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
@@ -230,10 +230,10 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 
 		// Update caches
 		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		a.cacheManager.UpdateDesktopDatabase(appsDir, a.logger)
+		_ = a.cacheManager.UpdateDesktopDatabase(appsDir, a.logger)
 
 		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		a.cacheManager.UpdateIconCache(iconsDir, a.logger)
+		_ = a.cacheManager.UpdateIconCache(iconsDir, a.logger)
 	}
 
 	// Create install record
@@ -294,10 +294,10 @@ func (a *AppImageBackend) Uninstall(ctx context.Context, record *core.InstallRec
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
 		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		a.cacheManager.UpdateDesktopDatabase(appsDir, a.logger)
+		_ = a.cacheManager.UpdateDesktopDatabase(appsDir, a.logger)
 
 		iconsDir := filepath.Join(homeDir, ".local", "share", "icons", "hicolor")
-		a.cacheManager.UpdateIconCache(iconsDir, a.logger)
+		_ = a.cacheManager.UpdateIconCache(iconsDir, a.logger)
 	}
 
 	a.logger.Info().
@@ -363,7 +363,7 @@ func (a *AppImageBackend) parseAppImageMetadata(squashfsRoot string) (*appImageM
 		// Parse first .desktop file found for additional metadata
 		file, err := os.Open(desktopFiles[0])
 		if err == nil {
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 			entry, err := desktop.Parse(file)
 			if err == nil {
 				// Store display name and other metadata (but don't use Name as appName!)
@@ -453,7 +453,7 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 	if metadata.desktopFile != "" {
 		file, err := os.Open(metadata.desktopFile)
 		if err == nil {
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 			entry, _ = desktop.Parse(file)
 		}
 	}

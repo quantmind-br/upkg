@@ -10,14 +10,14 @@ import (
 
 func TestParse(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		wantEntry   *core.DesktopEntry
-		wantErr     bool
-		errSubstr   string
+		name      string
+		input     string
+		wantEntry *core.DesktopEntry
+		wantErr   bool
+		errSubstr string
 	}{
 		{
-			name:  "valid desktop entry",
+			name: "valid desktop entry",
 			input: `[Desktop Entry]
 Type=Application
 Name=Firefox
@@ -28,38 +28,38 @@ Categories=Network;WebBrowser;
 Terminal=false
 StartupWMClass=firefox`,
 			wantEntry: &core.DesktopEntry{
-				Type:             "Application",
-				Name:             "Firefox",
-				Exec:             "firefox %u",
-				Icon:             "firefox",
-				Comment:          "Web Browser",
-				Categories:       []string{"Network", "WebBrowser"},
-				Terminal:         false,
-				StartupWMClass:   "firefox",
+				Type:           "Application",
+				Name:           "Firefox",
+				Exec:           "firefox %u",
+				Icon:           "firefox",
+				Comment:        "Web Browser",
+				Categories:     []string{"Network", "WebBrowser"},
+				Terminal:       false,
+				StartupWMClass: "firefox",
 			},
 			wantErr: false,
 		},
 		{
-			name:  "minimal desktop entry",
+			name: "minimal desktop entry",
 			input: `[Desktop Entry]
 Type=Application
 Name=Test
 Exec=test`,
 			wantEntry: &core.DesktopEntry{
-				Type:     "Application",
-				Name:     "Test",
-				Exec:     "test",
+				Type: "Application",
+				Name: "Test",
+				Exec: "test",
 			},
 			wantErr: false,
 		},
 		{
-			name:  "empty desktop entry",
-			input:  ``,
+			name:      "empty desktop entry",
+			input:     ``,
 			wantEntry: &core.DesktopEntry{},
-			wantErr: false,
+			wantErr:   false,
 		},
 		{
-			name:  "desktop entry with comments",
+			name: "desktop entry with comments",
 			input: `# This is a comment
 [Desktop Entry]
 # Another comment
@@ -68,9 +68,9 @@ Name=Test
 Exec=test
 # Final comment`,
 			wantEntry: &core.DesktopEntry{
-				Type:     "Application",
-				Name:     "Test",
-				Exec:     "test",
+				Type: "Application",
+				Name: "Test",
+				Exec: "test",
 			},
 			wantErr: false,
 		},
@@ -129,29 +129,29 @@ func TestWrite(t *testing.T) {
 		{
 			name: "complete desktop entry",
 			entry: &core.DesktopEntry{
-				Type:             "Application",
-				Name:             "Firefox",
-				Exec:             "firefox %u",
-				Icon:             "firefox",
-				Comment:          "Web Browser",
-				Categories:       []string{"Network", "WebBrowser"},
-				Terminal:         false,
-				StartupWMClass:   "firefox",
+				Type:           "Application",
+				Name:           "Firefox",
+				Exec:           "firefox %u",
+				Icon:           "firefox",
+				Comment:        "Web Browser",
+				Categories:     []string{"Network", "WebBrowser"},
+				Terminal:       false,
+				StartupWMClass: "firefox",
 			},
 			wantErr: false,
 		},
 		{
 			name: "minimal desktop entry",
 			entry: &core.DesktopEntry{
-				Type:     "Application",
-				Name:     "Test",
-				Exec:     "test",
+				Type: "Application",
+				Name: "Test",
+				Exec: "test",
 			},
 			wantErr: false,
 		},
 		{
-			name: "empty desktop entry",
-			entry: &core.DesktopEntry{},
+			name:    "empty desktop entry",
+			entry:   &core.DesktopEntry{},
 			wantErr: false,
 		},
 	}
@@ -202,42 +202,42 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid desktop entry",
 			entry: &core.DesktopEntry{
-				Type:     "Application",
-				Name:     "Firefox",
-				Exec:     "firefox",
+				Type: "Application",
+				Name: "Firefox",
+				Exec: "firefox",
 			},
 			wantErr: false,
 		},
 		{
-			name:      "missing Type",
-			entry:     &core.DesktopEntry{
-				Name:     "Firefox",
-				Exec:     "firefox",
+			name: "missing Type",
+			entry: &core.DesktopEntry{
+				Name: "Firefox",
+				Exec: "firefox",
 			},
 			wantErr:   true,
 			errSubstr: "Type field is required",
 		},
 		{
-			name:      "missing Name",
-			entry:     &core.DesktopEntry{
-				Type:     "Application",
-				Exec:     "firefox",
+			name: "missing Name",
+			entry: &core.DesktopEntry{
+				Type: "Application",
+				Exec: "firefox",
 			},
 			wantErr:   true,
 			errSubstr: "Name field is required",
 		},
 		{
-			name:      "missing Exec",
-			entry:     &core.DesktopEntry{
-				Type:     "Application",
-				Name:     "Firefox",
+			name: "missing Exec",
+			entry: &core.DesktopEntry{
+				Type: "Application",
+				Name: "Firefox",
 			},
 			wantErr:   true,
 			errSubstr: "Exec field is required",
 		},
 		{
-			name: "empty desktop entry",
-			entry: &core.DesktopEntry{},
+			name:    "empty desktop entry",
+			entry:   &core.DesktopEntry{},
 			wantErr: true,
 		},
 	}
@@ -260,18 +260,18 @@ func TestValidate(t *testing.T) {
 
 func TestInjectWaylandEnvVars(t *testing.T) {
 	tests := []struct {
-		name        string
-		entry       *core.DesktopEntry
-		customVars  []string
-		wantErr     bool
-		errSubstr   string
-		checkExec   func(string) bool
+		name       string
+		entry      *core.DesktopEntry
+		customVars []string
+		wantErr    bool
+		errSubstr  string
+		checkExec  func(string) bool
 	}{
 		{
-			name:   "default injection",
-			entry:  &core.DesktopEntry{Exec: "myapp"},
+			name:       "default injection",
+			entry:      &core.DesktopEntry{Exec: "myapp"},
 			customVars: nil,
-			wantErr: false,
+			wantErr:    false,
 			checkExec: func(exec string) bool {
 				return strings.HasPrefix(exec, "env ") &&
 					strings.Contains(exec, "GDK_BACKEND=") &&
@@ -279,27 +279,27 @@ func TestInjectWaylandEnvVars(t *testing.T) {
 			},
 		},
 		{
-			name:   "with custom valid vars",
-			entry:  &core.DesktopEntry{Exec: "myapp"},
+			name:       "with custom valid vars",
+			entry:      &core.DesktopEntry{Exec: "myapp"},
 			customVars: []string{"CUSTOM_VAR=value", "ANOTHER=test"},
-			wantErr: false,
+			wantErr:    false,
 			checkExec: func(exec string) bool {
 				return strings.Contains(exec, "CUSTOM_VAR=") &&
 					strings.Contains(exec, "ANOTHER=")
 			},
 		},
 		{
-			name:      "with invalid custom vars",
+			name:       "with invalid custom vars",
 			entry:      &core.DesktopEntry{Exec: "myapp"},
 			customVars: []string{"INVALID", "ANOTHER=test"},
-			wantErr:   true,
-			errSubstr: "invalid custom env vars",
+			wantErr:    true,
+			errSubstr:  "invalid custom env vars",
 		},
 		{
-			name:   "already has env prefix",
-			entry:  &core.DesktopEntry{Exec: "env VAR=val myapp"},
+			name:       "already has env prefix",
+			entry:      &core.DesktopEntry{Exec: "env VAR=val myapp"},
 			customVars: nil,
-			wantErr: false,
+			wantErr:    false,
 			checkExec: func(exec string) bool {
 				// Should not duplicate env prefix
 				return strings.HasPrefix(exec, "env ") &&
@@ -341,15 +341,15 @@ func TestWriteDesktopFile(t *testing.T) {
 		{
 			name: "valid desktop entry",
 			entry: &core.DesktopEntry{
-				Type:     "Application",
-				Name:     "TestApp",
-				Exec:     "testapp",
+				Type: "Application",
+				Name: "TestApp",
+				Exec: "testapp",
 			},
 			wantErr: false,
 		},
 		{
-			name:      "invalid desktop entry (missing required fields)",
-			entry:     &core.DesktopEntry{
+			name: "invalid desktop entry (missing required fields)",
+			entry: &core.DesktopEntry{
 				Name: "TestApp",
 			},
 			wantErr:   true,

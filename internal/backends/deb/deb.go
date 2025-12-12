@@ -26,20 +26,20 @@ import (
 
 // DebBackend handles DEB package installations via debtap
 type DebBackend struct {
-	cfg         *config.Config
-	logger      *zerolog.Logger
-	sys         syspkg.Provider
-	runner      helpers.CommandRunner
+	cfg          *config.Config
+	logger       *zerolog.Logger
+	sys          syspkg.Provider
+	runner       helpers.CommandRunner
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new DEB backend
 func New(cfg *config.Config, log *zerolog.Logger) *DebBackend {
 	return &DebBackend{
-		cfg:         cfg,
-		logger:      log,
-		sys:         arch.NewPacmanProvider(),
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		sys:          arch.NewPacmanProvider(),
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -47,10 +47,10 @@ func New(cfg *config.Config, log *zerolog.Logger) *DebBackend {
 // NewWithRunner creates a new DEB backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *DebBackend {
 	return &DebBackend{
-		cfg:         cfg,
-		logger:      log,
-		sys:         arch.NewPacmanProvider(),
-		runner:      runner,
+		cfg:          cfg,
+		logger:       log,
+		sys:          arch.NewPacmanProvider(),
+		runner:       runner,
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -58,10 +58,10 @@ func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.Comma
 // NewWithCacheManager creates a new DEB backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *DebBackend {
 	return &DebBackend{
-		cfg:         cfg,
-		logger:      log,
-		sys:         arch.NewPacmanProvider(),
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		sys:          arch.NewPacmanProvider(),
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cacheManager,
 	}
 }
@@ -306,7 +306,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	// Update caches
 	if len(desktopFiles) > 0 {
 		appsDir := filepath.Dir(desktopFiles[0])
-		d.cacheManager.UpdateDesktopDatabase(appsDir, d.logger)
+		_ = d.cacheManager.UpdateDesktopDatabase(appsDir, d.logger)
 	}
 
 	if len(iconFiles) > 0 {
@@ -314,7 +314,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		for _, iconFile := range iconFiles {
 			if strings.Contains(iconFile, "hicolor") {
 				hicolorDir := filepath.Dir(filepath.Dir(filepath.Dir(iconFile)))
-				d.cacheManager.UpdateIconCache(hicolorDir, d.logger)
+				_ = d.cacheManager.UpdateIconCache(hicolorDir, d.logger)
 				break
 			}
 		}
@@ -335,7 +335,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 			WaylandSupport: string(core.WaylandUnknown),
 			InstallMethod:  core.InstallMethodPacman,
 			ExtractedMeta: core.ExtractedMetadata{
-				Comment: fmt.Sprintf("Installed via debtap/pacman"),
+				Comment: "Installed via debtap/pacman",
 			},
 		},
 	}
@@ -384,8 +384,8 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 	}
 
 	// Update caches
-	d.cacheManager.UpdateDesktopDatabase("/usr/share/applications", d.logger)
-	d.cacheManager.UpdateIconCache("/usr/share/icons/hicolor", d.logger)
+	_ = d.cacheManager.UpdateDesktopDatabase("/usr/share/applications", d.logger)
+	_ = d.cacheManager.UpdateIconCache("/usr/share/icons/hicolor", d.logger)
 
 	d.logger.Info().
 		Str("install_id", record.InstallID).
@@ -624,7 +624,7 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	entry, err := desktop.Parse(file)
 	if err != nil {
@@ -648,10 +648,10 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 		return err
 	}
 	tmpPath := tmpFile.Name()
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	if err := desktop.WriteDesktopFile(tmpPath, entry); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return err
 	}
 
@@ -661,7 +661,7 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 
 	_, err = d.runner.RunCommand(ctx, "sudo", "mv", tmpPath, desktopPath)
 	if err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return err
 	}
 
@@ -777,10 +777,10 @@ func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Extract package using bsdtar (Arch standard, auto-detects compression)
-	extractCmd := exec.Command("bsdtar", "-xf", pkgPath, "-C", tmpDir)
+	extractCmd := exec.Command("bsdtar", "-xf", pkgPath, "-C", tmpDir) // #nosec G204 -- pkgPath is validated
 	var extractStderr bytes.Buffer
 	extractCmd.Stderr = &extractStderr
 	if err := extractCmd.Run(); err != nil {

@@ -20,18 +20,18 @@ import (
 
 // BinaryBackend handles standalone ELF binary installations
 type BinaryBackend struct {
-	cfg         *config.Config
-	logger      *zerolog.Logger
-	runner      helpers.CommandRunner
+	cfg          *config.Config
+	logger       *zerolog.Logger
+	runner       helpers.CommandRunner
 	cacheManager *cache.CacheManager
 }
 
 // New creates a new binary backend
 func New(cfg *config.Config, log *zerolog.Logger) *BinaryBackend {
 	return &BinaryBackend{
-		cfg:         cfg,
-		logger:      log,
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -39,9 +39,9 @@ func New(cfg *config.Config, log *zerolog.Logger) *BinaryBackend {
 // NewWithRunner creates a new binary backend with a custom command runner
 func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.CommandRunner) *BinaryBackend {
 	return &BinaryBackend{
-		cfg:         cfg,
-		logger:      log,
-		runner:      runner,
+		cfg:          cfg,
+		logger:       log,
+		runner:       runner,
 		cacheManager: cache.NewCacheManager(),
 	}
 }
@@ -49,9 +49,9 @@ func NewWithRunner(cfg *config.Config, log *zerolog.Logger, runner helpers.Comma
 // NewWithCacheManager creates a new binary backend with a custom cache manager
 func NewWithCacheManager(cfg *config.Config, log *zerolog.Logger, cacheManager *cache.CacheManager) *BinaryBackend {
 	return &BinaryBackend{
-		cfg:         cfg,
-		logger:      log,
-		runner:      helpers.NewOSCommandRunner(),
+		cfg:          cfg,
+		logger:       log,
+		runner:       helpers.NewOSCommandRunner(),
 		cacheManager: cacheManager,
 	}
 }
@@ -166,7 +166,7 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 		desktopPath, err = b.createDesktopFile(appName, binName, destPath, opts)
 		if err != nil {
 			// Clean up binary on desktop file creation failure
-			os.Remove(destPath)
+			_ = os.Remove(destPath)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
@@ -186,7 +186,7 @@ func (b *BinaryBackend) Install(ctx context.Context, packagePath string, opts co
 
 		// Update desktop database
 		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		b.cacheManager.UpdateDesktopDatabase(appsDir, b.logger)
+		_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.logger)
 	}
 
 	// Create install record
@@ -252,7 +252,7 @@ func (b *BinaryBackend) Uninstall(ctx context.Context, record *core.InstallRecor
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
 		appsDir := filepath.Join(homeDir, ".local", "share", "applications")
-		b.cacheManager.UpdateDesktopDatabase(appsDir, b.logger)
+		_ = b.cacheManager.UpdateDesktopDatabase(appsDir, b.logger)
 	}
 
 	b.logger.Info().

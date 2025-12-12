@@ -351,44 +351,44 @@ func TestSanitizeString(t *testing.T) {
 
 func TestValidateExtractPath(t *testing.T) {
 	tests := []struct {
-		name        string
-		targetDir   string
+		name          string
+		targetDir     string
 		extractedPath string
-		wantErr     bool
-		errSubstr   string
+		wantErr       bool
+		errSubstr     string
 	}{
 		{
-			name:        "valid path within directory",
-			targetDir:   "/tmp/extract",
+			name:          "valid path within directory",
+			targetDir:     "/tmp/extract",
 			extractedPath: "app/file.txt",
-			wantErr:     false,
+			wantErr:       false,
 		},
 		{
-			name:        "path with traversal attempt",
-			targetDir:   "/tmp/extract",
+			name:          "path with traversal attempt",
+			targetDir:     "/tmp/extract",
 			extractedPath: "../../../etc/passwd",
-			wantErr:     true,
-			errSubstr:   "path contains ..",
+			wantErr:       true,
+			errSubstr:     "path contains ..",
 		},
 		{
-			name:        "absolute path not allowed",
-			targetDir:   "/tmp/extract",
+			name:          "absolute path not allowed",
+			targetDir:     "/tmp/extract",
 			extractedPath: "/etc/passwd",
-			wantErr:     true,
-			errSubstr:   "absolute path not allowed",
+			wantErr:       true,
+			errSubstr:     "absolute path not allowed",
 		},
 		{
-			name:        "path escapes directory (after cleaning)",
-			targetDir:   "/tmp/extract",
+			name:          "path escapes directory (after cleaning)",
+			targetDir:     "/tmp/extract",
 			extractedPath: "app/../../etc/passwd",
-			wantErr:     true,
-			errSubstr:   "path contains ..",
+			wantErr:       true,
+			errSubstr:     "path contains ..",
 		},
 		{
-			name:        "valid nested path",
-			targetDir:   "/tmp/extract",
+			name:          "valid nested path",
+			targetDir:     "/tmp/extract",
 			extractedPath: "app/bin/file.txt",
-			wantErr:     false,
+			wantErr:       false,
 		},
 	}
 
@@ -410,41 +410,41 @@ func TestValidateExtractPath(t *testing.T) {
 
 func TestValidateSymlink(t *testing.T) {
 	tests := []struct {
-		name        string
-		targetDir   string
-		linkPath    string
-		linkTarget  string
-		wantErr     bool
-		errSubstr   string
+		name       string
+		targetDir  string
+		linkPath   string
+		linkTarget string
+		wantErr    bool
+		errSubstr  string
 	}{
 		{
-			name:        "valid symlink within directory",
-			targetDir:   "/tmp/extract",
-			linkPath:    "/tmp/extract/app/link",
-			linkTarget:  "target.txt",
-			wantErr:     false,
+			name:       "valid symlink within directory",
+			targetDir:  "/tmp/extract",
+			linkPath:   "/tmp/extract/app/link",
+			linkTarget: "target.txt",
+			wantErr:    false,
 		},
 		{
-			name:        "symlink escaping directory",
-			targetDir:   "/tmp/extract",
-			linkPath:    "/tmp/extract/app/link",
-			linkTarget:  "../../../etc/passwd",
-			wantErr:     true,
-			errSubstr:   "symlink target escapes destination",
+			name:       "symlink escaping directory",
+			targetDir:  "/tmp/extract",
+			linkPath:   "/tmp/extract/app/link",
+			linkTarget: "../../../etc/passwd",
+			wantErr:    true,
+			errSubstr:  "symlink target escapes destination",
 		},
 		{
-			name:        "symlink to absolute path outside (allowed if within target)",
-			targetDir:   "/tmp/extract",
-			linkPath:    "/tmp/extract/app/link",
-			linkTarget:  "/tmp/extract/target.txt",
-			wantErr:     false,
+			name:       "symlink to absolute path outside (allowed if within target)",
+			targetDir:  "/tmp/extract",
+			linkPath:   "/tmp/extract/app/link",
+			linkTarget: "/tmp/extract/target.txt",
+			wantErr:    false,
 		},
 		{
-			name:        "symlink to valid nested path",
-			targetDir:   "/tmp/extract",
-			linkPath:    "/tmp/extract/app/link",
-			linkTarget:  "bin/file.txt",
-			wantErr:     false,
+			name:       "symlink to valid nested path",
+			targetDir:  "/tmp/extract",
+			linkPath:   "/tmp/extract/app/link",
+			linkTarget: "bin/file.txt",
+			wantErr:    false,
 		},
 	}
 
@@ -563,34 +563,34 @@ func TestSanitizePath(t *testing.T) {
 
 func TestIsPathSafe(t *testing.T) {
 	tests := []struct {
-		name        string
-		basePath    string
-		targetPath  string
-		wantResult  bool
+		name       string
+		basePath   string
+		targetPath string
+		wantResult bool
 	}{
 		{
-			name:        "safe path within directory",
-			basePath:    "/tmp/extract",
-			targetPath:  "app/file.txt",
-			wantResult:  true,
+			name:       "safe path within directory",
+			basePath:   "/tmp/extract",
+			targetPath: "app/file.txt",
+			wantResult: true,
 		},
 		{
-			name:        "path with traversal",
-			basePath:    "/tmp/extract",
-			targetPath:  "../../../etc/passwd",
-			wantResult:  false,
+			name:       "path with traversal",
+			basePath:   "/tmp/extract",
+			targetPath: "../../../etc/passwd",
+			wantResult: false,
 		},
 		{
-			name:        "absolute path",
-			basePath:    "/tmp/extract",
-			targetPath:  "/etc/passwd",
-			wantResult:  false,
+			name:       "absolute path",
+			basePath:   "/tmp/extract",
+			targetPath: "/etc/passwd",
+			wantResult: false,
 		},
 		{
-			name:        "valid nested path",
-			basePath:    "/tmp/extract",
-			targetPath:  "app/bin/file.txt",
-			wantResult:  true,
+			name:       "valid nested path",
+			basePath:   "/tmp/extract",
+			targetPath: "app/bin/file.txt",
+			wantResult: true,
 		},
 	}
 
@@ -672,37 +672,37 @@ func TestValidateEnvironmentVariable(t *testing.T) {
 		errSubstr string
 	}{
 		{
-			name:    "valid environment variable",
-			varName: "PATH",
+			name:     "valid environment variable",
+			varName:  "PATH",
 			varValue: "/usr/bin",
-			wantErr: false,
+			wantErr:  false,
 		},
 		{
 			name:      "empty variable name",
-			varName:  "",
-			varValue: "value",
-			wantErr:  true,
+			varName:   "",
+			varValue:  "value",
+			wantErr:   true,
 			errSubstr: "environment variable name cannot be empty",
 		},
 		{
 			name:      "invalid variable name with special chars",
-			varName:  "PATH-var",
-			varValue: "value",
-			wantErr:  true,
+			varName:   "PATH-var",
+			varValue:  "value",
+			wantErr:   true,
 			errSubstr: "invalid environment variable name",
 		},
 		{
 			name:      "variable value with null byte",
-			varName:  "PATH",
-			varValue: "value\x00bad",
-			wantErr:  true,
+			varName:   "PATH",
+			varValue:  "value\x00bad",
+			wantErr:   true,
 			errSubstr: "null byte",
 		},
 		{
-			name:    "valid variable name with underscore",
-			varName: "MY_VAR",
+			name:     "valid variable name with underscore",
+			varName:  "MY_VAR",
 			varValue: "value",
-			wantErr: false,
+			wantErr:  false,
 		},
 	}
 

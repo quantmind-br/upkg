@@ -4,7 +4,7 @@ import "github.com/rs/zerolog"
 
 // MockCacheManager is a mock implementation of CacheManager for testing
 type MockCacheManager struct {
-	UpdateIconCacheFunc      func(iconDir string, log *zerolog.Logger) error
+	UpdateIconCacheFunc       func(iconDir string, log *zerolog.Logger) error
 	UpdateDesktopDatabaseFunc func(appsDir string, log *zerolog.Logger) error
 }
 

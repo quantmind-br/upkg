@@ -15,6 +15,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+// standardSizes contains the XDG-compliant hicolor icon sizes that desktop
+// environments actually search. Icons installed to non-standard sizes
+// (like 4096x4096) will not be found by the theme engine.
+var standardSizes = []int{16, 22, 24, 32, 48, 64, 128, 256, 512}
+
 // Manager handles icon operations
 type Manager struct {
 	fs      afero.Fs
@@ -44,7 +49,9 @@ func (m *Manager) DiscoverIcons(sourceDir string) ([]core.IconFile, error) {
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".png" || ext == ".svg" || ext == ".ico" || ext == ".xpm" {
+		// Note: .ico files are skipped because Windows ICO format is not supported
+		// by Linux desktop environments in the hicolor icon theme
+		if ext == ".png" || ext == ".svg" || ext == ".xpm" {
 			size := DetectIconSize(path)
 			icons = append(icons, core.IconFile{
 				Path: path,
@@ -107,20 +114,34 @@ func getImageDimensions(imagePath string) string {
 		return ""
 	}
 
-	// Return dimensions as "WxH" string
+	// Get the larger dimension for non-square images
+	// (hicolor theme expects square sizes like 48x48, 256x256, etc.)
 	width := config.Width
 	height := config.Height
-
-	// For non-square images, use the larger dimension for both
-	// (hicolor theme expects square sizes like 48x48, 256x256, etc.)
-	if width != height {
-		if width > height {
-			return fmt.Sprintf("%dx%d", width, width)
-		}
-		return fmt.Sprintf("%dx%d", height, height)
+	dimension := width
+	if height > width {
+		dimension = height
 	}
 
-	return fmt.Sprintf("%dx%d", width, height)
+	// Normalize to standard XDG hicolor size
+	normalized := normalizeToStandardSize(dimension)
+	return fmt.Sprintf("%dx%d", normalized, normalized)
+}
+
+// normalizeToStandardSize maps an arbitrary dimension to the nearest standard
+// XDG hicolor icon size. Uses "round up to nearest standard" strategy:
+// - Dimensions smaller than or equal to a standard size map to that size
+// - Dimensions larger than 512 map to 512 (the largest standard size)
+// This ensures icons are placed in directories that desktop environments search.
+func normalizeToStandardSize(dimension int) int {
+	// Find the smallest standard size >= dimension
+	for _, size := range standardSizes {
+		if dimension <= size {
+			return size
+		}
+	}
+	// If larger than all standard sizes, use the largest (512)
+	return standardSizes[len(standardSizes)-1]
 }
 
 // NormalizeIconName normalizes an icon name

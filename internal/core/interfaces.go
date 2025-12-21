@@ -6,4 +6,5 @@ type InstallOptions struct {
 	SkipDesktop    bool   // Skip desktop integration
 	CustomName     string // Custom application name
 	SkipWaylandEnv bool   // Skip Wayland environment variable injection
+	Overwrite      bool   // Overwrite conflicting files from other packages (pacman --overwrite)
 }

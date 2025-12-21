@@ -726,3 +726,185 @@ func createMinimalTar() []byte {
 	copy(header[257:262], []byte("ustar"))
 	return header
 }
+
+func TestInstallIcons(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("installs icons successfully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create icon files
+		iconFile := filepath.Join(installDir, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		installedIcons, err := backend.installIcons(installDir, "test-app")
+		assert.NoError(t, err)
+		assert.NotNil(t, installedIcons)
+	})
+
+	t.Run("handles missing home directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Mock missing home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Unsetenv("HOME")
+		defer os.Setenv("HOME", origHomeDir)
+
+		installedIcons, err := backend.installIcons(installDir, "test-app")
+		assert.Error(t, err)
+		assert.Empty(t, installedIcons)
+	})
+
+	t.Run("handles icon installation failures gracefully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create icon file
+		iconFile := filepath.Join(installDir, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		// Test should complete without panic even if icon installation fails
+		installedIcons, err := backend.installIcons(installDir, "test-app")
+		assert.NoError(t, err)
+		assert.NotNil(t, installedIcons)
+	})
+}
+
+func TestExtractIconsFromAsarNative(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("extracts icons from asar archive", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create fake asar file
+		asarFile := filepath.Join(installDir, "app.asar")
+		require.NoError(t, os.WriteFile(asarFile, []byte("fake asar content"), 0644))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		icons, err := backend.extractIconsFromAsarNative(asarFile, installDir, "test-app")
+		// Should not panic even if asar extraction fails
+		assert.NoError(t, err)
+		assert.NotNil(t, icons)
+	})
+
+	t.Run("handles missing asar file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		icons, err := backend.extractIconsFromAsarNative("/nonexistent/app.asar", installDir, "test-app")
+		assert.NoError(t, err)
+		assert.NotNil(t, icons)
+	})
+
+	t.Run("handles missing home directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create fake asar file
+		asarFile := filepath.Join(installDir, "app.asar")
+		require.NoError(t, os.WriteFile(asarFile, []byte("fake asar content"), 0644))
+
+		// Mock missing home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Unsetenv("HOME")
+		defer os.Setenv("HOME", origHomeDir)
+
+		icons, err := backend.extractIconsFromAsarNative(asarFile, installDir, "test-app")
+		assert.NoError(t, err)
+		assert.NotNil(t, icons)
+	})
+}
+
+func TestExtractIconsFromAsar(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("extracts icons from asar directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create icon files in install directory
+		iconFile := filepath.Join(installDir, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
+		assert.NoError(t, err)
+		assert.NotNil(t, icons)
+	})
+
+	t.Run("handles missing icon files", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
+		assert.NoError(t, err)
+		assert.NotNil(t, icons)
+	})
+
+	t.Run("handles missing home directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create icon files in install directory
+		iconFile := filepath.Join(installDir, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock missing home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Unsetenv("HOME")
+		defer os.Setenv("HOME", origHomeDir)
+
+		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
+		assert.NoError(t, err)
+		assert.NotNil(t, icons)
+	})
+}

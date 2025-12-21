@@ -342,7 +342,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 // installWithDebtap installs RPM by converting to Arch package via debtap
 //
 //nolint:gocyclo // pacman-based RPM install has multiple fallbacks and integrations.
-func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normalizedName, installID string, _ core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normalizedName, installID string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
 	r.Log.Info().Msg("converting RPM to Arch package via debtap...")
 
 	// Convert to absolute path for reliability
@@ -385,7 +385,7 @@ func (r *RpmBackend) installWithDebtap(ctx context.Context, packagePath, normali
 	installCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
-	err = r.sys.Install(installCtx, archPkgPath)
+	err = r.sys.Install(installCtx, archPkgPath, &syspkg.InstallOptions{Overwrite: opts.Overwrite})
 	if err != nil {
 		return nil, fmt.Errorf("pacman installation failed: %w", err)
 	}

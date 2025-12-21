@@ -186,7 +186,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 	// Phase 3: Convert DEB to Arch package (indeterminate phase)
 	progress.StartPhase(2)
 
-	archPkgPath, err := d.convertWithDebtapProgress(ctx, packagePath, tmpDir, progress)
+	archPkgPath, err := d.convertWithDebtapProgress(ctx, packagePath, tmpDir, normalizedName, progress)
 	if err != nil {
 		return nil, fmt.Errorf("debtap conversion failed: %w", err)
 	}
@@ -243,7 +243,7 @@ func (d *DebBackend) Install(ctx context.Context, packagePath string, opts core.
 		}
 	}()
 
-	err = d.sys.Install(installCtx, archPkgPath)
+	err = d.sys.Install(installCtx, archPkgPath, &syspkg.InstallOptions{Overwrite: opts.Overwrite})
 	if err != nil {
 		return nil, fmt.Errorf("pacman installation failed: %w", err)
 	}
@@ -415,7 +415,7 @@ func (d *DebBackend) Uninstall(ctx context.Context, record *core.InstallRecord) 
 // convertWithDebtapProgress converts a DEB package to Arch package with progress tracking
 //
 //nolint:gocyclo // debtap conversion involves multiple IO streams and search fallbacks.
-func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, outputDir string, progress *ui.ProgressTracker) (string, error) {
+func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, outputDir, expectedPkgName string, progress *ui.ProgressTracker) (string, error) {
 	// Run debtap with quiet mode (-q) and skip interactive prompts (-Q)
 	convertCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
@@ -534,30 +534,7 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 	}
 
 	if len(files) == 0 {
-		// Search in current working directory (debtap default behavior)
-		wdPattern := "*.pkg.tar.*"
-		d.Log.Debug().
-			Str("pattern", wdPattern).
-			Msg("searching in working directory for debtap package")
-
-		wdFiles, globErr := filepath.Glob(wdPattern)
-		if globErr != nil {
-			d.Log.Error().Err(globErr).Str("pattern", wdPattern).Msg("working dir glob search failed")
-		}
-
-		if len(wdFiles) > 0 {
-			// Filter for files matching our package name
-			for _, file := range wdFiles {
-				if strings.Contains(filepath.Base(file), "goose") ||
-					strings.Contains(filepath.Base(file), "cursor") {
-					files = append(files, file)
-				}
-			}
-		}
-	}
-
-	if len(files) == 0 {
-		// Try searching in the original package directory
+		// Search in the original package directory (where debtap typically creates the output)
 		pkgDir := filepath.Dir(debPath)
 		pkgPattern := filepath.Join(pkgDir, "*.pkg.tar.*")
 		d.Log.Debug().
@@ -592,7 +569,56 @@ func (d *DebBackend) convertWithDebtapProgress(ctx context.Context, debPath, out
 
 	d.Log.Debug().
 		Strs("found_files", files).
+		Str("expected_pkg_name", expectedPkgName).
 		Msg("found generated packages")
+
+	// Filter files to find the one matching expected package name
+	var matchingFiles []string
+	for _, file := range files {
+		baseName := filepath.Base(file)
+		// Package files are named like: pkgname-version-release-arch.pkg.tar.*
+		if strings.HasPrefix(baseName, expectedPkgName+"-") ||
+			strings.HasPrefix(baseName, strings.ReplaceAll(expectedPkgName, "_", "-")+"-") {
+			matchingFiles = append(matchingFiles, file)
+		}
+	}
+
+	// If we found matching files, use the most recent one
+	if len(matchingFiles) > 0 {
+		// Sort by modification time (most recent first)
+		if len(matchingFiles) > 1 {
+			// Get file info for sorting
+			type fileWithTime struct {
+				path    string
+				modTime time.Time
+			}
+			var filesWithTime []fileWithTime
+			for _, f := range matchingFiles {
+				info, err := d.Fs.Stat(f)
+				if err == nil {
+					filesWithTime = append(filesWithTime, fileWithTime{path: f, modTime: info.ModTime()})
+				}
+			}
+			// Sort by modification time descending
+			for i := 0; i < len(filesWithTime)-1; i++ {
+				for j := i + 1; j < len(filesWithTime); j++ {
+					if filesWithTime[j].modTime.After(filesWithTime[i].modTime) {
+						filesWithTime[i], filesWithTime[j] = filesWithTime[j], filesWithTime[i]
+					}
+				}
+			}
+			if len(filesWithTime) > 0 {
+				return filesWithTime[0].path, nil
+			}
+		}
+		return matchingFiles[0], nil
+	}
+
+	// No exact match found, log warning and use the most recent file
+	d.Log.Warn().
+		Str("expected", expectedPkgName).
+		Strs("found", files).
+		Msg("no package matching expected name, using first available")
 
 	return files[0], nil
 }

@@ -79,7 +79,7 @@ func TestValidateMaxLength(t *testing.T) {
 func TestMinInt(t *testing.T) {
 	tests := []struct {
 		name string
-		a, b  int
+		a, b int
 		want int
 	}{
 		{"FirstSmaller", 3, 5, 3},
@@ -124,10 +124,10 @@ func TestPromptFunctions(t *testing.T) {
 
 	// Test that validation functions work correctly
 	tests := []struct {
-		name     string
+		name      string
 		validator func(string) error
-		input    string
-		wantErr  bool
+		input     string
+		wantErr   bool
 	}{
 		{"NonEmpty", ValidateNonEmpty, "", true},
 		{"NonEmptyValid", ValidateNonEmpty, "test", false},

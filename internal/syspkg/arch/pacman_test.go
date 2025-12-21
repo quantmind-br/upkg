@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/syspkg"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +23,19 @@ func TestPacmanProvider_Install(t *testing.T) {
 			return "", nil
 		}
 
-		err := provider.Install(context.Background(), "test.pkg.tar.zst")
+		err := provider.Install(context.Background(), "test.pkg.tar.zst", nil)
+		assert.NoError(t, err)
+	})
+
+	// Test case: Successful installation with overwrite
+	t.Run("successful installation with overwrite", func(t *testing.T) {
+		mockRunner.RunCommandFunc = func(_ context.Context, name string, args ...string) (string, error) {
+			assert.Equal(t, "sudo", name)
+			assert.Equal(t, []string{"pacman", "-U", "--noconfirm", "--overwrite", "*", "test.pkg.tar.zst"}, args)
+			return "", nil
+		}
+
+		err := provider.Install(context.Background(), "test.pkg.tar.zst", &syspkg.InstallOptions{Overwrite: true})
 		assert.NoError(t, err)
 	})
 
@@ -33,7 +46,7 @@ func TestPacmanProvider_Install(t *testing.T) {
 			return "", expectedErr
 		}
 
-		err := provider.Install(context.Background(), "test.pkg.tar.zst")
+		err := provider.Install(context.Background(), "test.pkg.tar.zst", nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "pacman installation failed")
 	})

@@ -9,6 +9,9 @@ import (
 	"github.com/quantmind-br/upkg/internal/syspkg"
 )
 
+// Ensure PacmanProvider implements Provider interface
+var _ syspkg.Provider = (*PacmanProvider)(nil)
+
 // PacmanProvider implements the Provider interface for Arch Linux
 type PacmanProvider struct {
 	runner helpers.CommandRunner
@@ -33,8 +36,17 @@ func (p *PacmanProvider) Name() string {
 }
 
 // Install installs a package from a local path using pacman
-func (p *PacmanProvider) Install(ctx context.Context, pkgPath string) error {
-	_, err := p.runner.RunCommand(ctx, "sudo", "pacman", "-U", "--noconfirm", pkgPath)
+func (p *PacmanProvider) Install(ctx context.Context, pkgPath string, opts *syspkg.InstallOptions) error {
+	args := []string{"pacman", "-U", "--noconfirm"}
+
+	// Add --overwrite flag if requested (handles file conflicts)
+	if opts != nil && opts.Overwrite {
+		args = append(args, "--overwrite", "*")
+	}
+
+	args = append(args, pkgPath)
+
+	_, err := p.runner.RunCommand(ctx, "sudo", args...)
 	if err != nil {
 		return fmt.Errorf("pacman installation failed: %w", err)
 	}

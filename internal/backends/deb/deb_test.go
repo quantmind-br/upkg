@@ -553,13 +553,17 @@ type mockSyspkgProvider struct {
 	isInstalled  bool
 	removeCalled bool
 	removeErr    error
+
+	// Function fields for testing
+	GetInfoFunc   func(context.Context, string) (*syspkg.PackageInfo, error)
+	ListFilesFunc func(context.Context, string) ([]string, error)
 }
 
 func (m *mockSyspkgProvider) Name() string {
 	return "mock"
 }
 
-func (m *mockSyspkgProvider) Install(_ context.Context, _ string) error {
+func (m *mockSyspkgProvider) Install(_ context.Context, _ string, _ *syspkg.InstallOptions) error {
 	return nil
 }
 
@@ -573,9 +577,247 @@ func (m *mockSyspkgProvider) IsInstalled(_ context.Context, _ string) (bool, err
 }
 
 func (m *mockSyspkgProvider) GetInfo(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
+	if m.GetInfoFunc != nil {
+		return m.GetInfoFunc(context.Background(), packageName)
+	}
 	return &syspkg.PackageInfo{Name: packageName, Version: "1.0.0"}, nil
 }
 
-func (m *mockSyspkgProvider) ListFiles(_ context.Context, _ string) ([]string, error) {
+func (m *mockSyspkgProvider) ListFiles(_ context.Context, packageName string) ([]string, error) {
+	if m.ListFilesFunc != nil {
+		return m.ListFilesFunc(context.Background(), packageName)
+	}
 	return []string{}, nil
+}
+
+func TestGetPackageInfo(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+
+	t.Run("returns package info successfully", func(t *testing.T) {
+		mockProvider := &mockSyspkgProvider{
+			GetInfoFunc: func(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
+				return &syspkg.PackageInfo{
+					Name:    "test-package",
+					Version: "1.0.0",
+				}, nil
+			},
+		}
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), &helpers.MockCommandRunner{})
+		backend.sys = mockProvider
+
+		info, err := backend.getPackageInfo(context.Background(), "test-package")
+		assert.NoError(t, err)
+		assert.NotNil(t, info)
+		assert.Equal(t, "test-package", info.name)
+		assert.Equal(t, "1.0.0", info.version)
+	})
+
+	t.Run("returns error when sys provider fails", func(t *testing.T) {
+		mockProvider := &mockSyspkgProvider{
+			GetInfoFunc: func(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
+				return nil, fmt.Errorf("package not found")
+			},
+		}
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), &helpers.MockCommandRunner{})
+		backend.sys = mockProvider
+
+		info, err := backend.getPackageInfo(context.Background(), "nonexistent")
+		assert.Error(t, err)
+		assert.Nil(t, info)
+	})
+}
+
+func TestFindInstalledFiles(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+
+	t.Run("returns list of installed files", func(t *testing.T) {
+		mockProvider := &mockSyspkgProvider{
+			ListFilesFunc: func(_ context.Context, packageName string) ([]string, error) {
+				return []string{
+					"/usr/bin/test-app",
+					"/usr/share/applications/test-app.desktop",
+					"/usr/share/icons/hicolor/64x64/apps/test-app.png",
+				}, nil
+			},
+		}
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), &helpers.MockCommandRunner{})
+		backend.sys = mockProvider
+
+		files, err := backend.findInstalledFiles(context.Background(), "test-package")
+		assert.NoError(t, err)
+		assert.Len(t, files, 3)
+		assert.Contains(t, files, "/usr/bin/test-app")
+	})
+
+	t.Run("returns error when sys provider fails", func(t *testing.T) {
+		mockProvider := &mockSyspkgProvider{
+			ListFilesFunc: func(_ context.Context, packageName string) ([]string, error) {
+				return nil, fmt.Errorf("package not found")
+			},
+		}
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), &helpers.MockCommandRunner{})
+		backend.sys = mockProvider
+
+		files, err := backend.findInstalledFiles(context.Background(), "nonexistent")
+		assert.Error(t, err)
+		assert.Empty(t, files)
+	})
+}
+
+func TestUpdateDesktopFileWayland(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+
+	t.Run("updates desktop file with wayland vars", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		desktopPath := filepath.Join(tmpDir, "test-app.desktop")
+
+		// Create desktop file
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp`
+		require.NoError(t, os.WriteFile(desktopPath, []byte(desktopContent), 0644))
+
+		mockRunner := &helpers.MockCommandRunner{
+			CommandExistsFunc: func(_ string) bool { return true },
+			RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
+				return "", nil // Simulate successful sudo mv
+			},
+		}
+
+		fs := afero.NewOsFs()
+		backend := NewWithDeps(cfg, &logger, fs, mockRunner)
+
+		err := backend.updateDesktopFileWayland(desktopPath)
+		assert.NoError(t, err)
+
+		// Verify desktop file was updated
+		content, err := os.ReadFile(desktopPath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "XDG_CURRENT_DESKTOP")
+	})
+
+	t.Run("handles missing desktop file", func(t *testing.T) {
+		fs := afero.NewOsFs()
+		backend := NewWithDeps(cfg, &logger, fs, &helpers.MockCommandRunner{})
+
+		err := backend.updateDesktopFileWayland("/nonexistent/test.desktop")
+		assert.Error(t, err)
+	})
+
+	t.Run("handles invalid desktop file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		desktopPath := filepath.Join(tmpDir, "test-app.desktop")
+
+		// Create invalid desktop file
+		require.NoError(t, os.WriteFile(desktopPath, []byte("invalid desktop content"), 0644))
+
+		fs := afero.NewOsFs()
+		backend := NewWithDeps(cfg, &logger, fs, &helpers.MockCommandRunner{})
+
+		err := backend.updateDesktopFileWayland(desktopPath)
+		assert.Error(t, err)
+	})
+
+	t.Run("handles sudo command failure", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		desktopPath := filepath.Join(tmpDir, "test-app.desktop")
+
+		// Create desktop file
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp`
+		require.NoError(t, os.WriteFile(desktopPath, []byte(desktopContent), 0644))
+
+		mockRunner := &helpers.MockCommandRunner{
+			CommandExistsFunc: func(_ string) bool { return true },
+			RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
+				return "", fmt.Errorf("sudo command failed")
+			},
+		}
+
+		fs := afero.NewOsFs()
+		backend := NewWithDeps(cfg, &logger, fs, mockRunner)
+
+		err := backend.updateDesktopFileWayland(desktopPath)
+		assert.Error(t, err)
+	})
+}
+
+func TestExtractPackageInfoFromArchive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts package info from deb archive", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		debPath := filepath.Join(tmpDir, "test-package.deb")
+
+		// Create minimal DEB structure
+		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary   1234567890"), 0644))
+
+		info, err := extractPackageInfoFromArchive(debPath)
+		assert.NoError(t, err)
+		assert.NotNil(t, info)
+	})
+
+	t.Run("handles non-existent file", func(t *testing.T) {
+		info, err := extractPackageInfoFromArchive("/nonexistent/package.deb")
+		assert.Error(t, err)
+		assert.Nil(t, info)
+	})
+
+	t.Run("handles invalid deb file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		debPath := filepath.Join(tmpDir, "test-package.deb")
+
+		// Create invalid DEB content
+		require.NoError(t, os.WriteFile(debPath, []byte("not a valid deb file"), 0644))
+
+		info, err := extractPackageInfoFromArchive(debPath)
+		assert.Error(t, err)
+		assert.Nil(t, info)
+	})
+}
+
+func TestFixMalformedDependencies(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+
+	t.Run("fixes malformed dependencies in control file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		debPath := filepath.Join(tmpDir, "test-package.deb")
+
+		// Create minimal DEB with malformed dependencies
+		debContent := []byte("!<arch>\ndebian-binary   \n")
+		require.NoError(t, os.WriteFile(debPath, debContent, 0644))
+
+		err := fixMalformedDependencies(debPath, &logger)
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles non-existent file", func(t *testing.T) {
+		err := fixMalformedDependencies("/nonexistent/package.deb", &logger)
+		assert.Error(t, err)
+	})
+
+	t.Run("handles extraction failure gracefully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		debPath := filepath.Join(tmpDir, "test-package.deb")
+
+		// Create invalid DEB that will fail extraction
+		require.NoError(t, os.WriteFile(debPath, []byte("invalid deb content"), 0644))
+
+		err := fixMalformedDependencies(debPath, &logger)
+		assert.Error(t, err)
+	})
 }

@@ -58,57 +58,57 @@ func TestGetImageDimensions(t *testing.T) {
 		expected string
 	}{
 		{
-			name:    "Unsupported format",
-			file:    "test.txt",
-			content: []byte("not an image"),
+			name:     "Unsupported format",
+			file:     "test.txt",
+			content:  []byte("not an image"),
 			expected: "",
 		},
 		{
-			name:    "Empty file",
-			file:    "test.empty",
-			content: []byte(""),
+			name:     "Empty file",
+			file:     "test.empty",
+			content:  []byte(""),
 			expected: "",
 		},
 		{
-			name:    "File with .png extension but invalid content",
-			file:    "test.png",
-			content: []byte("invalid png content"),
+			name:     "File with .png extension but invalid content",
+			file:     "test.png",
+			content:  []byte("invalid png content"),
 			expected: "",
 		},
 		{
-			name:    "File with .jpg extension but invalid content",
-			file:    "test.jpg",
-			content: []byte("invalid jpg content"),
+			name:     "File with .jpg extension but invalid content",
+			file:     "test.jpg",
+			content:  []byte("invalid jpg content"),
 			expected: "",
 		},
 		{
-			name:    "File with .jpeg extension but invalid content",
-			file:    "test.jpeg",
-			content: []byte("invalid jpeg content"),
+			name:     "File with .jpeg extension but invalid content",
+			file:     "test.jpeg",
+			content:  []byte("invalid jpeg content"),
 			expected: "",
 		},
 		{
-			name:    "File with .gif extension but invalid content",
-			file:    "test.gif",
-			content: []byte("invalid gif content"),
+			name:     "File with .gif extension but invalid content",
+			file:     "test.gif",
+			content:  []byte("invalid gif content"),
 			expected: "",
 		},
 		{
-			name:    "File with .PNG extension (uppercase)",
-			file:    "test.PNG",
-			content: []byte("invalid png content"),
+			name:     "File with .PNG extension (uppercase)",
+			file:     "test.PNG",
+			content:  []byte("invalid png content"),
 			expected: "",
 		},
 		{
-			name:    "File with .JPG extension (uppercase)",
-			file:    "test.JPG",
-			content: []byte("invalid jpg content"),
+			name:     "File with .JPG extension (uppercase)",
+			file:     "test.JPG",
+			content:  []byte("invalid jpg content"),
 			expected: "",
 		},
 		{
-			name:    "File with .GIF extension (uppercase)",
-			file:    "test.GIF",
-			content: []byte("invalid gif content"),
+			name:     "File with .GIF extension (uppercase)",
+			file:     "test.GIF",
+			content:  []byte("invalid gif content"),
 			expected: "",
 		},
 	}
@@ -121,13 +121,13 @@ func TestGetImageDimensions(t *testing.T) {
 				t.Fatalf("Failed to create temp file: %v", err)
 			}
 			defer os.Remove(tmpFile.Name())
-			
+
 			// Write content
 			if _, err := tmpFile.Write(tt.content); err != nil {
 				t.Fatalf("Failed to write to temp file: %v", err)
 			}
 			tmpFile.Close()
-			
+
 			// Test getImageDimensions
 			result := getImageDimensions(tmpFile.Name())
 			if result != tt.expected {
@@ -287,7 +287,7 @@ func TestPackageLevelFunctions(t *testing.T) {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	
+
 	// Create test icons
 	iconFiles := []string{"app.png", "app.svg", "app.ico", "app.xpm"}
 	for _, file := range iconFiles {
@@ -297,12 +297,12 @@ func TestPackageLevelFunctions(t *testing.T) {
 			t.Fatalf("Failed to create test icon: %v", writeErr)
 		}
 	}
-	
+
 	icons := DiscoverIcons(tmpDir)
 	if len(icons) != 4 {
 		t.Errorf("DiscoverIcons should find 4 icons, got %d", len(icons))
 	}
-	
+
 	// Test InstallIcon convenience function
 	// This would require more complex setup with actual filesystem
 	// so we'll just test that it doesn't crash
@@ -311,13 +311,13 @@ func TestPackageLevelFunctions(t *testing.T) {
 		Size: "48x48",
 		Ext:  "png",
 	}
-	
+
 	tmpHome, err := os.MkdirTemp("", "icons-home-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp home dir: %v", err)
 	}
 	defer os.RemoveAll(tmpHome)
-	
+
 	// Note: This will actually install the icon, but we'll clean it up
 	_, err = InstallIcon(iconFile, "test-app", tmpHome)
 	if err != nil {

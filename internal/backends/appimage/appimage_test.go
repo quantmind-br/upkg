@@ -483,3 +483,303 @@ func TestFindDesktopFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAppImageMetadata(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("parses desktop file successfully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create .desktop file
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Comment=Test Application
+Exec=testapp
+Icon=test-icon
+Categories=Development;`
+		desktopFile := filepath.Join(squashfsRoot, "testapp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		assert.NoError(t, err)
+		assert.NotNil(t, metadata)
+		assert.Equal(t, "testapp", metadata.appName)
+		assert.Equal(t, "Test Application", metadata.comment)
+		assert.Equal(t, "test-icon", metadata.icon)
+	})
+
+	t.Run("handles missing desktop file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		assert.NoError(t, err)
+		assert.NotNil(t, metadata)
+		assert.Empty(t, metadata.appName)
+	})
+
+	t.Run("uses DirIcon when no desktop file icon", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create .DirIcon
+		dirIconContent := []byte("fake icon content")
+		dirIconFile := filepath.Join(squashfsRoot, ".DirIcon")
+		require.NoError(t, os.WriteFile(dirIconFile, dirIconContent, 0644))
+
+		// Create desktop file without Icon field
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp`
+		desktopFile := filepath.Join(squashfsRoot, "testapp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		assert.NoError(t, err)
+		assert.NotNil(t, metadata)
+		assert.Equal(t, filepath.Join(squashfsRoot, ".DirIcon"), metadata.icon)
+	})
+
+	t.Run("handles invalid desktop file gracefully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create invalid desktop file
+		desktopContent := `invalid desktop file content`
+		desktopFile := filepath.Join(squashfsRoot, "testapp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		assert.NoError(t, err)
+		assert.NotNil(t, metadata)
+		// Should still extract appName from filename even if parsing fails
+		assert.Equal(t, "testapp", metadata.appName)
+	})
+}
+
+func TestInstallIcons(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("installs icons successfully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create icon file
+		iconFile := filepath.Join(squashfsRoot, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		installedIcons, err := backend.installIcons(squashfsRoot, "test-app", &appImageMetadata{})
+		assert.NoError(t, err)
+		assert.NotNil(t, installedIcons)
+	})
+
+	t.Run("handles missing home directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Mock missing home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Unsetenv("HOME")
+		defer os.Setenv("HOME", origHomeDir)
+
+		installedIcons, err := backend.installIcons(squashfsRoot, "test-app", &appImageMetadata{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "home directory")
+		assert.Empty(t, installedIcons)
+	})
+
+	t.Run("handles icon installation failures gracefully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create icon file
+		iconFile := filepath.Join(squashfsRoot, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		// Test should complete without panic even if icon installation fails
+		installedIcons, err := backend.installIcons(squashfsRoot, "test-app", &appImageMetadata{})
+		assert.NoError(t, err)
+		assert.NotNil(t, installedIcons)
+	})
+}
+
+func TestCreateDesktopFile(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("creates desktop file from template", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create .desktop template
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp
+Icon=test-icon`
+		desktopFile := filepath.Join(squashfsRoot, "TestApp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		// Create binary
+		execPath := filepath.Join(tmpDir, "test-app.AppImage")
+		require.NoError(t, os.WriteFile(execPath, []byte("fake appimage"), 0755))
+
+		metadata := &appImageMetadata{
+			appName: "TestApp",
+			icon:    "test-icon",
+		}
+
+		resultPath, err := backend.createDesktopFile(squashfsRoot, "TestApp", "test-app", execPath, metadata, core.InstallOptions{})
+		assert.NoError(t, err)
+		assert.NotEmpty(t, resultPath)
+		assert.Contains(t, resultPath, ".desktop")
+	})
+
+	t.Run("creates desktop file without template", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create binary
+		execPath := filepath.Join(tmpDir, "test-app.AppImage")
+		require.NoError(t, os.WriteFile(execPath, []byte("fake appimage"), 0755))
+
+		metadata := &appImageMetadata{}
+
+		resultPath, err := backend.createDesktopFile(squashfsRoot, "TestApp", "test-app", execPath, metadata, core.InstallOptions{})
+		assert.NoError(t, err)
+		assert.NotEmpty(t, resultPath)
+		assert.Contains(t, resultPath, ".desktop")
+	})
+
+	t.Run("adds electron sandbox flag when configured", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create app.asar to simulate Electron app
+		resourcesDir := filepath.Join(squashfsRoot, "resources")
+		require.NoError(t, os.MkdirAll(resourcesDir, 0755))
+		asarFile := filepath.Join(resourcesDir, "app.asar")
+		require.NoError(t, os.WriteFile(asarFile, []byte("fake asar"), 0644))
+
+		// Create .desktop template
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp`
+		desktopFile := filepath.Join(squashfsRoot, "TestApp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		// Create binary
+		execPath := filepath.Join(tmpDir, "test-app.AppImage")
+		require.NoError(t, os.WriteFile(execPath, []byte("fake appimage"), 0755))
+
+		// Enable Electron sandbox disable
+		cfg.Desktop.ElectronDisableSandbox = true
+		metadata := &appImageMetadata{
+			appName: "TestApp",
+		}
+
+		resultPath, err := backend.createDesktopFile(squashfsRoot, "TestApp", "test-app", execPath, metadata, core.InstallOptions{})
+		assert.NoError(t, err)
+		assert.NotEmpty(t, resultPath)
+
+		// Verify Exec contains --no-sandbox
+		content, err := os.ReadFile(resultPath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "--no-sandbox")
+	})
+
+	t.Run("handles wayland environment injection", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create .desktop template
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp`
+		desktopFile := filepath.Join(squashfsRoot, "TestApp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		// Create binary
+		execPath := filepath.Join(tmpDir, "test-app.AppImage")
+		require.NoError(t, os.WriteFile(execPath, []byte("fake appimage"), 0755))
+
+		metadata := &appImageMetadata{
+			appName: "TestApp",
+		}
+
+		resultPath, err := backend.createDesktopFile(squashfsRoot, "TestApp", "test-app", execPath, metadata, core.InstallOptions{})
+		assert.NoError(t, err)
+		assert.NotEmpty(t, resultPath)
+
+		// Verify desktop file was created successfully
+		content, err := os.ReadFile(resultPath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "TestApp")
+	})
+}
+
+func TestExtractAppImage(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("handles extraction with missing unsquashfs", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		appImagePath := filepath.Join(tmpDir, "test.AppImage")
+		destDir := filepath.Join(tmpDir, "extract")
+
+		// Create fake AppImage (will fail extraction)
+		require.NoError(t, os.WriteFile(appImagePath, []byte("#!/bin/bash\necho fake"), 0755))
+
+		err := backend.extractAppImage(context.Background(), appImagePath, destDir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unsquashfs")
+	})
+
+	t.Run("handles directory creation failure", func(t *testing.T) {
+		// This test ensures the function handles fs errors gracefully
+		logger := zerolog.New(io.Discard)
+		fs := afero.NewReadOnlyFs(afero.NewOsFs())
+		backend := NewWithDeps(cfg, &logger, fs, &helpers.MockCommandRunner{})
+
+		tmpDir := t.TempDir()
+		appImagePath := filepath.Join(tmpDir, "test.AppImage")
+		destDir := filepath.Join(tmpDir, "nonexistent", "dir")
+
+		require.NoError(t, os.WriteFile(appImagePath, []byte("fake"), 0644))
+
+		err := backend.extractAppImage(context.Background(), appImagePath, destDir)
+		assert.Error(t, err)
+	})
+}

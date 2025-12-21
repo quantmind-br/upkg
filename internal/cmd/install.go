@@ -33,6 +33,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		timeoutSecs    int
 		skipWaylandEnv bool
 		skipIconFix    bool
+		overwrite      bool
 	)
 
 	cmd := &cobra.Command{
@@ -116,6 +117,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				SkipDesktop:    skipDesktop,
 				CustomName:     customName,
 				SkipWaylandEnv: skipWaylandEnv,
+				Overwrite:      overwrite,
 			}
 
 			record, err := backend.Install(ctx, packagePath, installOpts, tx)
@@ -203,6 +205,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	cmd.Flags().IntVar(&timeoutSecs, "timeout", 600, "installation timeout in seconds")
 	cmd.Flags().BoolVar(&skipWaylandEnv, "skip-wayland-env", false, "skip Wayland environment variable injection (recommended for Tauri apps)")
 	cmd.Flags().BoolVar(&skipIconFix, "skip-icon-fix", false, "skip dock icon fix (Hyprland initialClass detection)")
+	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "overwrite conflicting files from other packages (DEB/RPM only)")
 
 	return cmd
 }

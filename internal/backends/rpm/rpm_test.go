@@ -12,6 +12,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/paths"
 	"github.com/quantmind-br/upkg/internal/syspkg"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
@@ -863,13 +864,23 @@ func TestInstallIcons(t *testing.T) {
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
 
+		// Create icon file to be discovered
+		iconFile := filepath.Join(installDir, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock missing home directory by creating backend with empty home
+		paths := paths.NewResolverWithHome(cfg, "")
+		backendWithEmptyHome := New(cfg, &logger)
+		backendWithEmptyHome.Paths = paths
+
 		// Mock missing home directory
 		origHomeDir := os.Getenv("HOME")
 		os.Unsetenv("HOME")
 		defer os.Setenv("HOME", origHomeDir)
 
-		installedIcons, err := backend.installIcons(installDir, "test-app")
+		installedIcons, err := backendWithEmptyHome.installIcons(installDir, "test-app")
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "home directory")
 		assert.Empty(t, installedIcons)
 	})
 

@@ -3,16 +3,21 @@ package icons
 import (
 	"fmt"
 	"image"
+	"image/draw"
 	_ "image/gif"  // Register GIF format
 	_ "image/jpeg" // Register JPEG format
-	_ "image/png"  // Register PNG format
+	"image/png"
+
+	// Explicitly import for encoding
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/spf13/afero"
+	xdraw "golang.org/x/image/draw"
 )
 
 // standardSizes contains the XDG-compliant hicolor icon sizes that desktop
@@ -48,6 +53,12 @@ func (m *Manager) DiscoverIcons(sourceDir string) ([]core.IconFile, error) {
 			return nil
 		}
 
+		// Skip symlinks to avoid duplicates when icons are referenced both as
+		// symlinks and as actual files (common in AppImages)
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+
 		ext := strings.ToLower(filepath.Ext(path))
 		// Note: .ico files are skipped because Windows ICO format is not supported
 		// by Linux desktop environments in the hicolor icon theme
@@ -75,8 +86,20 @@ func DetectIconSize(iconPath string) string {
 	// Try to detect from path (e.g., "48x48", "256x256")
 	re := regexp.MustCompile(`(\d+)x(\d+)`)
 	matches := re.FindStringSubmatch(iconPath)
-	if len(matches) >= 2 {
-		return matches[0]
+	if len(matches) >= 3 {
+		// Parse dimensions
+		w, _ := strconv.Atoi(matches[1])
+		h, _ := strconv.Atoi(matches[2])
+
+		// Use largest dimension
+		top := w
+		if h > w {
+			top = h
+		}
+
+		// Normalize to standard size
+		normalized := normalizeToStandardSize(top)
+		return fmt.Sprintf("%dx%d", normalized, normalized)
 	}
 
 	// Check for "scalable"
@@ -160,6 +183,10 @@ func NormalizeIconName(rawName string) string {
 
 // InstallIcon installs an icon to the hicolor theme
 func (m *Manager) InstallIcon(srcPath, normalizedName, size string) (string, error) {
+	if err := m.ensureHicolorIndex(size); err != nil {
+		return "", err
+	}
+
 	// Determine destination path
 	ext := filepath.Ext(srcPath)
 	dstPath := filepath.Join(m.iconDir, "hicolor", size, "apps", normalizedName+ext)
@@ -170,7 +197,250 @@ func (m *Manager) InstallIcon(srcPath, normalizedName, size string) (string, err
 		return "", fmt.Errorf("create icon directory: %w", err)
 	}
 
-	// Copy icon
+	// Parse target size
+	var targetSize int
+	if _, err := fmt.Sscanf(size, "%dx%d", &targetSize, &targetSize); err != nil {
+		// If not a standard resolution (e.g. "scalable"), just copy
+		return m.copyIcon(srcPath, dstPath)
+	}
+
+	// Read source file
+	srcFile, err := m.fs.Open(srcPath)
+	if err != nil {
+		return "", fmt.Errorf("open source icon: %w", err)
+	}
+	defer srcFile.Close()
+
+	// Decode source config to check dimensions
+	config, _, err := image.DecodeConfig(srcFile)
+	if err != nil {
+		// If not an image we can decode, just copy
+		return m.copyIcon(srcPath, dstPath)
+	}
+
+	// If source is larger than target, resize
+	// We only resize if it's significantly larger to avoid quality loss on small diffs
+	// Also only if target provided (standardSizes check implicitly done by DetectIconSize logic)
+	if config.Width > targetSize || config.Height > targetSize {
+		// Reset file pointer
+		srcFile.Seek(0, 0)
+		srcImg, _, err := image.Decode(srcFile)
+		if err != nil {
+			return m.copyIcon(srcPath, dstPath)
+		}
+
+		// Create target image
+		dstImg := image.NewRGBA(image.Rect(0, 0, targetSize, targetSize))
+
+		// Resize using Catmull-Rom resampling for high quality
+		xdraw.CatmullRom.Scale(dstImg, dstImg.Bounds(), srcImg, srcImg.Bounds(), draw.Over, nil)
+
+		// Create destination file
+		// Note: We force PNG extension for resized images as we always encode to PNG
+		dstPath = filepath.Join(m.iconDir, "hicolor", size, "apps", normalizedName+".png")
+		dstFile, err := m.fs.Create(dstPath)
+		if err != nil {
+			return "", fmt.Errorf("create destination icon: %w", err)
+		}
+		defer dstFile.Close()
+
+		// Encode as PNG
+		if err := png.Encode(dstFile, dstImg); err != nil {
+			return "", fmt.Errorf("encode resized icon: %w", err)
+		}
+
+		return dstPath, nil
+	}
+
+	return m.copyIcon(srcPath, dstPath)
+}
+
+func (m *Manager) ensureHicolorIndex(size string) error {
+	if size == "" {
+		return nil
+	}
+
+	hicolorDir := filepath.Join(m.iconDir, "hicolor")
+	if err := m.fs.MkdirAll(hicolorDir, 0755); err != nil {
+		return fmt.Errorf("create hicolor dir: %w", err)
+	}
+
+	indexPath := filepath.Join(hicolorDir, "index.theme")
+	content, err := afero.ReadFile(m.fs, indexPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read index.theme: %w", err)
+	}
+
+	lines := []string{}
+	if err == nil {
+		trimmed := strings.TrimRight(string(content), "\n")
+		if trimmed != "" {
+			lines = strings.Split(trimmed, "\n")
+		}
+	}
+
+	dirName := size + "/apps"
+	modified := false
+
+	iconThemeStart, iconThemeEnd := findSection(lines, "Icon Theme")
+	if iconThemeStart == -1 {
+		if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
+			lines = append(lines, "")
+		}
+		lines = append(lines,
+			"[Icon Theme]",
+			"Name=Hicolor",
+			"Comment=Fallback icon theme",
+			"Hidden=true",
+			"Directories="+dirName,
+		)
+		modified = true
+	} else {
+		dirIdx := -1
+		for i := iconThemeStart + 1; i < iconThemeEnd; i++ {
+			if strings.HasPrefix(strings.TrimSpace(lines[i]), "Directories=") {
+				dirIdx = i
+				break
+			}
+		}
+		if dirIdx == -1 {
+			insertAt := iconThemeEnd
+			lines = append(lines[:insertAt], append([]string{"Directories=" + dirName}, lines[insertAt:]...)...)
+			modified = true
+		} else {
+			dirs := parseDirectories(lines[dirIdx])
+			if !containsString(dirs, dirName) {
+				dirs = append(dirs, dirName)
+				lines[dirIdx] = "Directories=" + strings.Join(dirs, ",")
+				modified = true
+			}
+		}
+	}
+
+	if !sectionExists(lines, dirName) {
+		section := buildDirectorySection(dirName, size)
+		if len(section) > 0 {
+			if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
+				lines = append(lines, "")
+			}
+			lines = append(lines, section...)
+			modified = true
+		}
+	}
+
+	if !modified {
+		return nil
+	}
+
+	output := strings.Join(lines, "\n") + "\n"
+	if err := afero.WriteFile(m.fs, indexPath, []byte(output), 0644); err != nil {
+		return fmt.Errorf("write index.theme: %w", err)
+	}
+
+	return nil
+}
+
+func findSection(lines []string, name string) (int, int) {
+	header := "[" + name + "]"
+	for i, line := range lines {
+		if strings.TrimSpace(line) == header {
+			end := len(lines)
+			for j := i + 1; j < len(lines); j++ {
+				trimmed := strings.TrimSpace(lines[j])
+				if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+					end = j
+					break
+				}
+			}
+			return i, end
+		}
+	}
+	return -1, -1
+}
+
+func sectionExists(lines []string, name string) bool {
+	header := "[" + name + "]"
+	for _, line := range lines {
+		if strings.TrimSpace(line) == header {
+			return true
+		}
+	}
+	return false
+}
+
+func parseDirectories(line string) []string {
+	parts := strings.SplitN(line, "=", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	raw := parts[1]
+	rawParts := strings.Split(raw, ",")
+	dirs := make([]string, 0, len(rawParts))
+	for _, part := range rawParts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			dirs = append(dirs, trimmed)
+		}
+	}
+	return dirs
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
+
+func buildDirectorySection(dirName, size string) []string {
+	header := "[" + dirName + "]"
+	if size == "scalable" {
+		return []string{
+			header,
+			"MinSize=1",
+			"Size=128",
+			"MaxSize=256",
+			"Context=Applications",
+			"Type=Scalable",
+		}
+	}
+
+	dimension := parseSquareSize(size)
+	if dimension == 0 {
+		return nil
+	}
+
+	return []string{
+		header,
+		fmt.Sprintf("Size=%d", dimension),
+		"Context=Applications",
+		"Type=Threshold",
+	}
+}
+
+func parseSquareSize(size string) int {
+	parts := strings.Split(size, "x")
+	if len(parts) != 2 {
+		return 0
+	}
+	w, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0
+	}
+	h, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0
+	}
+	if h > w {
+		w = h
+	}
+	return w
+}
+
+// copyIcon performs a simple file copy
+func (m *Manager) copyIcon(srcPath, dstPath string) (string, error) {
 	content, err := afero.ReadFile(m.fs, srcPath)
 	if err != nil {
 		return "", fmt.Errorf("read source icon: %w", err)

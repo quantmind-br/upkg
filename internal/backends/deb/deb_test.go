@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -688,10 +689,24 @@ Name=TestApp
 Exec=testapp`
 		require.NoError(t, os.WriteFile(desktopPath, []byte(desktopContent), 0644))
 
+		// Track the temp file that gets created
+		var tempFilePath string
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(_ string) bool { return true },
-			RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
-				return "", nil // Simulate successful sudo mv
+			RunCommandFunc: func(_ context.Context, name string, args ...string) (string, error) {
+				// Capture the temp file path from sudo mv command
+				if name == "sudo" && len(args) >= 3 && args[0] == "mv" {
+					tempFilePath = args[1]
+					// Simulate the mv by copying content to destination
+					content, err := os.ReadFile(tempFilePath)
+					if err != nil {
+						return "", err
+					}
+					if err := os.WriteFile(desktopPath, content, 0644); err != nil {
+						return "", err
+					}
+				}
+				return "", nil
 			},
 		}
 
@@ -701,10 +716,12 @@ Exec=testapp`
 		err := backend.updateDesktopFileWayland(desktopPath)
 		assert.NoError(t, err)
 
-		// Verify desktop file was updated
+		// Verify desktop file was updated with Wayland env vars
 		content, err := os.ReadFile(desktopPath)
 		assert.NoError(t, err)
-		assert.Contains(t, string(content), "XDG_CURRENT_DESKTOP")
+		// Check for Wayland environment variables in Exec line
+		assert.Contains(t, string(content), "GDK_BACKEND=wayland,x11")
+		assert.Contains(t, string(content), "env ")
 	})
 
 	t.Run("handles missing desktop file", func(t *testing.T) {
@@ -723,7 +740,13 @@ Exec=testapp`
 		require.NoError(t, os.WriteFile(desktopPath, []byte("invalid desktop content"), 0644))
 
 		fs := afero.NewOsFs()
-		backend := NewWithDeps(cfg, &logger, fs, &helpers.MockCommandRunner{})
+		mockRunner := &helpers.MockCommandRunner{
+			CommandExistsFunc: func(_ string) bool { return true },
+			RunCommandFunc: func(_ context.Context, name string, args ...string) (string, error) {
+				return "", nil
+			},
+		}
+		backend := NewWithDeps(cfg, &logger, fs, mockRunner)
 
 		err := backend.updateDesktopFileWayland(desktopPath)
 		assert.Error(t, err)
@@ -758,32 +781,44 @@ Exec=testapp`
 func TestExtractPackageInfoFromArchive(t *testing.T) {
 	t.Parallel()
 
-	t.Run("extracts package info from deb archive", func(t *testing.T) {
+	t.Run("extracts package info from arch archive", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		debPath := filepath.Join(tmpDir, "test-package.deb")
+		pkgPath := filepath.Join(tmpDir, "test-package.pkg.tar.zst")
 
-		// Create minimal DEB structure
-		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary   1234567890"), 0644))
+		// Create a minimal Arch package with .PKGINFO
+		pkginfoContent := `pkgname = test-package
+pkgver = 1.0.0-1
+`
+		// Create temp directory for package contents
+		pkgDir := filepath.Join(tmpDir, "pkg")
+		require.NoError(t, os.MkdirAll(pkgDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".PKGINFO"), []byte(pkginfoContent), 0644))
 
-		info, err := extractPackageInfoFromArchive(debPath)
+		// Use bsdtar to create the package
+		cmd := exec.Command("bsdtar", "--zstd", "-cf", pkgPath, "-C", pkgDir, ".PKGINFO")
+		require.NoError(t, cmd.Run())
+
+		info, err := extractPackageInfoFromArchive(pkgPath)
 		assert.NoError(t, err)
 		assert.NotNil(t, info)
+		assert.Equal(t, "test-package", info.name)
+		assert.Equal(t, "1.0.0-1", info.version)
 	})
 
 	t.Run("handles non-existent file", func(t *testing.T) {
-		info, err := extractPackageInfoFromArchive("/nonexistent/package.deb")
+		info, err := extractPackageInfoFromArchive("/nonexistent/package.pkg.tar.zst")
 		assert.Error(t, err)
 		assert.Nil(t, info)
 	})
 
 	t.Run("handles invalid deb file", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		debPath := filepath.Join(tmpDir, "test-package.deb")
+		pkgPath := filepath.Join(tmpDir, "test-package.pkg.tar.zst")
 
-		// Create invalid DEB content
-		require.NoError(t, os.WriteFile(debPath, []byte("not a valid deb file"), 0644))
+		// Create invalid content
+		require.NoError(t, os.WriteFile(pkgPath, []byte("not a valid package"), 0644))
 
-		info, err := extractPackageInfoFromArchive(debPath)
+		info, err := extractPackageInfoFromArchive(pkgPath)
 		assert.Error(t, err)
 		assert.Nil(t, info)
 	})
@@ -795,29 +830,45 @@ func TestFixMalformedDependencies(t *testing.T) {
 
 	t.Run("fixes malformed dependencies in control file", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		debPath := filepath.Join(tmpDir, "test-package.deb")
+		pkgPath := filepath.Join(tmpDir, "test-package.pkg.tar.zst")
 
-		// Create minimal DEB with malformed dependencies
-		debContent := []byte("!<arch>\ndebian-binary   \n")
-		require.NoError(t, os.WriteFile(debPath, debContent, 0644))
+		// Create a package with malformed dependencies
+		pkginfoContent := `pkgname = test-package
+pkgver = 1.0.0-1
+depend = libx111.4.99
+depend = libssl1.1
+depend = anaconda
+`
+		pkgDir := filepath.Join(tmpDir, "pkg")
+		require.NoError(t, os.MkdirAll(pkgDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".PKGINFO"), []byte(pkginfoContent), 0644))
 
-		err := fixMalformedDependencies(debPath, &logger)
+		// Create package with bsdtar
+		cmd := exec.Command("bsdtar", "--zstd", "-cf", pkgPath, "-C", pkgDir, ".PKGINFO")
+		require.NoError(t, cmd.Run())
+
+		err := fixMalformedDependencies(pkgPath, &logger)
 		assert.NoError(t, err)
+
+		// Verify the package was fixed by reading it back
+		info, err := extractPackageInfoFromArchive(pkgPath)
+		assert.NoError(t, err)
+		assert.Equal(t, "test-package", info.name)
 	})
 
 	t.Run("handles non-existent file", func(t *testing.T) {
-		err := fixMalformedDependencies("/nonexistent/package.deb", &logger)
+		err := fixMalformedDependencies("/nonexistent/package.pkg.tar.zst", &logger)
 		assert.Error(t, err)
 	})
 
 	t.Run("handles extraction failure gracefully", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		debPath := filepath.Join(tmpDir, "test-package.deb")
+		pkgPath := filepath.Join(tmpDir, "test-package.pkg.tar.zst")
 
-		// Create invalid DEB that will fail extraction
-		require.NoError(t, os.WriteFile(debPath, []byte("invalid deb content"), 0644))
+		// Create invalid package that will fail extraction
+		require.NoError(t, os.WriteFile(pkgPath, []byte("invalid package content"), 0644))
 
-		err := fixMalformedDependencies(debPath, &logger)
+		err := fixMalformedDependencies(pkgPath, &logger)
 		assert.Error(t, err)
 	})
 }

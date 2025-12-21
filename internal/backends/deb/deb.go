@@ -690,6 +690,11 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 		return err
 	}
 
+	// Validate desktop entry has required fields
+	if err := desktop.Validate(entry); err != nil {
+		return fmt.Errorf("invalid desktop entry: %w", err)
+	}
+
 	// Inject Wayland vars
 	if injectErr := desktop.InjectWaylandEnvVars(entry, d.Cfg.Desktop.CustomEnvVars); injectErr != nil {
 		d.Log.Warn().

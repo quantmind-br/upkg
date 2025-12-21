@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,8 +21,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
 )
-
-const fileTypeUnknown = "unknown"
 
 // Backend interface that all package installers must implement
 type Backend interface {
@@ -153,7 +152,7 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 	// This is a simplified version - could be more sophisticated
 	file, err := os.Open(packagePath)
 	if err != nil {
-		return fileTypeUnknown, err
+		return "", err
 	}
 	defer func() { _ = file.Close() }()
 
@@ -161,11 +160,19 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 	buf := make([]byte, 512)
 	n, err := file.Read(buf)
 	if err != nil {
-		return fileTypeUnknown, err
+		return "", err
 	}
 
 	// Check for common file signatures
 	if n >= 4 {
+		// DEB magic: "!<arch>\ndebian"
+		if n >= 16 && bytes.Contains(buf[:60], []byte("debian")) {
+			return "deb", nil
+		}
+		// RPM magic: 0xED 0xAB 0xEE 0xDB
+		if buf[0] == 0xED && buf[1] == 0xAB && buf[2] == 0xEE && buf[3] == 0xDB {
+			return "rpm", nil
+		}
 		// ELF binary
 		if buf[0] == 0x7f && buf[1] == 0x45 && buf[2] == 0x4c && buf[3] == 0x46 {
 			return "ELF binary", nil
@@ -182,20 +189,20 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 
 	// Check for gzip (tar.gz)
 	if n >= 2 && buf[0] == 0x1f && buf[1] == 0x8b {
-		return "gzip compressed (likely tar.gz)", nil
+		return "tarball", nil
 	}
 
 	// Check for bzip2 (tar.bz2)
 	if n >= 3 && buf[0] == 'B' && buf[1] == 'Z' && buf[2] == 'h' {
-		return "bzip2 compressed (likely tar.bz2)", nil
+		return "tarball", nil
 	}
 
 	// Check for XZ (tar.xz)
 	if n >= 6 && buf[0] == 0xfd && buf[1] == '7' && buf[2] == 'z' && buf[3] == 'X' && buf[4] == 'Z' && buf[5] == 0x00 {
-		return "XZ compressed (likely tar.xz)", nil
+		return "tarball", nil
 	}
 
-	return fileTypeUnknown, nil
+	return "", fmt.Errorf("unknown file type")
 }
 
 // GetBackend retrieves a backend by name

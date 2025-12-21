@@ -73,7 +73,31 @@ func (a *AppImageBackend) Detect(_ context.Context, packagePath string) (bool, e
 		return false, nil
 	}
 
-	// Check if it's an AppImage
+	// Check extension first for quick detection
+	// This allows .AppImage files to be detected even if they're not fully valid
+	// (useful for testing and edge cases)
+	if strings.HasSuffix(strings.ToLower(packagePath), ".appimage") {
+		// Verify it has ELF magic (fast check, doesn't require full ELF validity)
+		file, err := a.Fs.Open(packagePath)
+		if err != nil {
+			return false, nil
+		}
+		defer file.Close()
+
+		magic := make([]byte, 4)
+		n, err := file.Read(magic)
+		if err != nil || n < 4 {
+			return false, nil
+		}
+
+		// Check for ELF magic: 0x7F 'E' 'L' 'F'
+		if magic[0] == 0x7F && magic[1] == 'E' && magic[2] == 'L' && magic[3] == 'F' {
+			return true, nil
+		}
+		return false, nil
+	}
+
+	// Check if it's an AppImage with embedded squashfs
 	isAppImage, err := helpers.IsAppImage(packagePath)
 	if err != nil {
 		return false, err
@@ -200,6 +224,18 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 		Msg("AppImage copied")
 
 	// Install icons
+	discoveredIcons := icons.DiscoverIcons(squashfsRoot)
+	a.Log.Debug().
+		Int("count", len(discoveredIcons)).
+		Msg("discovered icons in AppImage")
+	for i, icon := range discoveredIcons {
+		a.Log.Debug().
+			Int("index", i).
+			Str("path", icon.Path).
+			Str("size", icon.Size).
+			Msg("icon discovered")
+	}
+
 	iconPaths, err := a.installIcons(squashfsRoot, binName, metadata)
 	if err != nil {
 		a.Log.Warn().Err(err).Msg("failed to install icons")

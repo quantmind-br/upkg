@@ -140,8 +140,9 @@ func TestCreateDetectionError(t *testing.T) {
 
 	err := registry.createDetectionError("test-file.deb")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "unable to detect backend")
+	require.Contains(t, err.Error(), "cannot detect package type")
 	require.Contains(t, err.Error(), "test-file.deb")
+	require.Contains(t, err.Error(), "Supported package types")
 }
 
 func TestDetectFileType(t *testing.T) {

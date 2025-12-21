@@ -1,8 +1,12 @@
 package icons
 
 import (
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/quantmind-br/upkg/internal/core"
@@ -37,6 +41,8 @@ func TestDetectIconSize(t *testing.T) {
 		{"SVG file", "icons/app.svg", "scalable"},
 		{"Unknown size", "icons/app.png", "48x48"},
 		{"Path with size in middle", "48x48-icons/app.png", "48x48"},
+		{"Large size", "icons/4096x4096/app.png", "512x512"},
+		{"Very large size", "icons/1024x1024/app.png", "512x512"},
 	}
 
 	for _, tt := range tests {
@@ -178,8 +184,8 @@ func TestDiscoverIcons(t *testing.T) {
 		t.Errorf("DiscoverIcons should not return error: %v", err)
 	}
 
-	if len(icons) != 4 {
-		t.Errorf("DiscoverIcons should find 4 icons, got %d", len(icons))
+	if len(icons) != 3 {
+		t.Errorf("DiscoverIcons should find 3 icons (ICO skipped), got %d", len(icons))
 	}
 
 	// Check that we found the expected icon types
@@ -194,9 +200,7 @@ func TestDiscoverIcons(t *testing.T) {
 	if !foundTypes["svg"] {
 		t.Error("DiscoverIcons should find SVG icons")
 	}
-	if !foundTypes["ico"] {
-		t.Error("DiscoverIcons should find ICO icons")
-	}
+	// Note: .ico files are intentionally skipped (Windows ICO format not supported in Linux)
 	if !foundTypes["xpm"] {
 		t.Error("DiscoverIcons should find XPM icons")
 	}
@@ -279,6 +283,96 @@ func TestInstallIconWithSubdirs(t *testing.T) {
 	}
 }
 
+func TestInstallIconCreatesIndexTheme(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	iconDir := testIconsDir
+	manager := NewManager(fs, iconDir)
+
+	srcPath := "/test/source/app.png"
+	afero.WriteFile(fs, srcPath, []byte("png content"), 0644)
+
+	_, err := manager.InstallIcon(srcPath, "test-app", "48x48")
+	if err != nil {
+		t.Fatalf("InstallIcon should not return error: %v", err)
+	}
+
+	indexPath := filepath.Join(iconDir, "hicolor", "index.theme")
+	content, err := afero.ReadFile(fs, indexPath)
+	if err != nil {
+		t.Fatalf("Expected index.theme to be created: %v", err)
+	}
+
+	if !strings.Contains(string(content), "Directories=48x48/apps") {
+		t.Errorf("index.theme should include 48x48/apps in Directories")
+	}
+	if !strings.Contains(string(content), "[48x48/apps]") {
+		t.Errorf("index.theme should include section for 48x48/apps")
+	}
+}
+
+func TestInstallIconUpdatesIndexThemeDirectories(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	iconDir := testIconsDir
+	manager := NewManager(fs, iconDir)
+
+	hicolorDir := filepath.Join(iconDir, "hicolor")
+	if err := fs.MkdirAll(hicolorDir, 0755); err != nil {
+		t.Fatalf("Failed to create hicolor dir: %v", err)
+	}
+	initialTheme := `[Icon Theme]
+Name=Hicolor
+Comment=Fallback icon theme
+Hidden=true
+Directories=128x128/apps
+
+[128x128/apps]
+Size=128
+Context=Applications
+Type=Threshold
+`
+	if err := afero.WriteFile(fs, filepath.Join(hicolorDir, "index.theme"), []byte(initialTheme), 0644); err != nil {
+		t.Fatalf("Failed to write initial index.theme: %v", err)
+	}
+
+	srcPath := "/test/source/app.png"
+	afero.WriteFile(fs, srcPath, []byte("png content"), 0644)
+
+	_, err := manager.InstallIcon(srcPath, "test-app", "512x512")
+	if err != nil {
+		t.Fatalf("InstallIcon should not return error: %v", err)
+	}
+
+	updated, err := afero.ReadFile(fs, filepath.Join(hicolorDir, "index.theme"))
+	if err != nil {
+		t.Fatalf("Failed to read updated index.theme: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimRight(string(updated), "\n"), "\n")
+	start, end := findSection(lines, "Icon Theme")
+	if start == -1 {
+		t.Fatalf("index.theme should include [Icon Theme] section")
+	}
+
+	directoriesLine := ""
+	for i := start + 1; i < end; i++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "Directories=") {
+			directoriesLine = lines[i]
+			break
+		}
+	}
+	if directoriesLine == "" {
+		t.Fatalf("index.theme should include Directories line")
+	}
+
+	dirs := parseDirectories(directoriesLine)
+	if !containsString(dirs, "128x128/apps") || !containsString(dirs, "512x512/apps") {
+		t.Errorf("Directories should include both 128x128/apps and 512x512/apps, got %v", dirs)
+	}
+	if !sectionExists(lines, "512x512/apps") {
+		t.Errorf("index.theme should include section for 512x512/apps")
+	}
+}
+
 func TestPackageLevelFunctions(t *testing.T) {
 	// Test DiscoverIcons convenience function
 	// Create a temporary directory with test icons
@@ -299,8 +393,8 @@ func TestPackageLevelFunctions(t *testing.T) {
 	}
 
 	icons := DiscoverIcons(tmpDir)
-	if len(icons) != 4 {
-		t.Errorf("DiscoverIcons should find 4 icons, got %d", len(icons))
+	if len(icons) != 3 {
+		t.Errorf("DiscoverIcons should find 3 icons (ICO skipped), got %d", len(icons))
 	}
 
 	// Test InstallIcon convenience function
@@ -322,5 +416,56 @@ func TestPackageLevelFunctions(t *testing.T) {
 	_, err = InstallIcon(iconFile, "test-app", tmpHome)
 	if err != nil {
 		t.Errorf("InstallIcon should not return error: %v", err)
+	}
+}
+
+func TestInstallIconWithResizing(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	iconDir := testIconsDir
+	manager := NewManager(fs, iconDir)
+
+	// Create source icon (100x100)
+	srcPath := "/test/source/large_app.png"
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	// Fill with some color
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			img.Set(x, y, color.RGBA{255, 0, 0, 255})
+		}
+	}
+
+	f, _ := fs.Create(srcPath)
+	png.Encode(f, img)
+	f.Close()
+
+	normalizedName := "test-app"
+	size := "50x50" // Target smaller size
+
+	dstPath, err := manager.InstallIcon(srcPath, normalizedName, size)
+
+	if err != nil {
+		t.Errorf("InstallIcon should not return error: %v", err)
+	}
+
+	expectedPath := filepath.Join(iconDir, "hicolor", size, "apps", normalizedName+".png")
+	if dstPath != expectedPath {
+		t.Errorf("InstallIcon dstPath = %q, want %q", dstPath, expectedPath)
+	}
+
+	// Verify destination exists
+	fDst, err := fs.Open(dstPath)
+	if err != nil {
+		t.Fatalf("Failed to open destination icon: %v", err)
+	}
+	defer fDst.Close()
+
+	// Verify dimensions of destination
+	cfg, _, err := image.DecodeConfig(fDst)
+	if err != nil {
+		t.Fatalf("Failed to decode destination icon config: %v", err)
+	}
+
+	if cfg.Width != 50 || cfg.Height != 50 {
+		t.Errorf("Destination icon size = %dx%d, want 50x50", cfg.Width, cfg.Height)
 	}
 }

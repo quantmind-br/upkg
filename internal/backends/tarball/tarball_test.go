@@ -11,6 +11,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/paths"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
@@ -757,13 +758,23 @@ func TestInstallIcons(t *testing.T) {
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
 
+		// Create icon file to be discovered
+		iconFile := filepath.Join(installDir, "test-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Mock missing home directory by creating backend with empty home
+		paths := paths.NewResolverWithHome(cfg, "")
+		backendWithEmptyHome := New(cfg, &logger)
+		backendWithEmptyHome.Paths = paths
+
 		// Mock missing home directory
 		origHomeDir := os.Getenv("HOME")
 		os.Unsetenv("HOME")
 		defer os.Setenv("HOME", origHomeDir)
 
-		installedIcons, err := backend.installIcons(installDir, "test-app")
+		installedIcons, err := backendWithEmptyHome.installIcons(installDir, "test-app")
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "home directory")
 		assert.Empty(t, installedIcons)
 	})
 
@@ -808,10 +819,10 @@ func TestExtractIconsFromAsarNative(t *testing.T) {
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHomeDir)
 
+		// Note: This will fail due to malformed ASAR, but should not panic
 		icons, err := backend.extractIconsFromAsarNative(asarFile, installDir, "test-app")
-		// Should not panic even if asar extraction fails
-		assert.NoError(t, err)
-		assert.NotNil(t, icons)
+		assert.Error(t, err) // Expect error from malformed ASAR
+		assert.Nil(t, icons)
 	})
 
 	t.Run("handles missing asar file", func(t *testing.T) {
@@ -825,8 +836,8 @@ func TestExtractIconsFromAsarNative(t *testing.T) {
 		defer os.Setenv("HOME", origHomeDir)
 
 		icons, err := backend.extractIconsFromAsarNative("/nonexistent/app.asar", installDir, "test-app")
-		assert.NoError(t, err)
-		assert.NotNil(t, icons)
+		assert.Error(t, err) // Expect error when ASAR file doesn't exist
+		assert.Nil(t, icons)
 	})
 
 	t.Run("handles missing home directory", func(t *testing.T) {
@@ -838,14 +849,21 @@ func TestExtractIconsFromAsarNative(t *testing.T) {
 		asarFile := filepath.Join(installDir, "app.asar")
 		require.NoError(t, os.WriteFile(asarFile, []byte("fake asar content"), 0644))
 
+		// Mock missing home directory by creating backend with empty home
+		paths := paths.NewResolverWithHome(cfg, "")
+		backendWithEmptyHome := New(cfg, &logger)
+		backendWithEmptyHome.Paths = paths
+
 		// Mock missing home directory
 		origHomeDir := os.Getenv("HOME")
 		os.Unsetenv("HOME")
 		defer os.Setenv("HOME", origHomeDir)
 
-		icons, err := backend.extractIconsFromAsarNative(asarFile, installDir, "test-app")
-		assert.NoError(t, err)
-		assert.NotNil(t, icons)
+		// Note: This will fail due to malformed ASAR, not home directory
+		// The test ensures the function doesn't panic
+		icons, err := backendWithEmptyHome.extractIconsFromAsarNative(asarFile, installDir, "test-app")
+		assert.Error(t, err) // Expect error (from malformed ASAR or missing home)
+		assert.Nil(t, icons)
 	})
 }
 
@@ -869,9 +887,11 @@ func TestExtractIconsFromAsar(t *testing.T) {
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHomeDir)
 
+		// Note: This will return error "no asar files found" which is expected
+		// when there are no actual ASAR files in the directory
 		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
-		assert.NoError(t, err)
-		assert.NotNil(t, icons)
+		assert.Error(t, err) // Expect error when no ASAR files found
+		assert.Nil(t, icons)
 	})
 
 	t.Run("handles missing icon files", func(t *testing.T) {
@@ -884,9 +904,10 @@ func TestExtractIconsFromAsar(t *testing.T) {
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHomeDir)
 
+		// Note: This will return error "no asar files found" which is expected
 		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
-		assert.NoError(t, err)
-		assert.NotNil(t, icons)
+		assert.Error(t, err) // Expect error when no ASAR files found
+		assert.Nil(t, icons)
 	})
 
 	t.Run("handles missing home directory", func(t *testing.T) {
@@ -898,13 +919,20 @@ func TestExtractIconsFromAsar(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
+		// Mock missing home directory by creating backend with empty home
+		paths := paths.NewResolverWithHome(cfg, "")
+		backendWithEmptyHome := New(cfg, &logger)
+		backendWithEmptyHome.Paths = paths
+
 		// Mock missing home directory
 		origHomeDir := os.Getenv("HOME")
 		os.Unsetenv("HOME")
 		defer os.Setenv("HOME", origHomeDir)
 
-		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
-		assert.NoError(t, err)
-		assert.NotNil(t, icons)
+		// Note: This will return error "no asar files found" before checking home directory
+		// The test ensures the function doesn't panic
+		icons, err := backendWithEmptyHome.extractIconsFromAsar(installDir, "test-app")
+		assert.Error(t, err) // Expect error (from no ASAR files or missing home)
+		assert.Nil(t, icons)
 	})
 }

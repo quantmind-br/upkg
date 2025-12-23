@@ -1,6 +1,10 @@
 package tarball
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
 	"os"
@@ -148,6 +152,185 @@ func TestExtractArchive(t *testing.T) {
 		err := backend.extractArchive("/some/path", tmpDir, "unsupported")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported archive type")
+	})
+
+	t.Run("tar.gz extraction", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		destDir := t.TempDir()
+
+		// Create a simple tar.gz file
+		tarPath := filepath.Join(tmpDir, "test.tar.gz")
+		content := []byte("test content")
+		var buf bytes.Buffer
+		gw := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(gw)
+		tw.WriteHeader(&tar.Header{
+			Name:     "test.txt",
+			Size:     int64(len(content)),
+			Mode:     0644,
+			Typeflag: tar.TypeReg,
+		})
+		tw.Write(content)
+		tw.Close()
+		gw.Close()
+
+		require.NoError(t, os.WriteFile(tarPath, buf.Bytes(), 0644))
+
+		err := backend.extractArchive(tarPath, destDir, "tar.gz")
+		assert.NoError(t, err)
+
+		// Verify file was extracted
+		extractedPath := filepath.Join(destDir, "test.txt")
+		assert.FileExists(t, extractedPath)
+		extractedContent, err := os.ReadFile(extractedPath)
+		assert.NoError(t, err)
+		assert.Equal(t, content, extractedContent)
+	})
+
+	t.Run("zip extraction", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		destDir := t.TempDir()
+
+		// Create a simple zip file
+		zipPath := filepath.Join(tmpDir, "test.zip")
+		content := []byte("test content")
+		var buf bytes.Buffer
+		zw := zip.NewWriter(&buf)
+		f, err := zw.Create("test.txt")
+		require.NoError(t, err)
+		_, err = f.Write(content)
+		require.NoError(t, err)
+		zw.Close()
+
+		require.NoError(t, os.WriteFile(zipPath, buf.Bytes(), 0644))
+
+		err = backend.extractArchive(zipPath, destDir, "zip")
+		assert.NoError(t, err)
+
+		// Verify file was extracted
+		extractedPath := filepath.Join(destDir, "test.txt")
+		assert.FileExists(t, extractedPath)
+		extractedContent, err := os.ReadFile(extractedPath)
+		assert.NoError(t, err)
+		assert.Equal(t, content, extractedContent)
+	})
+
+	t.Run("non-existent archive file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		err := backend.extractArchive("/non/existent/file.tar.gz", tmpDir, "tar.gz")
+		assert.Error(t, err)
+	})
+}
+
+func TestInstall_Validation(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("fails when package not found", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		origHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHome)
+
+		// Try to install non-existent package
+		tx := transaction.NewManager(&logger)
+		record, err := backend.Install(context.Background(), "/nonexistent/package.tar.gz", core.InstallOptions{}, tx)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "package not found")
+		assert.Nil(t, record)
+	})
+
+	t.Run("fails when archive type is unsupported", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		origHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHome)
+
+		// Create a file with unsupported extension
+		archivePath := filepath.Join(tmpDir, "test.unknown")
+		require.NoError(t, os.WriteFile(archivePath, []byte("fake"), 0644))
+
+		tx := transaction.NewManager(&logger)
+		record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported archive type")
+		assert.Nil(t, record)
+	})
+
+	t.Run("fails when archive contains invalid path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		origHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHome)
+
+		// Create a tar.gz with invalid path (contains path traversal)
+		archivePath := filepath.Join(tmpDir, "test.tar.gz")
+		var buf bytes.Buffer
+		gw := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(gw)
+
+		content := []byte("test")
+		header := &tar.Header{
+			Name:     "../../../malicious",
+			Mode:     0644,
+			Size:     int64(len(content)),
+			Typeflag: tar.TypeReg,
+		}
+		require.NoError(t, tw.WriteHeader(header))
+		_, err := tw.Write(content)
+		require.NoError(t, err)
+
+		require.NoError(t, tw.Close())
+		require.NoError(t, gw.Close())
+		require.NoError(t, os.WriteFile(archivePath, buf.Bytes(), 0644))
+
+		tx := transaction.NewManager(&logger)
+		record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid path in archive")
+		assert.Nil(t, record)
+	})
+
+	t.Run("fails when home directory is missing", func(t *testing.T) {
+		// Create a tar.gz
+		archivePath := filepath.Join(t.TempDir(), "test.tar.gz")
+		var buf bytes.Buffer
+		gw := gzip.NewWriter(&buf)
+		tw := tar.NewWriter(gw)
+
+		content := []byte("test")
+		header := &tar.Header{
+			Name:     "test",
+			Mode:     0644,
+			Size:     int64(len(content)),
+			Typeflag: tar.TypeReg,
+		}
+		require.NoError(t, tw.WriteHeader(header))
+		_, err := tw.Write(content)
+		require.NoError(t, err)
+
+		require.NoError(t, tw.Close())
+		require.NoError(t, gw.Close())
+		require.NoError(t, os.WriteFile(archivePath, buf.Bytes(), 0644))
+
+		// Unset HOME to force error
+		origHome := os.Getenv("HOME")
+		os.Unsetenv("HOME")
+		defer os.Setenv("HOME", origHome)
+
+		backendWithNoHome := New(cfg, &logger)
+		backendWithNoHome.Paths = paths.NewResolverWithHome(cfg, "")
+
+		tx := transaction.NewManager(&logger)
+		record, err := backendWithNoHome.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get home directory")
+		assert.Nil(t, record)
 	})
 }
 

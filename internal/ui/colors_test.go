@@ -355,3 +355,73 @@ func TestColorControls(t *testing.T) {
 		assert.True(t, AreColorsEnabled())
 	})
 }
+
+func TestColorizePackageType_WithColors(t *testing.T) {
+	// Test with colors enabled
+	color.NoColor = false
+	defer func() { color.NoColor = false }() // Reset after test
+	
+	tests := []struct {
+		name     string
+		pkgType  string
+		shouldContain string // Expected substring in colored output
+	}{
+		{"appimage", "appimage", "appimage"},
+		{"binary", "binary", "binary"},
+		{"tarball", "tarball", "tarball"},
+		{"deb", "deb", "deb"},
+		{"rpm", "rpm", "rpm"},
+		{"unknown", "unknown", "unknown"},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ColorizePackageType(tt.pkgType)
+			// With colors enabled, the result should contain the type name
+			// (it will have ANSI color codes)
+			assert.Contains(t, result, tt.shouldContain)
+		})
+	}
+}
+
+func TestPrintFunctions_WithColors(t *testing.T) {
+	// Enable colors for this test
+	color.NoColor = false
+	defer func() { color.NoColor = false }()
+	
+	t.Run("PrintSuccess_WithColors", func(t *testing.T) {
+		oldStdout := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+		
+		PrintSuccess("test message")
+		
+		w.Close()
+		os.Stdout = oldStdout
+		
+		var buf bytes.Buffer
+		buf.ReadFrom(r)
+		output := buf.String()
+		
+		assert.Contains(t, output, "✓")
+		assert.Contains(t, output, "test message")
+	})
+	
+	t.Run("PrintError_WithColors", func(t *testing.T) {
+		oldStderr := os.Stderr
+		r, w, _ := os.Pipe()
+		os.Stderr = w
+		
+		PrintError("test error")
+		
+		w.Close()
+		os.Stderr = oldStderr
+		
+		var buf bytes.Buffer
+		buf.ReadFrom(r)
+		output := buf.String()
+		
+		assert.Contains(t, output, "✗")
+		assert.Contains(t, output, "Error:")
+	})
+}

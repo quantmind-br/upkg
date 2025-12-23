@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bytes"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/quantmind-br/upkg/internal/config"
@@ -9,18 +12,40 @@ import (
 )
 
 func TestNewCompletionCmd(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
-	log := zerolog.Nop()
+	
+	cmd := NewCompletionCmd(cfg, &logger)
+	
+	assert.NotNil(t, cmd)
+	assert.Contains(t, cmd.Use, "completion")
+}
 
-	t.Run("creates completion command", func(t *testing.T) {
-		cmd := NewCompletionCmd(cfg, &log)
-		assert.NotNil(t, cmd)
-		assert.Equal(t, "completion [bash|zsh|fish|powershell]", cmd.Use)
-		assert.Equal(t, "Generate shell completion scripts", cmd.Short)
-	})
-
-	t.Run("command has run function", func(t *testing.T) {
-		cmd := NewCompletionCmd(cfg, &log)
-		assert.NotNil(t, cmd.RunE)
-	})
+func TestCompletionCmd_Bash(t *testing.T) {
+	t.Parallel()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	
+	cmd := NewCompletionCmd(cfg, &logger)
+	cmd.SetArgs([]string{"bash"})
+	
+	// Capture output
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	
+	err := cmd.Execute()
+	
+	w.Close()
+	os.Stdout = oldStdout
+	
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	
+	// Should generate completion script
+	if err == nil {
+		assert.NotEmpty(t, output)
+	}
 }

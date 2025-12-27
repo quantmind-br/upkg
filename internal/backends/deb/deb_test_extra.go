@@ -1,3 +1,4 @@
+//nolint:gosec // G306: test files use 0644 permissions which is standard for test data
 package deb
 
 import (
@@ -17,7 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDebBackend_Install_Validation(t *testing.T) {
+// Test command constant
+const cmdPacman = "pacman"
+
+func TestDebBackendInstallValidation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("debtap not installed", func(t *testing.T) {
@@ -56,7 +60,7 @@ func TestDebBackend_Install_Validation(t *testing.T) {
 				if cmd == "debtap" {
 					return nil
 				}
-				if cmd == "pacman" {
+				if cmd == cmdPacman {
 					return assert.AnError
 				}
 				return nil
@@ -91,16 +95,16 @@ func TestDebBackend_Install_Validation(t *testing.T) {
 	})
 }
 
-func TestDebBackend_Uninstall(t *testing.T) {
+func TestDebBackendUninstall(t *testing.T) {
 	t.Parallel()
 
-	t.Run("uninstalls successfully", func(t *testing.T) {
+	t.Run("uninstalls successfully", func(_ *testing.T) {
 		logger := zerolog.New(io.Discard)
 		cfg := &config.Config{}
 
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(cmd string) bool {
-				return cmd == "pacman"
+				return cmd == cmdPacman
 			},
 		}
 
@@ -126,9 +130,9 @@ func TestDebBackend_Uninstall(t *testing.T) {
 
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(cmd string) bool {
-				return cmd == "pacman"
+				return cmd == cmdPacman
 			},
-			RunCommandFunc: func(ctx context.Context, name string, args ...string) (string, error) {
+			RunCommandFunc: func(_ context.Context, name string, args ...string) (string, error) {
 				if name == "pacman" && len(args) > 0 && args[0] == "-Q" {
 					return "", assert.AnError // Package not found
 				}
@@ -151,7 +155,7 @@ func TestDebBackend_Uninstall(t *testing.T) {
 	})
 }
 
-func TestDebBackend_Detect(t *testing.T) {
+func TestDebBackendDetect(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid deb file", func(t *testing.T) {
@@ -196,7 +200,7 @@ func TestDebBackend_Detect(t *testing.T) {
 	})
 }
 
-func TestDebBackend_Name(t *testing.T) {
+func TestDebBackendName(t *testing.T) {
 	t.Parallel()
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
@@ -205,7 +209,7 @@ func TestDebBackend_Name(t *testing.T) {
 	assert.Equal(t, "deb", backend.Name())
 }
 
-func TestDebBackend_NewWithRunner(t *testing.T) {
+func TestDebBackendNewWithRunner(t *testing.T) {
 	t.Parallel()
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
@@ -217,7 +221,7 @@ func TestDebBackend_NewWithRunner(t *testing.T) {
 	assert.Equal(t, mockRunner, backend.Runner)
 }
 
-func TestDebBackend_NewWithCacheManager(t *testing.T) {
+func TestDebBackendNewWithCacheManager(t *testing.T) {
 	t.Parallel()
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
@@ -228,7 +232,7 @@ func TestDebBackend_NewWithCacheManager(t *testing.T) {
 	assert.NotNil(t, backend.cacheManager)
 }
 
-func TestDebBackend_ExtractPackageInfoFromArchive(t *testing.T) {
+func TestDebBackendExtractPackageInfoFromArchive(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid package with .PKGINFO", func(t *testing.T) {
@@ -243,7 +247,7 @@ func TestDebBackend_ExtractPackageInfoFromArchive(t *testing.T) {
 	})
 }
 
-func TestDebBackend_FixMalformedDependencies(t *testing.T) {
+func TestDebBackendFixMalformedDependencies(t *testing.T) {
 	t.Parallel()
 
 	t.Run("handles malformed dependencies", func(t *testing.T) {
@@ -264,7 +268,7 @@ func TestDebBackend_FixMalformedDependencies(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			t.Run(tt.input, func(t *testing.T) {
+			t.Run(tt.input, func(_ *testing.T) {
 				// We can't directly test fixDependencyLine as it's not exported
 				// But we can verify the logic is correct
 				_ = logger
@@ -275,7 +279,7 @@ func TestDebBackend_FixMalformedDependencies(t *testing.T) {
 	})
 }
 
-func TestDebBackend_QueryDebName(t *testing.T) {
+func TestDebBackendQueryDebName(t *testing.T) {
 	t.Parallel()
 
 	t.Run("dpkg-deb not available", func(t *testing.T) {
@@ -305,7 +309,7 @@ func TestDebBackend_QueryDebName(t *testing.T) {
 	})
 }
 
-func TestDebBackend_ConvertWithDebtapProgress(t *testing.T) {
+func TestDebBackendConvertWithDebtapProgress(t *testing.T) {
 	t.Parallel()
 
 	t.Run("conversion timeout", func(t *testing.T) {
@@ -319,7 +323,7 @@ func TestDebBackend_ConvertWithDebtapProgress(t *testing.T) {
 	})
 }
 
-func TestDebBackend_FixDependencyLine(t *testing.T) {
+func TestDebBackendFixDependencyLine(t *testing.T) {
 	t.Parallel()
 
 	// Test the dependency fixing logic
@@ -368,7 +372,7 @@ func TestDebBackend_FixDependencyLine(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			// We need to access the internal function
 			// Since it's not exported, we'll test through the backend
 			// by creating a scenario that uses it
@@ -381,7 +385,7 @@ func TestDebBackend_FixDependencyLine(t *testing.T) {
 	}
 }
 
-func TestDebBackend_IsDebtapInitialized(t *testing.T) {
+func TestDebBackendIsDebtapInitialized(t *testing.T) {
 	t.Parallel()
 
 	t.Run("not initialized", func(t *testing.T) {
@@ -397,16 +401,16 @@ func TestDebBackend_IsDebtapInitialized(t *testing.T) {
 	})
 }
 
-func TestDebBackend_PackageInfo(t *testing.T) {
+func TestDebBackendPackageInfo(t *testing.T) {
 	t.Parallel()
 
-	t.Run("get package info", func(t *testing.T) {
+	t.Run("get package info", func(_ *testing.T) {
 		logger := zerolog.New(io.Discard)
 		cfg := &config.Config{}
 
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(cmd string) bool {
-				return cmd == "pacman"
+				return cmd == cmdPacman
 			},
 		}
 
@@ -418,16 +422,16 @@ func TestDebBackend_PackageInfo(t *testing.T) {
 	})
 }
 
-func TestDebBackend_FindInstalledFiles(t *testing.T) {
+func TestDebBackendFindInstalledFiles(t *testing.T) {
 	t.Parallel()
 
-	t.Run("list files", func(t *testing.T) {
+	t.Run("list files", func(_ *testing.T) {
 		logger := zerolog.New(io.Discard)
 		cfg := &config.Config{}
 
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(cmd string) bool {
-				return cmd == "pacman"
+				return cmd == cmdPacman
 			},
 		}
 
@@ -438,7 +442,7 @@ func TestDebBackend_FindInstalledFiles(t *testing.T) {
 	})
 }
 
-func TestDebBackend_FindDesktopFiles(t *testing.T) {
+func TestDebBackendFindDesktopFiles(t *testing.T) {
 	t.Parallel()
 
 	logger := zerolog.New(io.Discard)
@@ -481,7 +485,7 @@ func TestDebBackend_FindDesktopFiles(t *testing.T) {
 	}
 }
 
-func TestDebBackend_FindIconFiles(t *testing.T) {
+func TestDebBackendFindIconFiles(t *testing.T) {
 	t.Parallel()
 
 	logger := zerolog.New(io.Discard)
@@ -534,7 +538,7 @@ func TestDebBackend_FindIconFiles(t *testing.T) {
 	}
 }
 
-func TestDebBackend_UpdateDesktopFileWayland(t *testing.T) {
+func TestDebBackendUpdateDesktopFileWayland(t *testing.T) {
 	t.Parallel()
 
 	t.Run("desktop file update", func(t *testing.T) {

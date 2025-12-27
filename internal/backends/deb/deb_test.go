@@ -21,6 +21,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test command constants
+const (
+	cmdDebtap  = "debtap"
+	cmdDpkgDeb = "dpkg-deb"
+)
+
 func TestName(t *testing.T) {
 	t.Parallel()
 	logger := zerolog.New(io.Discard)
@@ -280,7 +286,7 @@ func TestInstall_MissingDebtap(t *testing.T) {
 
 	mockRunner := &helpers.MockCommandRunner{
 		RequireCommandFunc: func(name string) error {
-			if name == "debtap" {
+			if name == cmdDebtap {
 				return fmt.Errorf("command not found: %s", name)
 			}
 			return nil
@@ -411,7 +417,7 @@ func TestQueryDebName(t *testing.T) {
 	t.Run("returns package name successfully", func(t *testing.T) {
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(name string) bool {
-				return name == "dpkg-deb"
+				return name == cmdDpkgDeb
 			},
 			RunCommandFunc: func(_ context.Context, name string, _ ...string) (string, error) {
 				if name == "dpkg-deb" {
@@ -598,7 +604,7 @@ func TestGetPackageInfo(t *testing.T) {
 
 	t.Run("returns package info successfully", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			GetInfoFunc: func(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
+			GetInfoFunc: func(_ context.Context, _ string) (*syspkg.PackageInfo, error) {
 				return &syspkg.PackageInfo{
 					Name:    "test-package",
 					Version: "1.0.0",
@@ -618,7 +624,7 @@ func TestGetPackageInfo(t *testing.T) {
 
 	t.Run("returns error when sys provider fails", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			GetInfoFunc: func(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
+			GetInfoFunc: func(_ context.Context, _ string) (*syspkg.PackageInfo, error) {
 				return nil, fmt.Errorf("package not found")
 			},
 		}
@@ -639,7 +645,7 @@ func TestFindInstalledFiles(t *testing.T) {
 
 	t.Run("returns list of installed files", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			ListFilesFunc: func(_ context.Context, packageName string) ([]string, error) {
+			ListFilesFunc: func(_ context.Context, _ string) ([]string, error) {
 				return []string{
 					"/usr/bin/test-app",
 					"/usr/share/applications/test-app.desktop",
@@ -659,7 +665,7 @@ func TestFindInstalledFiles(t *testing.T) {
 
 	t.Run("returns error when sys provider fails", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			ListFilesFunc: func(_ context.Context, packageName string) ([]string, error) {
+			ListFilesFunc: func(_ context.Context, _ string) ([]string, error) {
 				return nil, fmt.Errorf("package not found")
 			},
 		}
@@ -742,7 +748,7 @@ Exec=testapp`
 		fs := afero.NewOsFs()
 		mockRunner := &helpers.MockCommandRunner{
 			CommandExistsFunc: func(_ string) bool { return true },
-			RunCommandFunc: func(_ context.Context, name string, args ...string) (string, error) {
+			RunCommandFunc: func(_ context.Context, _ string, _ ...string) (string, error) {
 				return "", nil
 			},
 		}

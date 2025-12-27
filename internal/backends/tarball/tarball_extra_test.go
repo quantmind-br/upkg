@@ -695,7 +695,7 @@ func TestTarballBackend_RemoveIcons(t *testing.T) {
 		assert.NoFileExists(t, icon2)
 	})
 
-	t.Run("handles missing icons", func(t *testing.T) {
+	t.Run("handles missing icons", func(_ *testing.T) {
 		logger := zerolog.New(io.Discard)
 		cfg := &config.Config{}
 		backend := New(cfg, &logger)

@@ -22,6 +22,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Package type constants for detection
+const (
+	packageTypeTarball = "tarball"
+)
+
 // Backend interface that all package installers must implement
 type Backend interface {
 	// Name returns the backend name
@@ -189,17 +194,17 @@ func (r *Registry) detectFileType(packagePath string) (string, error) {
 
 	// Check for gzip (tar.gz)
 	if n >= 2 && buf[0] == 0x1f && buf[1] == 0x8b {
-		return "tarball", nil
+		return packageTypeTarball, nil
 	}
 
 	// Check for bzip2 (tar.bz2)
 	if n >= 3 && buf[0] == 'B' && buf[1] == 'Z' && buf[2] == 'h' {
-		return "tarball", nil
+		return packageTypeTarball, nil
 	}
 
 	// Check for XZ (tar.xz)
 	if n >= 6 && buf[0] == 0xfd && buf[1] == '7' && buf[2] == 'z' && buf[3] == 'X' && buf[4] == 'Z' && buf[5] == 0x00 {
-		return "tarball", nil
+		return packageTypeTarball, nil
 	}
 
 	return "", fmt.Errorf("unknown file type")

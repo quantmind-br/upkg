@@ -16,52 +16,132 @@ import (
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
+
+// uninstallOptions holds command flags
+type uninstallOptions struct {
+	yes        bool
+	dryRun     bool
+	all        bool
+	timeoutSec int
+}
+
+// UninstallResult tracks the outcome of a single uninstall operation
+type UninstallResult struct {
+	Name    string
+	Success bool
+	Error   error
+}
 
 // NewUninstallCmd creates the uninstall command
 func NewUninstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
-	var timeoutSecs int
+	opts := &uninstallOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "uninstall [package-name or install-id]",
-		Short: "Uninstall a package",
-		Long:  `Uninstall a previously installed package by name or install ID. Run without arguments for an interactive selector.`,
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "uninstall [package-name...] [flags]",
+		Short: "Uninstall one or more packages",
+		Long: `Uninstall previously installed packages by name or install ID.
+
+Examples:
+  upkg uninstall firefox              # Uninstall single package
+  upkg uninstall pkg1 pkg2 pkg3       # Uninstall multiple packages
+  upkg uninstall pkg1 --yes           # Skip confirmation prompt
+  upkg uninstall pkg1 --dry-run       # Preview without removing
+  upkg uninstall --all --yes          # Uninstall all packages
+  upkg uninstall                      # Interactive mode (select from list)`,
+		Args: cobra.ArbitraryArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
-			// Create context with timeout
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSecs)*time.Second)
-			defer cancel()
-
-			// Initialize database
-			database, err := db.New(ctx, cfg.Paths.DBFile)
-			if err != nil {
-				color.Red("Error: failed to open database: %v", err)
-				return fmt.Errorf("failed to open database: %w", err)
-			}
-			defer func() { _ = database.Close() }()
-
-			registry := backends.NewRegistry(cfg, log)
-
-			if len(args) == 0 {
-				return runInteractiveUninstall(ctx, database, registry, log)
-			}
-
-			identifier := args[0]
-
-			log.Info().
-				Str("identifier", identifier).
-				Msg("starting uninstallation")
-
-			return runSingleUninstall(ctx, database, registry, log, identifier)
+			return runUninstallCmd(cfg, log, opts, args)
 		},
 	}
 
-	cmd.Flags().IntVar(&timeoutSecs, "timeout", 600, "uninstallation timeout in seconds")
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "skip confirmation prompts (required for non-interactive environments)")
+	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "preview what would be uninstalled without making changes")
+	cmd.Flags().BoolVar(&opts.all, "all", false, "uninstall all tracked packages")
+	cmd.Flags().IntVar(&opts.timeoutSec, "timeout", 600, "uninstallation timeout in seconds")
 
 	return cmd
 }
 
-func runInteractiveUninstall(ctx context.Context, database *db.DB, registry *backends.Registry, log *zerolog.Logger) error {
+func runUninstallCmd(cfg *config.Config, log *zerolog.Logger, opts *uninstallOptions, args []string) error {
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(opts.timeoutSec)*time.Second)
+	defer cancel()
+
+	// Initialize database
+	database, err := db.New(ctx, cfg.Paths.DBFile)
+	if err != nil {
+		color.Red("Error: failed to open database: %v", err)
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	registry := backends.NewRegistry(cfg, log)
+
+	// Determine the mode of operation
+	switch {
+	case opts.all:
+		return runUninstallAll(ctx, database, registry, log, opts)
+	case len(args) == 0:
+		return runInteractiveUninstall(ctx, database, registry, log, opts)
+	case len(args) == 1:
+		return runSingleUninstall(ctx, database, registry, log, opts, args[0])
+	default:
+		return runBulkUninstall(ctx, database, registry, log, opts, args)
+	}
+}
+
+// isInteractive checks if stdin is a terminal
+func isInteractive() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+// requireInteractiveOrYes ensures we're either in a TTY or have --yes flag
+func requireInteractiveOrYes(opts *uninstallOptions) error {
+	if !isInteractive() && !opts.yes {
+		return fmt.Errorf("non-interactive mode requires --yes flag")
+	}
+	return nil
+}
+
+// runUninstallAll uninstalls all tracked packages
+func runUninstallAll(ctx context.Context, database *db.DB, registry *backends.Registry, log *zerolog.Logger, opts *uninstallOptions) error {
+	if err := requireInteractiveOrYes(opts); err != nil {
+		color.Red("Error: %v", err)
+		return err
+	}
+
+	installs, err := database.List(ctx)
+	if err != nil {
+		color.Red("Error: failed to query database: %v", err)
+		return fmt.Errorf("failed to query database: %w", err)
+	}
+
+	if len(installs) == 0 {
+		color.Yellow("No packages are currently tracked by upkg.")
+		return nil
+	}
+
+	// Convert to records
+	records := make([]*core.InstallRecord, 0, len(installs))
+	for i := range installs {
+		records = append(records, dbInstallToCore(&installs[i]))
+	}
+
+	color.Yellow("⚠️  WARNING: This will uninstall ALL %d packages!", len(records))
+
+	return executeUninstall(ctx, registry, database, log, opts, records)
+}
+
+// runInteractiveUninstall handles the interactive multi-select mode
+func runInteractiveUninstall(ctx context.Context, database *db.DB, registry *backends.Registry, log *zerolog.Logger, opts *uninstallOptions) error {
+	if !isInteractive() {
+		color.Red("Error: interactive mode requires a TTY")
+		color.Yellow("  Use 'upkg uninstall <package>' or 'upkg uninstall --all --yes'")
+		return fmt.Errorf("interactive mode requires a TTY")
+	}
+
 	color.Cyan("🔍 Loading installed packages...")
 
 	installs, err := database.List(ctx)
@@ -83,8 +163,6 @@ func runInteractiveUninstall(ctx context.Context, database *db.DB, registry *bac
 	optionMap := make(map[string]db.Install, len(installs))
 
 	for _, install := range installs {
-		// Don't calculate size here to avoid UI delay
-		// Size will be calculated only for selected packages
 		dateStr := install.InstallDate.Format("2006-01-02")
 		shortID := install.InstallID
 		if len(shortID) > 8 {
@@ -111,121 +189,250 @@ func runInteractiveUninstall(ctx context.Context, database *db.DB, registry *bac
 		return nil
 	}
 
-	// Show summary and confirmation
-	fmt.Println()
-	color.Cyan("📋 Selected %d package(s) for uninstallation:", len(selectedLabels))
-	color.Cyan("📏 Calculating sizes...")
-
-	// Calculate sizes only for selected packages
-	var totalSize int64
-	sizeMap := make(map[string]int64, len(selectedLabels))
+	// Convert selected labels to records
+	records := make([]*core.InstallRecord, 0, len(selectedLabels))
 	for _, label := range selectedLabels {
 		install := optionMap[label]
-		size := int64(0)
-		if install.InstallPath != "" {
-			size, _ = calculatePackageSize(install.InstallPath)
+		records = append(records, dbInstallToCore(&install))
+	}
+
+	return executeUninstall(ctx, registry, database, log, opts, records)
+}
+
+// runSingleUninstall handles uninstalling a single package by name or ID
+func runSingleUninstall(ctx context.Context, database *db.DB, registry *backends.Registry, log *zerolog.Logger, opts *uninstallOptions, identifier string) error {
+	if err := requireInteractiveOrYes(opts); err != nil && !opts.dryRun {
+		// Allow dry-run without --yes in non-interactive mode
+		if !opts.dryRun {
+			color.Red("Error: %v", err)
+			return err
 		}
-		sizeMap[label] = size
+	}
+
+	color.Cyan("→ Looking up package...")
+
+	record, err := lookupPackage(ctx, database, log, identifier)
+	if err != nil {
+		return err
+	}
+
+	color.Green("✓ Found package: %s (%s)", record.Name, record.PackageType)
+
+	log.Info().
+		Str("identifier", identifier).
+		Str("name", record.Name).
+		Msg("starting uninstallation")
+
+	return executeUninstall(ctx, registry, database, log, opts, []*core.InstallRecord{record})
+}
+
+// runBulkUninstall handles uninstalling multiple packages specified as arguments
+func runBulkUninstall(ctx context.Context, database *db.DB, registry *backends.Registry, log *zerolog.Logger, opts *uninstallOptions, identifiers []string) error {
+	if err := requireInteractiveOrYes(opts); err != nil && !opts.dryRun {
+		color.Red("Error: %v", err)
+		return err
+	}
+
+	color.Cyan("🔍 Looking up %d packages...", len(identifiers))
+
+	records := make([]*core.InstallRecord, 0, len(identifiers))
+	notFound := make([]string, 0)
+
+	for _, identifier := range identifiers {
+		record, err := lookupPackage(ctx, database, log, identifier)
+		if err != nil {
+			notFound = append(notFound, identifier)
+			continue
+		}
+		records = append(records, record)
+	}
+
+	if len(notFound) > 0 {
+		color.Yellow("⚠️  The following packages were not found:")
+		for _, name := range notFound {
+			fmt.Printf("   • %s\n", name)
+		}
+		fmt.Println()
+	}
+
+	if len(records) == 0 {
+		color.Red("Error: no valid packages to uninstall")
+		return fmt.Errorf("no valid packages found")
+	}
+
+	color.Green("✓ Found %d package(s)\n", len(records))
+
+	return executeUninstall(ctx, registry, database, log, opts, records)
+}
+
+// lookupPackage finds a package by ID or name
+func lookupPackage(ctx context.Context, database *db.DB, log *zerolog.Logger, identifier string) (*core.InstallRecord, error) {
+	// Try by install ID first
+	dbInstall, err := database.Get(ctx, identifier)
+	if err == nil {
+		return dbInstallToCore(dbInstall), nil
+	}
+
+	log.Debug().
+		Str("identifier", identifier).
+		Msg("not found by ID, trying by name")
+
+	// Try by name
+	allInstalls, err := database.List(ctx)
+	if err != nil {
+		color.Red("Error: failed to query database: %v", err)
+		return nil, fmt.Errorf("failed to query database: %w", err)
+	}
+
+	lowerIdentifier := strings.ToLower(identifier)
+	for _, install := range allInstalls {
+		if strings.ToLower(install.Name) == lowerIdentifier {
+			return dbInstallToCore(&install), nil
+		}
+	}
+
+	color.Red("Error: package not found: %s", identifier)
+	color.Yellow("  Use 'upkg list' to see installed packages")
+	return nil, fmt.Errorf("package not found: %s", identifier)
+}
+
+// executeUninstall is the unified execution path for all uninstall modes
+func executeUninstall(ctx context.Context, registry *backends.Registry, database *db.DB, log *zerolog.Logger, opts *uninstallOptions, records []*core.InstallRecord) error {
+	// Calculate sizes and show summary
+	fmt.Println()
+	color.Cyan("📋 %d package(s) for uninstallation:", len(records))
+
+	if !opts.dryRun {
+		color.Cyan("📏 Calculating sizes...")
+	}
+
+	var totalSize int64
+	sizes := make(map[string]int64, len(records))
+
+	for _, record := range records {
+		size := int64(0)
+		if record.InstallPath != "" {
+			size, _ = calculatePackageSize(record.InstallPath)
+		}
+		sizes[record.InstallID] = size
 		totalSize += size
 	}
 
 	fmt.Println()
-	for _, label := range selectedLabels {
-		install := optionMap[label]
-		size := sizeMap[label]
-		fmt.Printf("   • %s (%s) - %s\n", install.Name, install.PackageType, formatBytes(size))
+	for _, record := range records {
+		size := sizes[record.InstallID]
+		fmt.Printf("   • %s (%s) - %s\n", record.Name, record.PackageType, formatBytes(size))
 	}
 	fmt.Printf("\n💾 Total space to free: %s\n\n", formatBytes(totalSize))
 
-	// Confirmation
-	color.Yellow("⚠️  This action cannot be undone!")
-	confirmed, err := ui.ConfirmPrompt("Are you sure you want to uninstall these packages?")
-	if err != nil {
-		color.Yellow("Confirmation cancelled. No packages were uninstalled.")
-		return nil
-	}
-	if !confirmed {
-		color.Yellow("Uninstallation cancelled by user.")
-		return nil
+	// Dry-run mode: show detailed breakdown and exit
+	if opts.dryRun {
+		return showDryRunDetails(records, sizes)
 	}
 
-	// Uninstall packages
+	// Confirmation (skip if --yes)
+	if !opts.yes {
+		color.Yellow("⚠️  This action cannot be undone!")
+		confirmed, err := ui.ConfirmPrompt("Are you sure you want to uninstall these packages?")
+		if err != nil {
+			color.Yellow("Confirmation cancelled. No packages were uninstalled.")
+			return nil
+		}
+		if !confirmed {
+			color.Yellow("Uninstallation cancelled by user.")
+			return nil
+		}
+	}
+
+	// Execute uninstallation
 	fmt.Println()
 	color.Cyan("🚀 Starting uninstallation...\n")
 
-	successCount := 0
-	failureCount := 0
+	results := make([]UninstallResult, 0, len(records))
 
-	for i, label := range selectedLabels {
-		install := optionMap[label]
-		record := dbInstallToCore(&install)
-
-		fmt.Printf("[%d/%d] ", i+1, len(selectedLabels))
+	for i, record := range records {
+		fmt.Printf("[%d/%d] ", i+1, len(records))
 
 		log.Info().
 			Str("install_id", record.InstallID).
 			Str("name", record.Name).
 			Msg("starting uninstallation")
 
-		if err := performUninstall(ctx, registry, database, log, record); err != nil {
-			failureCount++
-			continue
-		}
-		successCount++
+		err := performUninstall(ctx, registry, database, log, record)
+		results = append(results, UninstallResult{
+			Name:    record.Name,
+			Success: err == nil,
+			Error:   err,
+		})
 	}
 
 	// Summary
+	return printUninstallSummary(results)
+}
+
+// showDryRunDetails displays what would be removed without actually removing
+func showDryRunDetails(records []*core.InstallRecord, sizes map[string]int64) error {
+	color.Cyan("🔍 [DRY-RUN] The following would be removed:\n")
+
+	for _, record := range records {
+		size := sizes[record.InstallID]
+		fmt.Printf("📦 %s (%s) - %s\n", record.Name, record.PackageType, formatBytes(size))
+
+		if record.InstallPath != "" {
+			fmt.Printf("   📁 Install path: %s\n", record.InstallPath)
+		}
+		if record.DesktopFile != "" {
+			fmt.Printf("   🖥️  Desktop file: %s\n", record.DesktopFile)
+		}
+		if len(record.Metadata.IconFiles) > 0 {
+			fmt.Printf("   🎨 Icon files: %d file(s)\n", len(record.Metadata.IconFiles))
+			for _, icon := range record.Metadata.IconFiles {
+				fmt.Printf("      • %s\n", icon)
+			}
+		}
+		if record.Metadata.WrapperScript != "" {
+			fmt.Printf("   📜 Wrapper script: %s\n", record.Metadata.WrapperScript)
+		}
+		if len(record.Metadata.DesktopFiles) > 0 {
+			fmt.Printf("   🖥️  Additional desktop files: %d\n", len(record.Metadata.DesktopFiles))
+		}
+		fmt.Println()
+	}
+
+	color.Green("✓ [DRY-RUN] No changes were made.")
+	return nil
+}
+
+// printUninstallSummary prints the final summary of the uninstall operation
+func printUninstallSummary(results []UninstallResult) error {
+	var successCount, failureCount int
+	for _, r := range results {
+		if r.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
 	fmt.Println()
 	if failureCount > 0 {
 		color.Yellow("⚠️  Uninstallation completed with errors:")
 		color.Green("   ✓ Successful: %d", successCount)
 		color.Red("   ✗ Failed: %d", failureCount)
-	} else {
-		color.Green("✓ Successfully uninstalled all %d package(s)!", successCount)
-	}
 
-	return nil
-}
-
-func runSingleUninstall(ctx context.Context, database *db.DB, registry *backends.Registry, log *zerolog.Logger, identifier string) error {
-	color.Cyan("→ Looking up package...")
-
-	var dbRecord *db.Install
-
-	dbInstall, err := database.Get(ctx, identifier)
-	if err == nil {
-		dbRecord = dbInstall
-	} else {
-		log.Debug().
-			Str("identifier", identifier).
-			Msg("not found by ID, trying by name")
-
-		allInstalls, err := database.List(ctx)
-		if err != nil {
-			color.Red("Error: failed to query database: %v", err)
-			return fmt.Errorf("failed to query database: %w", err)
-		}
-
-		lowerIdentifier := strings.ToLower(identifier)
-		for _, install := range allInstalls {
-			if strings.ToLower(install.Name) == lowerIdentifier {
-				installCopy := install
-				dbRecord = &installCopy
-				break
+		// Show failed packages
+		fmt.Println()
+		color.Red("Failed packages:")
+		for _, r := range results {
+			if !r.Success {
+				fmt.Printf("   • %s: %v\n", r.Name, r.Error)
 			}
 		}
+		return fmt.Errorf("%d package(s) failed to uninstall", failureCount)
 	}
 
-	if dbRecord == nil {
-		color.Red("Error: package not found: %s", identifier)
-		color.Yellow("  Use 'upkg list' to see installed packages")
-		return fmt.Errorf("package not found")
-	}
-
-	color.Green("✓ Found package: %s (%s)", dbRecord.Name, dbRecord.PackageType)
-
-	coreRecord := dbInstallToCore(dbRecord)
-	return performUninstall(ctx, registry, database, log, coreRecord)
+	color.Green("✓ Successfully uninstalled all %d package(s)!", successCount)
+	return nil
 }
 
 func performUninstall(ctx context.Context, registry *backends.Registry, database *db.DB, log *zerolog.Logger, record *core.InstallRecord) error {

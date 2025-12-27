@@ -380,6 +380,7 @@ func TestFixDockIcon_SkipNoDesktop(t *testing.T) {
 
 	log := zerolog.New(io.Discard)
 
+	//nolint:govet // test setup data
 	record := &core.InstallRecord{
 		DesktopFile: "",
 		InstallPath: "/tmp/test",
@@ -407,6 +408,7 @@ func TestFixDockIcon_NoExecutable(t *testing.T) {
 
 	log := zerolog.New(io.Discard)
 
+	//nolint:govet // test setup data
 	record := &core.InstallRecord{
 		DesktopFile: "/tmp/test.desktop",
 		InstallPath: "",
@@ -415,6 +417,7 @@ func TestFixDockIcon_NoExecutable(t *testing.T) {
 		},
 	}
 
+	//nolint:govet // test setup data
 	dbRecord := &db.Install{
 		DesktopFile: "/tmp/test.desktop",
 	}
@@ -442,6 +445,7 @@ func TestFixDockIcon_ExecPathIsDirectory(t *testing.T) {
 	execDir := filepath.Join(tmpDir, "bin")
 	require.NoError(t, os.MkdirAll(execDir, 0755))
 
+	//nolint:govet // test setup data
 	record := &core.InstallRecord{
 		DesktopFile: filepath.Join(tmpDir, "test.desktop"),
 		InstallPath: execDir,
@@ -450,6 +454,7 @@ func TestFixDockIcon_ExecPathIsDirectory(t *testing.T) {
 		},
 	}
 
+	//nolint:govet // test setup data
 	dbRecord := &db.Install{
 		DesktopFile: filepath.Join(tmpDir, "test.desktop"),
 	}

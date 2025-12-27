@@ -13,7 +13,11 @@ import (
 	"github.com/spf13/afero"
 )
 
-const testIconsDir = "/test/icons"
+const (
+	testIconsDir       = "/test/icons"
+	testSourceAppPng   = "/test/source/app.png"
+	testNormalizedName = "test-app"
+)
 
 func TestNewManager(t *testing.T) {
 	fs := afero.NewMemMapFs()
@@ -212,10 +216,10 @@ func TestInstallIcon(t *testing.T) {
 	manager := NewManager(fs, iconDir)
 
 	// Create source icon
-	srcPath := "/test/source/app.png"
+	srcPath := testSourceAppPng
 	afero.WriteFile(fs, srcPath, []byte("png content"), 0644)
 
-	normalizedName := "test-app"
+	normalizedName := testNormalizedName
 	size := "48x48"
 
 	dstPath, err := manager.InstallIcon(srcPath, normalizedName, size)
@@ -250,10 +254,10 @@ func TestInstallIconWithSubdirs(t *testing.T) {
 	manager := NewManager(fs, iconDir)
 
 	// Create source icon
-	srcPath := "/test/source/app.png"
+	srcPath := testSourceAppPng
 	afero.WriteFile(fs, srcPath, []byte("png content"), 0644)
 
-	normalizedName := "test-app"
+	normalizedName := testNormalizedName
 	size := "256x256"
 
 	dstPath, err := manager.InstallIcon(srcPath, normalizedName, size)
@@ -288,10 +292,10 @@ func TestInstallIconCreatesIndexTheme(t *testing.T) {
 	iconDir := testIconsDir
 	manager := NewManager(fs, iconDir)
 
-	srcPath := "/test/source/app.png"
+	srcPath := testSourceAppPng
 	afero.WriteFile(fs, srcPath, []byte("png content"), 0644)
 
-	_, err := manager.InstallIcon(srcPath, "test-app", "48x48")
+	_, err := manager.InstallIcon(srcPath, testNormalizedName, "48x48")
 	if err != nil {
 		t.Fatalf("InstallIcon should not return error: %v", err)
 	}
@@ -334,10 +338,10 @@ Type=Threshold
 		t.Fatalf("Failed to write initial index.theme: %v", err)
 	}
 
-	srcPath := "/test/source/app.png"
+	srcPath := testSourceAppPng
 	afero.WriteFile(fs, srcPath, []byte("png content"), 0644)
 
-	_, err := manager.InstallIcon(srcPath, "test-app", "512x512")
+	_, err := manager.InstallIcon(srcPath, testNormalizedName, "512x512")
 	if err != nil {
 		t.Fatalf("InstallIcon should not return error: %v", err)
 	}
@@ -413,7 +417,7 @@ func TestPackageLevelFunctions(t *testing.T) {
 	defer os.RemoveAll(tmpHome)
 
 	// Note: This will actually install the icon, but we'll clean it up
-	_, err = InstallIcon(iconFile, "test-app", tmpHome)
+	_, err = InstallIcon(iconFile, testNormalizedName, tmpHome)
 	if err != nil {
 		t.Errorf("InstallIcon should not return error: %v", err)
 	}
@@ -438,7 +442,7 @@ func TestInstallIconWithResizing(t *testing.T) {
 	png.Encode(f, img)
 	f.Close()
 
-	normalizedName := "test-app"
+	normalizedName := testNormalizedName
 	size := "50x50" // Target smaller size
 
 	dstPath, err := manager.InstallIcon(srcPath, normalizedName, size)

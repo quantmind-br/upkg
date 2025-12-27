@@ -19,6 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants
+const testDesktopEntryBasic = `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp`
+
 func TestNew(t *testing.T) {
 	cfg := &config.Config{}
 	logger := zerolog.Nop()
@@ -536,12 +542,8 @@ Categories=Development;`
 		require.NoError(t, os.WriteFile(dirIconFile, dirIconContent, 0644))
 
 		// Create desktop file without Icon field
-		desktopContent := `[Desktop Entry]
-Type=Application
-Name=TestApp
-Exec=testapp`
 		desktopFile := filepath.Join(squashfsRoot, "testapp.desktop")
-		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+		require.NoError(t, os.WriteFile(desktopFile, []byte(testDesktopEntryBasic), 0644))
 
 		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
 		assert.NoError(t, err)
@@ -704,12 +706,8 @@ Icon=test-icon`
 		require.NoError(t, os.WriteFile(asarFile, []byte("fake asar"), 0644))
 
 		// Create .desktop template
-		desktopContent := `[Desktop Entry]
-Type=Application
-Name=TestApp
-Exec=testapp`
 		desktopFile := filepath.Join(squashfsRoot, "TestApp.desktop")
-		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+		require.NoError(t, os.WriteFile(desktopFile, []byte(testDesktopEntryBasic), 0644))
 
 		// Create binary
 		execPath := filepath.Join(tmpDir, "test-app.AppImage")
@@ -737,12 +735,8 @@ Exec=testapp`
 		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
 
 		// Create .desktop template
-		desktopContent := `[Desktop Entry]
-Type=Application
-Name=TestApp
-Exec=testapp`
 		desktopFile := filepath.Join(squashfsRoot, "TestApp.desktop")
-		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+		require.NoError(t, os.WriteFile(desktopFile, []byte(testDesktopEntryBasic), 0644))
 
 		// Create binary
 		execPath := filepath.Join(tmpDir, "test-app.AppImage")

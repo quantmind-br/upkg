@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/lithammer/fuzzysearch/fuzzy"
 	"github.com/manifoldco/promptui"
 )
@@ -98,8 +99,38 @@ func SelectPromptDetailed(label string, options []SelectOption) (int, SelectOpti
 	return index, options[index], nil
 }
 
-// MultiSelectPrompt presents a multi-select list (simulated with repeated selection)
+// MultiSelectPrompt presents a checkbox-style multi-select list using survey
+// Users can toggle items with Space and confirm with Enter
 func MultiSelectPrompt(label string, items []string) ([]string, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+
+	var selected []string
+
+	prompt := &survey.MultiSelect{
+		Message:  label,
+		Options:  items,
+		PageSize: minInt(15, len(items)),
+		Filter: func(filterValue string, optValue string, _ int) bool {
+			if filterValue == "" {
+				return true
+			}
+			return fuzzy.MatchNormalizedFold(strings.TrimSpace(filterValue), optValue)
+		},
+	}
+
+	err := survey.AskOne(prompt, &selected, survey.WithKeepFilter(true))
+	if err != nil {
+		return nil, fmt.Errorf("selection cancelled by user")
+	}
+
+	return selected, nil
+}
+
+// MultiSelectPromptLegacy presents a multi-select list using the old sequential selection method
+// Kept for backwards compatibility if needed
+func MultiSelectPromptLegacy(label string, items []string) ([]string, error) {
 	selected := make([]string, 0)
 	availableItems := make([]string, len(items)+1)
 	copy(availableItems, items)

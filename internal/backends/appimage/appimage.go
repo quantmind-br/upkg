@@ -91,6 +91,7 @@ func (a *AppImageBackend) Detect(_ context.Context, packagePath string) (bool, e
 		}
 
 		// Check for ELF magic: 0x7F 'E' 'L' 'F'
+		//nolint:gosec // bounds checked by n < 4 above
 		if magic[0] == 0x7F && magic[1] == 'E' && magic[2] == 'L' && magic[3] == 'F' {
 			return true, nil
 		}

@@ -819,16 +819,16 @@ func (d *DebBackend) installUserIconFallback(iconFiles []string, desktopFile str
 	if source == "" {
 		return nil, nil
 	}
-	if err := security.ValidatePath(source); err != nil {
-		return nil, fmt.Errorf("invalid icon source path: %w", err)
+	if pathErr := security.ValidatePath(source); pathErr != nil {
+		return nil, fmt.Errorf("invalid icon source path: %w", pathErr)
 	}
 
 	homeDir := d.Paths.HomeDir()
 	if homeDir == "" {
 		return nil, nil
 	}
-	if err := security.ValidatePath(homeDir); err != nil {
-		return nil, fmt.Errorf("invalid home directory: %w", err)
+	if homeErr := security.ValidatePath(homeDir); homeErr != nil {
+		return nil, fmt.Errorf("invalid home directory: %w", homeErr)
 	}
 
 	iconSize := icons.DetectIconSize(source)
@@ -935,8 +935,8 @@ func (d *DebBackend) updateDesktopFileWayland(desktopPath string) error {
 	}
 
 	// Validate desktop entry has required fields
-	if err := desktop.Validate(entry); err != nil {
-		return fmt.Errorf("invalid desktop entry: %w", err)
+	if valErr := desktop.Validate(entry); valErr != nil {
+		return fmt.Errorf("invalid desktop entry: %w", valErr)
 	}
 
 	// Inject Wayland vars

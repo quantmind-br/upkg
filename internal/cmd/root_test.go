@@ -13,9 +13,9 @@ func TestNewRootCmd(t *testing.T) {
 	t.Parallel()
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
-	
+
 	cmd := NewRootCmd(cfg, &logger, "1.0.0")
-	
+
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "upkg", cmd.Use)
 }

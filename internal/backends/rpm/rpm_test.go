@@ -759,7 +759,7 @@ func TestGetPackageInfo(t *testing.T) {
 
 	t.Run("returns package info successfully", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			GetInfoFunc: func(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
+			GetInfoFunc: func(_ context.Context, _ string) (*syspkg.PackageInfo, error) {
 				return &syspkg.PackageInfo{
 					Name:    "test-package",
 					Version: "1.0.0",
@@ -779,7 +779,7 @@ func TestGetPackageInfo(t *testing.T) {
 
 	t.Run("returns error when sys provider fails", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			GetInfoFunc: func(_ context.Context, packageName string) (*syspkg.PackageInfo, error) {
+			GetInfoFunc: func(_ context.Context, _ string) (*syspkg.PackageInfo, error) {
 				return nil, fmt.Errorf("package not found")
 			},
 		}
@@ -800,7 +800,7 @@ func TestFindInstalledFiles(t *testing.T) {
 
 	t.Run("returns list of installed files", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			ListFilesFunc: func(_ context.Context, packageName string) ([]string, error) {
+			ListFilesFunc: func(_ context.Context, _ string) ([]string, error) {
 				return []string{
 					"/usr/bin/test-app",
 					"/usr/share/applications/test-app.desktop",
@@ -820,7 +820,7 @@ func TestFindInstalledFiles(t *testing.T) {
 
 	t.Run("returns error when sys provider fails", func(t *testing.T) {
 		mockProvider := &mockSyspkgProvider{
-			ListFilesFunc: func(_ context.Context, packageName string) ([]string, error) {
+			ListFilesFunc: func(_ context.Context, _ string) ([]string, error) {
 				return nil, fmt.Errorf("package not found")
 			},
 		}

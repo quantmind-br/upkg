@@ -95,6 +95,6 @@ func TestOSCommandRunner(t *testing.T) {
 	})
 }
 
-func TestCommandRunnerInterface(t *testing.T) {
+func TestCommandRunnerInterface(_ *testing.T) {
 	var _ CommandRunner = &OSCommandRunner{}
 }

@@ -87,9 +87,9 @@ func DetectIconSize(iconPath string) string {
 	re := regexp.MustCompile(`(\d+)x(\d+)`)
 	matches := re.FindStringSubmatch(iconPath)
 	if len(matches) >= 3 {
-		// Parse dimensions
-		w, _ := strconv.Atoi(matches[1])
-		h, _ := strconv.Atoi(matches[2])
+		// Parse dimensions - regex guarantees these are valid integers
+		w, _ := strconv.Atoi(matches[1]) //nolint:errcheck // regex ensures valid int
+		h, _ := strconv.Atoi(matches[2]) //nolint:errcheck // regex ensures valid int
 
 		// Use largest dimension
 		top := w
@@ -223,7 +223,9 @@ func (m *Manager) InstallIcon(srcPath, normalizedName, size string) (string, err
 	// Also only if target provided (standardSizes check implicitly done by DetectIconSize logic)
 	if config.Width > targetSize || config.Height > targetSize {
 		// Reset file pointer
-		srcFile.Seek(0, 0)
+		if _, err := srcFile.Seek(0, 0); err != nil {
+			return m.copyIcon(srcPath, dstPath)
+		}
 		srcImg, _, err := image.Decode(srcFile)
 		if err != nil {
 			return m.copyIcon(srcPath, dstPath)
@@ -266,69 +268,16 @@ func (m *Manager) ensureHicolorIndex(size string) error {
 	}
 
 	indexPath := filepath.Join(hicolorDir, "index.theme")
-	content, err := afero.ReadFile(m.fs, indexPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("read index.theme: %w", err)
-	}
-
-	lines := []string{}
-	if err == nil {
-		trimmed := strings.TrimRight(string(content), "\n")
-		if trimmed != "" {
-			lines = strings.Split(trimmed, "\n")
-		}
+	lines, err := m.readIndexTheme(indexPath)
+	if err != nil {
+		return err
 	}
 
 	dirName := size + "/apps"
-	modified := false
+	lines, modified := m.ensureIconThemeSection(lines, dirName)
+	lines, sectionAdded := m.ensureDirectorySection(lines, dirName, size)
 
-	iconThemeStart, iconThemeEnd := findSection(lines, "Icon Theme")
-	if iconThemeStart == -1 {
-		if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
-			lines = append(lines, "")
-		}
-		lines = append(lines,
-			"[Icon Theme]",
-			"Name=Hicolor",
-			"Comment=Fallback icon theme",
-			"Hidden=true",
-			"Directories="+dirName,
-		)
-		modified = true
-	} else {
-		dirIdx := -1
-		for i := iconThemeStart + 1; i < iconThemeEnd; i++ {
-			if strings.HasPrefix(strings.TrimSpace(lines[i]), "Directories=") {
-				dirIdx = i
-				break
-			}
-		}
-		if dirIdx == -1 {
-			insertAt := iconThemeEnd
-			lines = append(lines[:insertAt], append([]string{"Directories=" + dirName}, lines[insertAt:]...)...)
-			modified = true
-		} else {
-			dirs := parseDirectories(lines[dirIdx])
-			if !containsString(dirs, dirName) {
-				dirs = append(dirs, dirName)
-				lines[dirIdx] = "Directories=" + strings.Join(dirs, ",")
-				modified = true
-			}
-		}
-	}
-
-	if !sectionExists(lines, dirName) {
-		section := buildDirectorySection(dirName, size)
-		if len(section) > 0 {
-			if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
-				lines = append(lines, "")
-			}
-			lines = append(lines, section...)
-			modified = true
-		}
-	}
-
-	if !modified {
+	if !modified && !sectionAdded {
 		return nil
 	}
 
@@ -338,6 +287,90 @@ func (m *Manager) ensureHicolorIndex(size string) error {
 	}
 
 	return nil
+}
+
+// readIndexTheme reads and parses the index.theme file
+func (m *Manager) readIndexTheme(indexPath string) ([]string, error) {
+	content, err := afero.ReadFile(m.fs, indexPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read index.theme: %w", err)
+	}
+
+	if err != nil {
+		return []string{}, nil
+	}
+
+	trimmed := strings.TrimRight(string(content), "\n")
+	if trimmed == "" {
+		return []string{}, nil
+	}
+	return strings.Split(trimmed, "\n"), nil
+}
+
+// ensureIconThemeSection ensures the [Icon Theme] section exists with the directory
+func (m *Manager) ensureIconThemeSection(lines []string, dirName string) ([]string, bool) {
+	iconThemeStart, iconThemeEnd := findSection(lines, "Icon Theme")
+	if iconThemeStart == -1 {
+		return m.createIconThemeSection(lines, dirName), true
+	}
+	return m.updateDirectoriesLine(lines, iconThemeStart, iconThemeEnd, dirName)
+}
+
+// createIconThemeSection creates a new [Icon Theme] section
+func (m *Manager) createIconThemeSection(lines []string, dirName string) []string {
+	if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
+		lines = append(lines, "")
+	}
+	return append(lines,
+		"[Icon Theme]",
+		"Name=Hicolor",
+		"Comment=Fallback icon theme",
+		"Hidden=true",
+		"Directories="+dirName,
+	)
+}
+
+// updateDirectoriesLine updates the Directories= line in an existing section
+func (m *Manager) updateDirectoriesLine(lines []string, start, end int, dirName string) ([]string, bool) {
+	dirIdx := -1
+	for i := start + 1; i < end; i++ {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), "Directories=") {
+			dirIdx = i
+			break
+		}
+	}
+
+	if dirIdx == -1 {
+		insertAt := end
+		lines = append(lines[:insertAt], append([]string{"Directories=" + dirName}, lines[insertAt:]...)...)
+		return lines, true
+	}
+
+	dirs := parseDirectories(lines[dirIdx])
+	if containsString(dirs, dirName) {
+		return lines, false
+	}
+
+	dirs = append(dirs, dirName)
+	lines[dirIdx] = "Directories=" + strings.Join(dirs, ",")
+	return lines, true
+}
+
+// ensureDirectorySection ensures the directory section exists
+func (m *Manager) ensureDirectorySection(lines []string, dirName, size string) ([]string, bool) {
+	if sectionExists(lines, dirName) {
+		return lines, false
+	}
+
+	section := buildDirectorySection(dirName, size)
+	if len(section) == 0 {
+		return lines, false
+	}
+
+	if len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) != "" {
+		lines = append(lines, "")
+	}
+	return append(lines, section...), true
 }
 
 func findSection(lines []string, name string) (int, int) {

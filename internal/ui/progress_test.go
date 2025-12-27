@@ -204,23 +204,23 @@ func TestProgressTrackerWithOutput(_ *testing.T) {
 }
 
 func TestUpdateIndeterminate(t *testing.T) {
-	t.Run("calls without panic", func(t *testing.T) {
+	t.Run("calls without panic", func(_ *testing.T) {
 		phases := []InstallationPhase{
 			{Name: "Phase 1", Weight: 50, Deterministic: false},
 		}
 		tracker := NewProgressTracker(phases, "Test", true)
-		
+
 		// Should not panic
 		tracker.UpdateIndeterminate("Processing")
 		tracker.Finish()
 	})
-	
-	t.Run("disabled tracker", func(t *testing.T) {
+
+	t.Run("disabled tracker", func(_ *testing.T) {
 		phases := []InstallationPhase{
 			{Name: "Phase 1", Weight: 50, Deterministic: false},
 		}
 		tracker := NewProgressTracker(phases, "Test", false)
-		
+
 		// Should not panic
 		tracker.UpdateIndeterminate("Processing")
 		tracker.Finish()
@@ -228,23 +228,23 @@ func TestUpdateIndeterminate(t *testing.T) {
 }
 
 func TestUpdateIndeterminateWithElapsed(t *testing.T) {
-	t.Run("calls without panic", func(t *testing.T) {
+	t.Run("calls without panic", func(_ *testing.T) {
 		phases := []InstallationPhase{
 			{Name: "Phase 1", Weight: 50, Deterministic: false},
 		}
 		tracker := NewProgressTracker(phases, "Test", true)
-		
+
 		// Should not panic
 		tracker.UpdateIndeterminateWithElapsed("Processing", 5*time.Second)
 		tracker.Finish()
 	})
-	
-	t.Run("disabled tracker", func(t *testing.T) {
+
+	t.Run("disabled tracker", func(_ *testing.T) {
 		phases := []InstallationPhase{
 			{Name: "Phase 1", Weight: 50, Deterministic: false},
 		}
 		tracker := NewProgressTracker(phases, "Test", false)
-		
+
 		// Should not panic
 		tracker.UpdateIndeterminateWithElapsed("Processing", 5*time.Second)
 		tracker.Finish()

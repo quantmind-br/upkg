@@ -843,4 +843,60 @@ Exec=testapp2`
 		err := backendNoWayland.updateDesktopFileWayland(desktopPath)
 		assert.NoError(t, err)
 	})
+
+	t.Run("handles invalid desktop entry - missing Type", func(t *testing.T) {
+		desktopDir := filepath.Join(tmpDir, ".local", "share", "applications")
+		require.NoError(t, os.MkdirAll(desktopDir, 0755))
+
+		desktopPath := filepath.Join(desktopDir, "invalid.desktop")
+		// Missing Type field
+		desktopContent := `[Desktop Entry]
+Name=TestApp
+Exec=testapp`
+		require.NoError(t, os.WriteFile(desktopPath, []byte(desktopContent), 0644))
+
+		err := backend.updateDesktopFileWayland(desktopPath)
+		// Should return validation error
+		assert.Error(t, err)
+	})
+
+	t.Run("handles custom env vars injection failure", func(t *testing.T) {
+		// Invalid env var format - should fallback to default injection
+		cfgCustomEnv := &config.Config{
+			Desktop: config.DesktopConfig{
+				CustomEnvVars: []string{
+					"INVALID_VAR_{{}}=value", // Invalid env var name format
+				},
+			},
+		}
+		backendCustomEnv := New(cfgCustomEnv, &logger)
+
+		desktopDir := filepath.Join(tmpDir, ".local", "share", "applications")
+		require.NoError(t, os.MkdirAll(desktopDir, 0755))
+
+		desktopPath := filepath.Join(desktopDir, "customenv.desktop")
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=CustomEnv
+Exec=customenv`
+		require.NoError(t, os.WriteFile(desktopPath, []byte(desktopContent), 0644))
+
+		// Should fallback to default injection when custom env fails
+		err := backendCustomEnv.updateDesktopFileWayland(desktopPath)
+		assert.NoError(t, err)
+		assert.FileExists(t, desktopPath)
+	})
+
+	t.Run("handles desktop file read error", func(t *testing.T) {
+		// Create a directory instead of a file to cause read error
+		desktopDir := filepath.Join(tmpDir, ".local", "share", "applications")
+		require.NoError(t, os.MkdirAll(desktopDir, 0755))
+
+		dirPath := filepath.Join(desktopDir, "directory.desktop")
+		require.NoError(t, os.MkdirAll(dirPath, 0755))
+
+		err := backend.updateDesktopFileWayland(dirPath)
+		// Should error when trying to read a directory
+		assert.Error(t, err)
+	})
 }

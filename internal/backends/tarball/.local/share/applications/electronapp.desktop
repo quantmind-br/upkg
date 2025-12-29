@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=electronapp
+Exec=/usr/bin/electronapp %U
+Icon=electronapp
+Comment=electronapp application
+Categories=Utility;

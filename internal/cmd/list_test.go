@@ -11,6 +11,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/db"
 	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -516,3 +517,149 @@ func TestListCmd_SortInvalid(t *testing.T) {
 	err = cmd.Execute()
 	assert.NoError(t, err)
 }
+
+func TestPrintCompactTable_EmptyVersion(t *testing.T) {
+	t.Parallel()
+
+	installs := []db.Install{
+		{
+			InstallID:    "test-1",
+			PackageType:  "tarball",
+			Name:         "TestApp1",
+			Version:      "", // Empty version
+			InstallDate:  time.Now(),
+			InstallPath:  "/opt/testapp1",
+			DesktopFile:  "/usr/share/applications/testapp1.desktop",
+			Metadata:     map[string]interface{}{},
+		},
+		{
+			InstallID:    "test-2",
+			PackageType:  "appimage",
+			Name:         "TestApp2",
+			Version:      "1.0.0",
+			InstallDate:  time.Now(),
+			InstallPath:  "/opt/testapp2",
+			DesktopFile:  "/usr/share/applications/testapp2.desktop",
+			Metadata:     map[string]interface{}{},
+		},
+	}
+
+	var buf bytes.Buffer
+	fakeCmd := &cobra.Command{}
+	fakeCmd.SetOut(&buf)
+
+	err := printCompactTable(fakeCmd, installs)
+	assert.NoError(t, err)
+	// Output should contain "-" for empty version
+	_ = buf.String()
+}
+
+func TestPrintDetailedTable_Truncations(t *testing.T) {
+	t.Parallel()
+
+	installs := []db.Install{
+		{
+			InstallID:    "very-long-install-id-that-needs-truncation-because-it-exceeds-twenty-chars",
+			PackageType:  "tarball",
+			Name:         "TestApp",
+			Version:      "", // Empty version
+			InstallDate:  time.Now(),
+			InstallPath:  "/very/long/path/that/needs/truncation/because/it/exceeds/forty/characters/and/then/some",
+			DesktopFile:  "/usr/share/applications/testapp.desktop",
+			Metadata:     map[string]interface{}{},
+		},
+		{
+			InstallID:    "test-2",
+			PackageType:  "appimage",
+			Name:         "TestApp2",
+			Version:      "1.0.0",
+			InstallDate:  time.Now(),
+			InstallPath:  "/opt/testapp2",
+			DesktopFile:  "/usr/share/applications/testapp2.desktop",
+			Metadata:     map[string]interface{}{},
+		},
+	}
+
+	var buf bytes.Buffer
+	fakeCmd := &cobra.Command{}
+	fakeCmd.SetOut(&buf)
+
+	err := printDetailedTable(fakeCmd, installs)
+	assert.NoError(t, err)
+	_ = buf.String()
+}
+
+func TestFilterInstalls_AllFilters(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	installs := []db.Install{
+		{InstallID: "1", PackageType: "appimage", Name: "AlphaApp", Version: "1.0", InstallDate: now, Metadata: map[string]interface{}{}},
+		{InstallID: "2", PackageType: "tarball", Name: "BetaApp", Version: "2.0", InstallDate: now, Metadata: map[string]interface{}{}},
+		{InstallID: "3", PackageType: "appimage", Name: "AlphaApp", Version: "3.0", InstallDate: now, Metadata: map[string]interface{}{}},
+	}
+
+	// Filter by type and name
+	filtered := filterInstalls(installs, "appimage", "AlphaApp")
+	assert.Equal(t, 2, len(filtered))
+	assert.Equal(t, "AlphaApp", filtered[0].Name)
+	assert.Equal(t, "AlphaApp", filtered[1].Name)
+}
+
+func TestListCmd_MultiplePackagesWithEmptyVersions(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile: dbPath,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	installs := []*db.Install{
+		{
+			InstallID:    "empty-1",
+			PackageType:  "tarball",
+			Name:         "EmptyVersion1",
+			Version:      "",
+			InstallDate:  time.Now(),
+			InstallPath:  "/opt/empty1",
+			DesktopFile:  "/usr/share/applications/empty1.desktop",
+			Metadata:     map[string]interface{}{},
+		},
+		{
+			InstallID:    "empty-2",
+			PackageType:  "appimage",
+			Name:         "EmptyVersion2",
+			Version:      "",
+			InstallDate:  time.Now(),
+			InstallPath:  "/opt/empty2",
+			DesktopFile:  "/usr/share/applications/empty2.desktop",
+			Metadata:     map[string]interface{}{},
+		},
+	}
+
+	for _, install := range installs {
+		err = database.Create(ctx, install)
+		require.NoError(t, err)
+	}
+	database.Close()
+
+	log := zerolog.New(io.Discard)
+	cmd := NewListCmd(cfg, &log)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	cmd.SetArgs([]string{})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+
+

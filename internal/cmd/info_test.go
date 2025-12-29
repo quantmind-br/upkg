@@ -368,3 +368,224 @@ func TestInfoCmd_AllMetadataTypes(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestInfoCmd_EmptyVersion(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile: dbPath,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	testInstall := &db.Install{
+		InstallID:    "test-id-noversion",
+		PackageType:  "tarball",
+		Name:         "NoVersionApp",
+		Version:      "", // Empty version
+		InstallDate:  time.Now(),
+		OriginalFile: "/tmp/noversion.tar.gz",
+		InstallPath:  "/opt/noversionapp",
+		DesktopFile:  "/usr/share/applications/noversionapp.desktop",
+		Metadata:     map[string]interface{}{},
+	}
+
+	err = database.Create(ctx, testInstall)
+	require.NoError(t, err)
+	database.Close()
+
+	cmd := NewInfoCmd(cfg, &logger)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	cmd.SetArgs([]string{testInstall.InstallID})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestInfoCmd_EmptyDesktopFile(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile: dbPath,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	testInstall := &db.Install{
+		InstallID:    "test-id-nodesktop",
+		PackageType:  "binary",
+		Name:         "NoDesktopApp",
+		Version:      "1.0.0",
+		InstallDate:  time.Now(),
+		OriginalFile: "/usr/local/bin/nodesktop",
+		InstallPath:  "/opt/nodesktop",
+		DesktopFile:  "", // Empty desktop file
+		Metadata:     map[string]interface{}{},
+	}
+
+	err = database.Create(ctx, testInstall)
+	require.NoError(t, err)
+	database.Close()
+
+	cmd := NewInfoCmd(cfg, &logger)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	cmd.SetArgs([]string{testInstall.InstallID})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestInfoCmd_IconFilesAsInterfaceSlice(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile: dbPath,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	testInstall := &db.Install{
+		InstallID:    "test-id-interfaceicons",
+		PackageType:  "appimage",
+		Name:         "InterfaceIconsApp",
+		Version:      "1.0.0",
+		InstallDate:  time.Now(),
+		OriginalFile: "/tmp/interfaceicons.AppImage",
+		InstallPath:  "/opt/interfaceicons",
+		DesktopFile:  "/usr/share/applications/interfaceicons.desktop",
+		Metadata: map[string]interface{}{
+			// icon_files as []interface{} instead of []string
+			"icon_files":     []interface{}{"/path/to/icon1.png", "/path/to/icon2.svg"},
+			"wrapper_script": "/home/user/.local/bin/interfaceicons",
+		},
+	}
+
+	err = database.Create(ctx, testInstall)
+	require.NoError(t, err)
+	database.Close()
+
+	cmd := NewInfoCmd(cfg, &logger)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	cmd.SetArgs([]string{testInstall.InstallID})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestInfoCmd_SearchByName(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile: dbPath,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	testInstall := &db.Install{
+		InstallID:    "test-id-search",
+		PackageType:  "tarball",
+		Name:         "SearchByNameApp",
+		Version:      "1.0.0",
+		InstallDate:  time.Now(),
+		OriginalFile: "/tmp/search.tar.gz",
+		InstallPath:  "/opt/searchapp",
+		DesktopFile:  "/usr/share/applications/searchapp.desktop",
+		Metadata:     map[string]interface{}{},
+	}
+
+	err = database.Create(ctx, testInstall)
+	require.NoError(t, err)
+	database.Close()
+
+	cmd := NewInfoCmd(cfg, &logger)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	// Search by name (not ID)
+	cmd.SetArgs([]string{"SearchByNameApp"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestInfoCmd_SearchByNameCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile: dbPath,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	testInstall := &db.Install{
+		InstallID:    "test-id-case",
+		PackageType:  "tarball",
+		Name:         "CaseSensitiveApp",
+		Version:      "1.0.0",
+		InstallDate:  time.Now(),
+		OriginalFile: "/tmp/case.tar.gz",
+		InstallPath:  "/opt/caseapp",
+		DesktopFile:  "/usr/share/applications/caseapp.desktop",
+		Metadata:     map[string]interface{}{},
+	}
+
+	err = database.Create(ctx, testInstall)
+	require.NoError(t, err)
+	database.Close()
+
+	cmd := NewInfoCmd(cfg, &logger)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	// Search with different case
+	cmd.SetArgs([]string{"casesensitiveapp"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+

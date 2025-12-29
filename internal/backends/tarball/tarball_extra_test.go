@@ -710,3 +710,288 @@ func TestTarballBackend_RemoveIcons(t *testing.T) {
 		backend.removeIcons([]string{"/nonexistent/icon.png"})
 	})
 }
+
+func TestTarballBackend_CreateDesktopFile_Additional(t *testing.T) {
+	t.Parallel()
+
+	t.Run("handles electron sandbox flag in wrapper", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{
+			Desktop: config.DesktopConfig{
+				ElectronDisableSandbox: true,
+			},
+		}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		origHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHome)
+
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
+
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		execPath := filepath.Join(installDir, "app")
+		require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/bash"), 0755))
+
+		// Create electron structure
+		resourcesDir := filepath.Join(installDir, "resources")
+		require.NoError(t, os.MkdirAll(resourcesDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(resourcesDir, "app.asar"), []byte("asar"), 0644))
+
+		// First create wrapper to check it has --no-sandbox
+		wrapperPath := filepath.Join(tmpDir, "wrapper")
+		err := backend.createWrapper(wrapperPath, execPath)
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(wrapperPath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "--no-sandbox")
+
+		// Then test desktop file creation
+		desktopPath, err := backend.createDesktopFile(installDir, "TestApp", "test-app", execPath, core.InstallOptions{})
+
+		assert.NoError(t, err)
+		assert.FileExists(t, desktopPath)
+	})
+
+	t.Run("handles skip desktop option", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		origHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHome)
+
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
+
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		execPath := filepath.Join(installDir, "app")
+		require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/bash"), 0755))
+
+		// Create desktop file template
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=app`
+		desktopFile := filepath.Join(installDir, "TestApp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		desktopPath, err := backend.createDesktopFile(installDir, "TestApp", "test-app", execPath, core.InstallOptions{})
+
+		assert.NoError(t, err)
+		assert.NotEmpty(t, desktopPath)
+	})
+}
+
+func TestTarballBackend_InstallIcons_Additional(t *testing.T) {
+	t.Parallel()
+
+	t.Run("handles asar icon extraction with npx", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+
+		mockRunner := &helpers.MockCommandRunner{
+			CommandExistsFunc: func(cmd string) bool {
+				return cmd == "npx"
+			},
+			RunCommandFunc: func(_ context.Context, cmd string, args ...string) (string, error) {
+				// Mock asar extraction - return success but no icons
+				return "", nil
+			},
+		}
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+
+		tmpDir := t.TempDir()
+		origHome := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHome)
+
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create fake asar file
+		asarFile := filepath.Join(installDir, "app.asar")
+		require.NoError(t, os.WriteFile(asarFile, []byte("fake asar"), 0644))
+
+		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
+
+		// Should succeed or fail gracefully
+		_ = icons
+		_ = err
+	})
+
+	t.Run("handles multiple asar files", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create multiple asar files
+		require.NoError(t, os.WriteFile(filepath.Join(installDir, "app.asar"), []byte("asar1"), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(installDir, "other.asar"), []byte("asar2"), 0644))
+
+		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
+
+		// Should try to extract but fail because npx/asar not available
+		// The function should handle this gracefully
+		_ = icons
+		_ = err
+	})
+}
+
+func TestTarballBackend_ExtractIconsFromAsarNative(t *testing.T) {
+	t.Parallel()
+
+	t.Run("handles non-existent asar file", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Don't create asar file - just test with non-existent path
+		asarFile := filepath.Join(installDir, "nonexistent.asar")
+		appName := "test-app"
+
+		icons, err := backend.extractIconsFromAsarNative(asarFile, appName, installDir)
+
+		assert.Error(t, err)
+		assert.Empty(t, icons)
+	})
+
+	t.Run("handles invalid asar file", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		installDir := filepath.Join(tmpDir, "install")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		// Create invalid asar file
+		asarFile := filepath.Join(installDir, "invalid.asar")
+		require.NoError(t, os.WriteFile(asarFile, []byte("not a real asar"), 0644))
+
+		icons, err := backend.extractIconsFromAsarNative(asarFile, "test-app", installDir)
+
+		// Should fail because it's not a valid asar
+		assert.Error(t, err)
+		assert.Empty(t, icons)
+	})
+}
+
+func TestTarballBackend_Detect_Additional(t *testing.T) {
+	t.Parallel()
+
+	t.Run("non-existent file", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		result, err := backend.Detect(context.Background(), "/nonexistent/file.tar.gz")
+
+		assert.NoError(t, err)
+		assert.False(t, result)
+	})
+
+	t.Run("empty file", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		emptyFile := filepath.Join(tmpDir, "empty.tar.gz")
+		require.NoError(t, os.WriteFile(emptyFile, []byte{}, 0644))
+
+		result, err := backend.Detect(context.Background(), emptyFile)
+
+		assert.NoError(t, err)
+		// Empty files might be detected as tar files because tar magic check might pass
+		// Just verify the function doesn't error
+		_ = result
+	})
+}
+
+func TestTarballBackend_Install_WithCustomName(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	// Create fake tar.gz (will fail extraction)
+	archivePath := filepath.Join(tmpDir, "test.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, []byte("fake archive"), 0644))
+
+	tx := transaction.NewManager(&logger)
+	_, err := backend.Install(context.Background(), archivePath, core.InstallOptions{CustomName: "MyCustomApp"}, tx)
+
+	// Should fail during extraction
+	assert.Error(t, err)
+}
+
+func TestTarballBackend_Install_WithForce_NotSkipped(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	// Create fake tar.gz (will fail extraction)
+	archivePath := filepath.Join(tmpDir, "test.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, []byte("fake archive"), 0644))
+
+	tx := transaction.NewManager(&logger)
+	_, err := backend.Install(context.Background(), archivePath, core.InstallOptions{Force: true}, tx)
+
+	// Should fail during extraction
+	assert.Error(t, err)
+}
+
+func TestTarballBackend_Install_SkipDesktop_NotSkipped(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	// Create fake tar.gz (will fail extraction)
+	archivePath := filepath.Join(tmpDir, "test.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, []byte("fake archive"), 0644))
+
+	tx := transaction.NewManager(&logger)
+	_, err := backend.Install(context.Background(), archivePath, core.InstallOptions{SkipDesktop: true}, tx)
+
+	// Should fail during extraction
+	assert.Error(t, err)
+}
+

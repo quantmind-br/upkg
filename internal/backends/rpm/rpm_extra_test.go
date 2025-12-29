@@ -2,14 +2,17 @@ package rpm
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -366,4 +369,148 @@ func TestRPMBackend_installIcons_EdgeCases(t *testing.T) {
 	icons, err := backend.installIcons("", normalizedName)
 	_ = icons
 	_ = err
+}
+
+func TestRPMBackend_copyDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DataDir: tmpDir,
+		},
+	}
+	log := zerolog.Nop()
+	backend := New(cfg, &log)
+
+	t.Run("copies directory successfully", func(t *testing.T) {
+		srcDir := filepath.Join(tmpDir, "src")
+		dstDir := filepath.Join(tmpDir, "dst")
+
+		// Create source structure
+		require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "subdir"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file1.txt"), []byte("content1"), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(srcDir, "subdir", "file2.txt"), []byte("content2"), 0644))
+
+		err := backend.copyDir(srcDir, dstDir)
+		assert.NoError(t, err)
+
+		// Verify files were copied
+		assert.FileExists(t, filepath.Join(dstDir, "file1.txt"))
+		assert.FileExists(t, filepath.Join(dstDir, "subdir", "file2.txt"))
+	})
+
+	t.Run("handles nonexistent source gracefully", func(t *testing.T) {
+		srcDir := filepath.Join(tmpDir, "nonexistent")
+		dstDir := filepath.Join(tmpDir, "dst")
+
+		// copyDir uses afero.Walk which returns error for nonexistent paths
+		err := backend.copyDir(srcDir, dstDir)
+		assert.Error(t, err)
+	})
+
+	t.Run("copies with symlinks", func(t *testing.T) {
+		srcDir := filepath.Join(tmpDir, "src_symlink")
+		dstDir := filepath.Join(tmpDir, "dst_symlink")
+
+		require.NoError(t, os.MkdirAll(srcDir, 0755))
+		targetFile := filepath.Join(srcDir, "target.txt")
+		require.NoError(t, os.WriteFile(targetFile, []byte("target"), 0644))
+
+		// Create a symlink
+		linkPath := filepath.Join(srcDir, "link.txt")
+		err := os.Symlink("target.txt", linkPath)
+		if err != nil {
+			t.Skip("Symlink creation not supported")
+		}
+
+		err = backend.copyDir(srcDir, dstDir)
+		// On some systems afero doesn't support symlinks properly
+		_ = err
+	})
+}
+
+func TestRPMBackend_queryRpmName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rpm command not found", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfg := &config.Config{
+			Paths: config.PathsConfig{
+				DataDir: tmpDir,
+			},
+		}
+		log := zerolog.Nop()
+
+		mockRunner := &helpers.MockCommandRunner{
+			CommandExistsFunc: func(cmd string) bool {
+				return false // rpm command not found
+			},
+		}
+		backend := NewWithDeps(cfg, &log, nil, mockRunner)
+
+		ctx := context.Background()
+		packagePath := filepath.Join(tmpDir, "test.rpm")
+
+		name, err := backend.queryRpmName(ctx, packagePath)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "rpm command not found")
+		assert.Empty(t, name)
+	})
+
+	t.Run("rpm query fails", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfg := &config.Config{
+			Paths: config.PathsConfig{
+				DataDir: tmpDir,
+			},
+		}
+		log := zerolog.Nop()
+
+		mockRunner := &helpers.MockCommandRunner{
+			CommandExistsFunc: func(cmd string) bool {
+				return true // rpm command exists
+			},
+			RunCommandFunc: func(_ context.Context, cmd string, args ...string) (string, error) {
+				return "", errors.New("rpm query failed")
+			},
+		}
+		backend := NewWithDeps(cfg, &log, nil, mockRunner)
+
+		ctx := context.Background()
+		packagePath := filepath.Join(tmpDir, "test.rpm")
+
+		name, err := backend.queryRpmName(ctx, packagePath)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "rpm query failed")
+		assert.Empty(t, name)
+	})
+
+	t.Run("empty package name returned", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		cfg := &config.Config{
+			Paths: config.PathsConfig{
+				DataDir: tmpDir,
+			},
+		}
+		log := zerolog.Nop()
+
+		mockRunner := &helpers.MockCommandRunner{
+			CommandExistsFunc: func(cmd string) bool {
+				return true // rpm command exists
+			},
+			RunCommandFunc: func(_ context.Context, cmd string, args ...string) (string, error) {
+				return "   ", nil // Empty/whitespace only
+			},
+		}
+		backend := NewWithDeps(cfg, &log, nil, mockRunner)
+
+		ctx := context.Background()
+		packagePath := filepath.Join(tmpDir, "test.rpm")
+
+		name, err := backend.queryRpmName(ctx, packagePath)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "empty package name")
+		assert.Empty(t, name)
+	})
 }

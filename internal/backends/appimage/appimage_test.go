@@ -536,10 +536,16 @@ Categories=Development;`
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
 		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
 
-		// Create .DirIcon
-		dirIconContent := []byte("fake icon content")
+		// Create icon file that .DirIcon will point to
+		iconDir := filepath.Join(squashfsRoot, "usr", "share", "icons", "hicolor", "256x256", "apps")
+		require.NoError(t, os.MkdirAll(iconDir, 0755))
+		iconFile := filepath.Join(iconDir, "testapp-icon.png")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
+		// Create .DirIcon as a symlink to the icon file
+		// .DirIcon is a symlink that points to the icon file relative to squashfs-root
 		dirIconFile := filepath.Join(squashfsRoot, ".DirIcon")
-		require.NoError(t, os.WriteFile(dirIconFile, dirIconContent, 0644))
+		require.NoError(t, os.Symlink("usr/share/icons/hicolor/256x256/apps/testapp-icon.png", dirIconFile))
 
 		// Create desktop file without Icon field
 		desktopFile := filepath.Join(squashfsRoot, "testapp.desktop")
@@ -548,7 +554,8 @@ Categories=Development;`
 		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
 		assert.NoError(t, err)
 		assert.NotNil(t, metadata)
-		assert.Equal(t, filepath.Join(squashfsRoot, ".DirIcon"), metadata.icon)
+		// Should extract icon name from .DirIcon symlink target
+		assert.Equal(t, "testapp-icon", metadata.icon)
 	})
 
 	t.Run("handles invalid desktop file gracefully", func(t *testing.T) {

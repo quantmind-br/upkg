@@ -947,3 +947,188 @@ func TestExtractAppImage(t *testing.T) {
 		_ = err // Accept any outcome
 	})
 }
+
+func TestIconExtraction(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("extracts icons from mock AppImage with embedded .desktop", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		// Create mock AppImage directory structure (simulating extracted squashfs-root)
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create icon directory structure
+		iconBaseDir := filepath.Join(squashfsRoot, "usr", "share", "icons", "hicolor")
+		icon256Dir := filepath.Join(iconBaseDir, "256x256", "apps")
+		iconScalableDir := filepath.Join(iconBaseDir, "scalable", "apps")
+		require.NoError(t, os.MkdirAll(icon256Dir, 0755))
+		require.NoError(t, os.MkdirAll(iconScalableDir, 0755))
+
+		// Create icon files
+		icon256Path := filepath.Join(icon256Dir, "myapp.png")
+		iconScalablePath := filepath.Join(iconScalableDir, "myapp.svg")
+		require.NoError(t, os.WriteFile(icon256Path, []byte("fake png icon"), 0644))
+		require.NoError(t, os.WriteFile(iconScalablePath, []byte("fake svg icon"), 0644))
+
+		// Create .DirIcon symlink (common in AppImages)
+		dirIconPath := filepath.Join(squashfsRoot, ".DirIcon")
+		require.NoError(t, os.Symlink("usr/share/icons/hicolor/256x256/apps/myapp.png", dirIconPath))
+
+		// Create embedded .desktop file with Icon field
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=MyApp
+Comment=My Application
+Exec=myapp
+Icon=myapp
+Categories=Utility;`
+		desktopFile := filepath.Join(squashfsRoot, "myapp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		// Parse metadata from the mock AppImage
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		require.NoError(t, err)
+		require.NotNil(t, metadata)
+
+		// Verify metadata was parsed correctly
+		assert.Equal(t, "myapp", metadata.appName, "appName should match desktop filename")
+		assert.Equal(t, "myapp", metadata.icon, "icon should match Icon field from .desktop")
+		assert.Equal(t, "My Application", metadata.comment)
+		assert.Equal(t, []string{"Utility"}, metadata.categories)
+		assert.Equal(t, desktopFile, metadata.desktopFile)
+
+		// Install icons
+		iconPaths, err := backend.installIcons(squashfsRoot, "myapp", metadata)
+		require.NoError(t, err)
+		require.NotEmpty(t, iconPaths, "should install at least one icon")
+
+		// Verify icons were installed to the correct locations
+		expectedIconsDir := filepath.Join(tmpDir, ".local", "share", "icons", "hicolor")
+
+		// Check that both sizes were installed
+		icon256Installed := false
+		iconScalableInstalled := false
+
+		for _, path := range iconPaths {
+			t.Logf("Installed icon: %s", path)
+			assert.FileExists(t, path, "installed icon file should exist")
+			assert.Contains(t, path, expectedIconsDir, "icon should be in hicolor theme")
+
+			if filepath.Contains(path, "256x256") {
+				icon256Installed = true
+				assert.True(t, filepath.Base(path) == "myapp.png" || filepath.Base(path) == "myapp.svg",
+					"icon filename should be myapp")
+			}
+			if filepath.Contains(path, "scalable") {
+				iconScalableInstalled = true
+			}
+		}
+
+		assert.True(t, icon256Installed, "256x256 icon should have been installed")
+		assert.True(t, iconScalableInstalled, "scalable icon should have been installed")
+	})
+
+	t.Run("handles AppImage without .desktop file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Mock home directory
+		origHomeDir := os.Getenv("HOME")
+		os.Setenv("HOME", tmpDir)
+		defer os.Setenv("HOME", origHomeDir)
+
+		// Create mock AppImage directory structure without .desktop file
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create icon
+		iconDir := filepath.Join(squashfsRoot, "usr", "share", "icons", "hicolor", "256x256", "apps")
+		require.NoError(t, os.MkdirAll(iconDir, 0755))
+		iconPath := filepath.Join(iconDir, "testapp.png")
+		require.NoError(t, os.WriteFile(iconPath, []byte("fake icon"), 0644))
+
+		// Create .DirIcon
+		dirIconPath := filepath.Join(squashfsRoot, ".DirIcon")
+		require.NoError(t, os.Symlink("usr/share/icons/hicolor/256x256/apps/testapp.png", dirIconPath))
+
+		// Parse metadata (should fall back to .DirIcon)
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		require.NoError(t, err)
+		require.NotNil(t, metadata)
+
+		// Verify icon was extracted from .DirIcon
+		assert.Equal(t, "testapp", metadata.icon, "should extract icon name from .DirIcon")
+
+		// Install icons
+		iconPaths, err := backend.installIcons(squashfsRoot, "testapp", metadata)
+		require.NoError(t, err)
+		require.NotEmpty(t, iconPaths, "should install icon even without .desktop file")
+	})
+
+	t.Run("prioritizes Icon field over .DirIcon", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create mock AppImage directory structure
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create icon files
+		iconDir := filepath.Join(squashfsRoot, "usr", "share", "icons", "hicolor", "256x256", "apps")
+		require.NoError(t, os.MkdirAll(iconDir, 0755))
+		dirIconPath := filepath.Join(iconDir, "diricon.png")
+		desktopIconPath := filepath.Join(iconDir, "desktopicon.png")
+		require.NoError(t, os.WriteFile(dirIconPath, []byte("dir icon"), 0644))
+		require.NoError(t, os.WriteFile(desktopIconPath, []byte("desktop icon"), 0644))
+
+		// Create .DirIcon symlink
+		dirIconSymlink := filepath.Join(squashfsRoot, ".DirIcon")
+		require.NoError(t, os.Symlink("usr/share/icons/hicolor/256x256/apps/diricon.png", dirIconSymlink))
+
+		// Create .desktop file with different Icon field
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Icon=desktopicon`
+		desktopFile := filepath.Join(squashfsRoot, "testapp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		// Parse metadata
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		require.NoError(t, err)
+
+		// Verify Icon field takes priority over .DirIcon
+		assert.Equal(t, "desktopicon", metadata.icon, "should use Icon field from .desktop, not .DirIcon")
+		assert.NotEqual(t, "diricon", metadata.icon)
+	})
+
+	t.Run("extracts icon name from full path in Icon field", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create mock AppImage directory structure
+		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
+		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
+
+		// Create .desktop file with full icon path
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Icon=/usr/share/icons/hicolor/256x256/apps/myapp.png`
+		desktopFile := filepath.Join(squashfsRoot, "testapp.desktop")
+		require.NoError(t, os.WriteFile(desktopFile, []byte(desktopContent), 0644))
+
+		// Parse metadata
+		metadata, err := backend.parseAppImageMetadata(squashfsRoot)
+		require.NoError(t, err)
+
+		// Verify full path is preserved in metadata.icon
+		assert.Equal(t, "/usr/share/icons/hicolor/256x256/apps/myapp.png", metadata.icon,
+			"should preserve full path from Icon field")
+	})
+}

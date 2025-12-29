@@ -568,12 +568,12 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 
 	entry.Exec += " %U"
 
-	// Set icon (use normalized name for theme compatibility)
-	if entry.Icon != "" && !filepath.IsAbs(entry.Icon) {
-		entry.Icon = binName
-	} else {
-		entry.Icon = binName
+	// Set icon (use icon name from embedded .desktop file if available, otherwise binName)
+	iconName := metadata.icon
+	if iconName == "" {
+		iconName = binName
 	}
+	entry.Icon = iconName
 
 	// Ensure categories
 	if len(entry.Categories) == 0 {

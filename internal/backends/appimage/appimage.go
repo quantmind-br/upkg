@@ -460,7 +460,7 @@ func (a *AppImageBackend) parseAppImageMetadata(squashfsRoot string) (*appImageM
 }
 
 // installIcons installs all icon files from the AppImage
-func (a *AppImageBackend) installIcons(squashfsRoot, binName string, _ *appImageMetadata) ([]string, error) {
+func (a *AppImageBackend) installIcons(squashfsRoot, binName string, metadata *appImageMetadata) ([]string, error) {
 	homeDir := a.Paths.HomeDir()
 	if homeDir == "" {
 		return nil, fmt.Errorf("failed to get home directory")
@@ -475,9 +475,15 @@ func (a *AppImageBackend) installIcons(squashfsRoot, binName string, _ *appImage
 		Int("count", len(discoveredIcons)).
 		Msg("discovered icons in AppImage")
 
+	// Use icon name from .desktop file if available, otherwise use binName
+	iconName := metadata.icon
+	if iconName == "" {
+		iconName = binName
+	}
+
 	// Install each icon
 	for _, iconFile := range discoveredIcons {
-		targetPath, err := icons.InstallIcon(iconFile, binName, homeDir)
+		targetPath, err := icons.InstallIcon(iconFile, iconName, homeDir)
 		if err != nil {
 			a.Log.Warn().
 				Err(err).

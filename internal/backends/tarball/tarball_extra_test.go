@@ -1132,3 +1132,200 @@ func TestTarballBackend_installIcons_EdgeCases(t *testing.T) {
 	})
 }
 
+func TestTarballBackend_extractIconsFromAsar(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DataDir: tmpDir,
+		},
+	}
+	backend := New(cfg, &logger)
+
+	t.Run("nonexistent asar file", func(t *testing.T) {
+		installDir := tmpDir
+		icons, err := backend.extractIconsFromAsar("/nonexistent/file.asar", installDir)
+		_ = icons
+		assert.Error(t, err)
+	})
+
+	t.Run("empty install directory", func(t *testing.T) {
+		installDir := ""
+		icons, err := backend.extractIconsFromAsar("fake.asar", installDir)
+		_ = icons
+		assert.Error(t, err)
+	})
+}
+
+func TestTarballBackend_extractArchive(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("unsupported archive type", func(t *testing.T) {
+		archivePath := filepath.Join(tmpDir, "test.unknown")
+		require.NoError(t, os.WriteFile(archivePath, []byte("fake"), 0644))
+
+		destDir := filepath.Join(tmpDir, "dest")
+		err := backend.extractArchive(archivePath, destDir, "unknown")
+		assert.Error(t, err)
+	})
+}
+
+func TestTarballBackend_createDesktopFile(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DataDir: tmpDir,
+		},
+		Desktop: config.DesktopConfig{
+			WaylandEnvVars: true,
+		},
+	}
+	backend := New(cfg, &logger)
+
+	installDir := tmpDir
+	appName := "TestApp"
+	normalizedName := "testapp"
+	execPath := "/opt/testapp/bin/testapp"
+
+	t.Run("with wayland env vars", func(t *testing.T) {
+		opts := core.InstallOptions{
+			SkipWaylandEnv: false,
+		}
+
+		desktopPath, err := backend.createDesktopFile(installDir, appName, normalizedName, execPath, opts)
+		_ = desktopPath
+		_ = err
+	})
+
+	t.Run("skip wayland env", func(t *testing.T) {
+		opts := core.InstallOptions{
+			SkipWaylandEnv: true,
+		}
+
+		desktopPath, err := backend.createDesktopFile(installDir, appName, normalizedName, execPath, opts)
+		_ = desktopPath
+		_ = err
+	})
+
+	t.Run("with custom env vars", func(t *testing.T) {
+		cfgCustom := &config.Config{
+			Paths: config.PathsConfig{
+				DataDir: tmpDir,
+			},
+			Desktop: config.DesktopConfig{
+				WaylandEnvVars: true,
+				CustomEnvVars:  []string{"CUSTOM_VAR=value"},
+			},
+		}
+		backendCustom := New(cfgCustom, &logger)
+
+		opts := core.InstallOptions{
+			SkipWaylandEnv: false,
+		}
+
+		desktopPath, err := backendCustom.createDesktopFile(installDir, appName, normalizedName, execPath, opts)
+		_ = desktopPath
+		_ = err
+	})
+}
+
+func TestTarballBackend_createWrapper(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DataDir: tmpDir,
+		},
+	}
+	backend := New(cfg, &logger)
+
+	binDir := filepath.Join(tmpDir, "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0755))
+	wrapperPath := filepath.Join(binDir, "testapp")
+	execPath := "/opt/testapp/bin/testapp"
+
+	err := backend.createWrapper(wrapperPath, execPath)
+	assert.NoError(t, err)
+}
+
+func TestTarballBackend_isElectronApp(t *testing.T) {
+	t.Run("is electron app", func(t *testing.T) {
+		t.Parallel()
+		logger := zerolog.New(io.Discard)
+		tmpDir := t.TempDir()
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		installDir := filepath.Join(tmpDir, "app", "bin")
+		require.NoError(t, os.MkdirAll(filepath.Join(installDir, "..", "resources"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(installDir, "..", "resources", "app.asar"), []byte("fake"), 0644))
+
+		isElectron := backend.isElectronApp(installDir)
+		assert.True(t, isElectron)
+	})
+
+	t.Run("is not electron app", func(t *testing.T) {
+		t.Parallel()
+		logger := zerolog.New(io.Discard)
+		tmpDir := t.TempDir()
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		installDir := filepath.Join(tmpDir, "app", "bin")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		isElectron := backend.isElectronApp(installDir)
+		assert.False(t, isElectron)
+	})
+
+	t.Run("directory without asar files", func(t *testing.T) {
+		t.Parallel()
+		logger := zerolog.New(io.Discard)
+		tmpDir := t.TempDir()
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		// Create a directory with no .asar files in it or its parent
+		installDir := filepath.Join(tmpDir, "app", "bin")
+		require.NoError(t, os.MkdirAll(installDir, 0755))
+
+		isElectron := backend.isElectronApp(installDir)
+		assert.False(t, isElectron)
+	})
+}
+
+func TestTarballBackend_copyFile(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	backend := New(cfg, &logger)
+
+	t.Run("successful copy", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		srcPath := filepath.Join(tmpDir, "source.txt")
+		require.NoError(t, os.WriteFile(srcPath, []byte("content"), 0644))
+
+		destPath := filepath.Join(tmpDir, "dest.txt")
+		err := backend.copyFile(srcPath, destPath)
+		assert.NoError(t, err)
+	})
+
+	t.Run("nonexistent source", func(t *testing.T) {
+		err := backend.copyFile("/nonexistent/file", "/tmp/dest")
+		assert.Error(t, err)
+	})
+}
+

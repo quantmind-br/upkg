@@ -912,12 +912,8 @@ func createMinimalTar() []byte {
 }
 
 func TestInstallIcons(t *testing.T) {
-	t.Parallel()
-	logger := zerolog.New(io.Discard)
-	cfg := &config.Config{}
-	backend := New(cfg, &logger)
-
 	t.Run("installs icons successfully", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -926,10 +922,11 @@ func TestInstallIcons(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		// Create backend with proper paths
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installedIcons, err := backend.installIcons(installDir, "test-app")
 		assert.NoError(t, err)
@@ -937,6 +934,7 @@ func TestInstallIcons(t *testing.T) {
 	})
 
 	t.Run("handles missing home directory", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -945,15 +943,11 @@ func TestInstallIcons(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock missing home directory by creating backend with empty home
-		paths := paths.NewResolverWithHome(cfg, "")
+		// Create backend with empty home directory
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
 		backendWithEmptyHome := New(cfg, &logger)
-		backendWithEmptyHome.Paths = paths
-
-		// Mock missing home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Unsetenv("HOME")
-		defer os.Setenv("HOME", origHomeDir)
+		backendWithEmptyHome.Paths = paths.NewResolverWithHome(cfg, "")
 
 		installedIcons, err := backendWithEmptyHome.installIcons(installDir, "test-app")
 		assert.Error(t, err)
@@ -962,6 +956,7 @@ func TestInstallIcons(t *testing.T) {
 	})
 
 	t.Run("handles icon installation failures gracefully", func(t *testing.T) {
+		t.Parallel()
 		tmpDir := t.TempDir()
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -970,10 +965,11 @@ func TestInstallIcons(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		// Create backend with proper paths
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Test should complete without panic even if icon installation fails
 		installedIcons, err := backend.installIcons(installDir, "test-app")

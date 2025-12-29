@@ -985,3 +985,234 @@ func TestRunUninstallAll_EmptyDatabase(t *testing.T) {
 	// Should succeed (no packages to uninstall)
 	assert.NoError(t, err)
 }
+
+func TestExecuteUninstall_DryRunMode(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile:  dbPath,
+			DataDir: tmpDir,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	// Create multiple packages
+	installs := []*db.Install{
+		{
+			InstallID:    "test-id-1",
+			PackageType:  "appimage",
+			Name:         "TestApp1",
+			Version:      "1.0.0",
+			InstallDate:  time.Now(),
+			InstallPath:  filepath.Join(tmpDir, "app1"),
+			Metadata:     map[string]interface{}{},
+		},
+		{
+			InstallID:    "test-id-2",
+			PackageType:  "tarball",
+			Name:         "TestApp2",
+			Version:      "2.0.0",
+			InstallDate:  time.Now(),
+			InstallPath:  filepath.Join(tmpDir, "app2"),
+			Metadata:     map[string]interface{}{},
+		},
+	}
+
+	for _, install := range installs {
+		err = database.Create(ctx, install)
+		require.NoError(t, err)
+	}
+	database.Close()
+
+	log := zerolog.New(io.Discard)
+	cmd := NewUninstallCmd(cfg, &log)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	// Test with --all --dry-run --yes
+	cmd.SetArgs([]string{"--all", "--dry-run", "--yes"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+
+	// Verify packages still in database
+	database, err = db.New(ctx, dbPath)
+	require.NoError(t, err)
+	defer func() { _ = database.Close() }()
+
+	for _, install := range installs {
+		record, err := database.Get(ctx, install.InstallID)
+		assert.NoError(t, err)
+		assert.NotNil(t, record)
+	}
+}
+
+func TestExecuteUninstall_WithMultiplePackages(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile:  dbPath,
+			DataDir: tmpDir,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	// Create packages with install paths
+	installs := []*db.Install{
+		{
+			InstallID:    "multi-1",
+			PackageType:  "appimage",
+			Name:         "MultiApp1",
+			Version:      "1.0",
+			InstallDate:  time.Now(),
+			InstallPath:  filepath.Join(tmpDir, "multi1"),
+			Metadata:     map[string]interface{}{},
+		},
+		{
+			InstallID:    "multi-2",
+			PackageType:  "tarball",
+			Name:         "MultiApp2",
+			Version:      "2.0",
+			InstallDate:  time.Now(),
+			InstallPath:  filepath.Join(tmpDir, "multi2"),
+			Metadata:     map[string]interface{}{},
+		},
+		{
+			InstallID:    "multi-3",
+			PackageType:  "binary",
+			Name:         "MultiApp3",
+			Version:      "3.0",
+			InstallDate:  time.Now(),
+			InstallPath:  filepath.Join(tmpDir, "multi3"),
+			Metadata:     map[string]interface{}{},
+		},
+	}
+
+	for _, install := range installs {
+		// Create install directories
+		require.NoError(t, os.MkdirAll(install.InstallPath, 0755))
+		err = database.Create(ctx, install)
+		require.NoError(t, err)
+	}
+	database.Close()
+
+	log := zerolog.New(io.Discard)
+	cmd := NewUninstallCmd(cfg, &log)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	// Test dry-run with multiple packages
+	cmd.SetArgs([]string{"--all", "--dry-run", "--yes"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestExecuteUninstall_WithMetadata(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile:  dbPath,
+			DataDir: tmpDir,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	// Create package with rich metadata
+	appDir := filepath.Join(tmpDir, "metaapp")
+	require.NoError(t, os.MkdirAll(appDir, 0755))
+
+	testInstall := &db.Install{
+		InstallID:    "meta-test",
+		PackageType:  "tarball",
+		Name:         "MetaApp",
+		Version:      "1.0.0",
+		InstallDate:  time.Now(),
+		InstallPath:  appDir,
+		DesktopFile:  filepath.Join(tmpDir, "metaapp.desktop"),
+		Metadata: map[string]interface{}{
+			"icon_files":     []string{"/path/to/icon1.png", "/path/to/icon2.svg"},
+			"wrapper_script": "/home/user/.local/bin/metaapp",
+			"desktop_files":  []string{"/path/to/extra.desktop"},
+		},
+	}
+
+	err = database.Create(ctx, testInstall)
+	require.NoError(t, err)
+	database.Close()
+
+	log := zerolog.New(io.Discard)
+	cmd := NewUninstallCmd(cfg, &log)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	// Test with dry-run to show metadata details
+	cmd.SetArgs([]string{"--dry-run", "--yes", "MetaApp"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}
+
+func TestExecuteUninstall_EmptyInstallPath(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile:  dbPath,
+			DataDir: tmpDir,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+
+	// Create package without install path (edge case)
+	testInstall := &db.Install{
+		InstallID:   "no-path",
+		PackageType: "binary",
+		Name:        "NoPathApp",
+		Version:     "1.0",
+		InstallDate: time.Now(),
+		InstallPath: "", // Empty path
+		Metadata:    map[string]interface{}{},
+	}
+
+	err = database.Create(ctx, testInstall)
+	require.NoError(t, err)
+	database.Close()
+
+	log := zerolog.New(io.Discard)
+	cmd := NewUninstallCmd(cfg, &log)
+
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	cmd.SetArgs([]string{"--dry-run", "--yes", "NoPathApp"})
+	err = cmd.Execute()
+	assert.NoError(t, err)
+}

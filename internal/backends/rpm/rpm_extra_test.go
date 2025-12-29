@@ -119,6 +119,7 @@ func TestRPMBackend_Detect(t *testing.T) {
 }
 
 func TestRPMBackend_createDesktopFile_WithExistingDesktopFile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -153,11 +154,12 @@ Icon=testapp
 	opts := core.InstallOptions{}
 
 	resultPath, err := backend.createDesktopFile(installDir, normalizedName, wrapperPath, opts)
-	_ = resultPath
-	_ = err
+	assert.NoError(t, err)
+	assert.NotEmpty(t, resultPath)
 }
 
 func TestRPMBackend_createDesktopFile_WithWaylandEnvVars(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -182,11 +184,12 @@ func TestRPMBackend_createDesktopFile_WithWaylandEnvVars(t *testing.T) {
 	}
 
 	resultPath, err := backend.createDesktopFile(installDir, normalizedName, wrapperPath, opts)
-	_ = resultPath
-	_ = err
+	assert.NoError(t, err)
+	assert.NotEmpty(t, resultPath)
 }
 
 func TestRPMBackend_createDesktopFile_WithCustomEnvVars(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -212,11 +215,45 @@ func TestRPMBackend_createDesktopFile_WithCustomEnvVars(t *testing.T) {
 	}
 
 	resultPath, err := backend.createDesktopFile(installDir, normalizedName, wrapperPath, opts)
-	_ = resultPath
-	_ = err
+	assert.NoError(t, err)
+	assert.NotEmpty(t, resultPath)
+}
+
+func TestRPMBackend_createDesktopFile_WithInvalidCustomEnvVars(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DataDir: tmpDir,
+			DBFile:  filepath.Join(tmpDir, "test.db"),
+		},
+		Desktop: config.DesktopConfig{
+			WaylandEnvVars: true,
+			CustomEnvVars:  []string{"INVALID_VAR_{{}}=value"}, // Invalid template
+		},
+	}
+
+	log := zerolog.Nop()
+	backend := New(cfg, &log)
+
+	installDir := tmpDir
+	normalizedName := "testapp"
+	wrapperPath := filepath.Join(tmpDir, "testapp")
+	require.NoError(t, os.WriteFile(wrapperPath, []byte("#!/bin/sh\necho test"), 0755))
+
+	opts := core.InstallOptions{
+		SkipWaylandEnv: false,
+	}
+
+	resultPath, err := backend.createDesktopFile(installDir, normalizedName, wrapperPath, opts)
+	// Should fallback to default injection and not error
+	assert.NoError(t, err)
+	assert.NotEmpty(t, resultPath)
 }
 
 func TestRPMBackend_createDesktopFile_SkipWaylandEnv(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -241,8 +278,8 @@ func TestRPMBackend_createDesktopFile_SkipWaylandEnv(t *testing.T) {
 	}
 
 	resultPath, err := backend.createDesktopFile(installDir, normalizedName, wrapperPath, opts)
-	_ = resultPath
-	_ = err
+	assert.NoError(t, err)
+	assert.NotEmpty(t, resultPath)
 }
 
 func TestRPMBackend_uninstallExtracted_FullRemoval(t *testing.T) {

@@ -25,10 +25,30 @@ import (
 // (like 4096x4096) will not be found by the theme engine.
 var standardSizes = []int{16, 22, 24, 32, 48, 64, 128, 256, 512}
 
+// Icon file extensions
+const (
+	extPNG = ".png"
+	extSVG = ".svg"
+	extXPM = ".xpm"
+)
+
 // Manager handles icon operations
 type Manager struct {
 	fs      afero.Fs
 	iconDir string
+}
+
+// skipDirs contains directory names that should be skipped during icon discovery
+// These typically contain internal resources, not app icons
+var skipDirs = []string{
+	"node_modules",
+	".git",
+	"out",
+	"dist",
+	"build",
+	"vendor",
+	"__pycache__",
+	"locales",
 }
 
 // NewManager creates a new icon manager
@@ -37,6 +57,35 @@ func NewManager(fs afero.Fs, iconDir string) *Manager {
 		fs:      fs,
 		iconDir: iconDir,
 	}
+}
+
+// isToolbarOrInterfaceIcon checks if a filename looks like a toolbar or interface icon
+// rather than an application icon
+func isToolbarOrInterfaceIcon(baseName string) bool {
+	// Common suffixes/patterns for toolbar and interface icons
+	toolbarPatterns := []string{
+		"-tb.", "_tb.",
+		"-dark.", "-light.",
+		"-hc.",
+		"status-",
+		"stepover", "stepinto", "stepout",
+		"continue-", "pause-", "stop-", "restart-",
+		"run-with-", "debug-",
+		"back-tb", "forward-tb",
+		"preview-",
+		"refresh-",
+		"connect.", "disconnect.",
+		"open-file.", "configure.",
+		"folder-", "file-", "document-",
+	}
+
+	for _, pattern := range toolbarPatterns {
+		if strings.Contains(baseName, pattern) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // DiscoverIcons finds icons in a directory
@@ -50,6 +99,12 @@ func (m *Manager) DiscoverIcons(sourceDir string) ([]core.IconFile, error) {
 		}
 
 		if info.IsDir() {
+			dirName := info.Name()
+			for _, skip := range skipDirs {
+				if dirName == skip {
+					return filepath.SkipDir
+				}
+			}
 			return nil
 		}
 
@@ -62,7 +117,25 @@ func (m *Manager) DiscoverIcons(sourceDir string) ([]core.IconFile, error) {
 		ext := strings.ToLower(filepath.Ext(path))
 		// Note: .ico files are skipped because Windows ICO format is not supported
 		// by Linux desktop environments in the hicolor icon theme
-		if ext == ".png" || ext == ".svg" || ext == ".xpm" {
+		if ext == extPNG || ext == extSVG || ext == extXPM {
+			// Skip toolbar/interface icons based on filename patterns
+			baseName := strings.ToLower(filepath.Base(path))
+			if isToolbarOrInterfaceIcon(baseName) {
+				return nil
+			}
+
+			// Skip icons that don't have a reasonable aspect ratio (should be roughly square)
+			if ext == extPNG {
+				if !m.isValidIconAspectRatio(path) {
+					return nil
+				}
+			}
+			if ext == extSVG {
+				if !m.isValidSVGAspectRatio(path) {
+					return nil
+				}
+			}
+
 			size := DetectIconSize(path)
 			icons = append(icons, core.IconFile{
 				Path: path,
@@ -79,6 +152,109 @@ func (m *Manager) DiscoverIcons(sourceDir string) ([]core.IconFile, error) {
 	}
 
 	return icons, nil
+}
+
+// isValidIconAspectRatio checks if an image has a roughly square aspect ratio
+// Icons should have an aspect ratio close to 1:1 (tolerance of 2:1)
+func (m *Manager) isValidIconAspectRatio(imagePath string) bool {
+	file, err := m.fs.Open(imagePath)
+	if err != nil {
+		return true // Assume valid if we can't read
+	}
+	defer file.Close()
+
+	config, _, err := image.DecodeConfig(file)
+	if err != nil {
+		return true // Assume valid if we can't decode
+	}
+
+	// Calculate aspect ratio
+	width := float64(config.Width)
+	height := float64(config.Height)
+	if width == 0 || height == 0 {
+		return false
+	}
+
+	ratio := width / height
+	if height > width {
+		ratio = height / width
+	}
+
+	// Icons should have aspect ratio close to 1:1
+	// Allow up to 1.3:1 ratio to filter out rectangular images
+	return ratio <= 1.3
+}
+
+// isValidSVGAspectRatio checks if an SVG has a roughly square aspect ratio
+// by parsing its viewBox or width/height attributes
+func (m *Manager) isValidSVGAspectRatio(svgPath string) bool {
+	content, err := afero.ReadFile(m.fs, svgPath)
+	if err != nil {
+		return true // Assume valid if we can't read
+	}
+
+	svgContent := string(content)
+
+	// Try to extract viewBox dimensions first
+	if width, height, ok := extractSVGViewBox(svgContent); ok {
+		return isValidRatio(width, height)
+	}
+
+	// Fallback: try to extract width/height attributes
+	if width, height, ok := extractSVGDimensions(svgContent); ok {
+		return isValidRatio(width, height)
+	}
+
+	// If we can't determine aspect ratio, assume it's valid
+	return true
+}
+
+// extractSVGViewBox extracts width and height from SVG viewBox attribute
+func extractSVGViewBox(svgContent string) (float64, float64, bool) {
+	viewBoxRe := regexp.MustCompile(`viewBox=["']([^"']+)["']`)
+	matches := viewBoxRe.FindStringSubmatch(svgContent)
+	if len(matches) < 2 {
+		return 0, 0, false
+	}
+	parts := strings.Fields(matches[1])
+	if len(parts) < 4 {
+		return 0, 0, false
+	}
+	width, errW := strconv.ParseFloat(parts[2], 64)
+	height, errH := strconv.ParseFloat(parts[3], 64)
+	if errW != nil || errH != nil || width <= 0 || height <= 0 {
+		return 0, 0, false
+	}
+	return width, height, true
+}
+
+// extractSVGDimensions extracts width and height from SVG width/height attributes
+func extractSVGDimensions(svgContent string) (float64, float64, bool) {
+	widthRe := regexp.MustCompile(`\bwidth=["'](\d+(?:\.\d+)?)`)
+	heightRe := regexp.MustCompile(`\bheight=["'](\d+(?:\.\d+)?)`)
+
+	widthMatch := widthRe.FindStringSubmatch(svgContent)
+	heightMatch := heightRe.FindStringSubmatch(svgContent)
+
+	if len(widthMatch) < 2 || len(heightMatch) < 2 {
+		return 0, 0, false
+	}
+
+	width, errW := strconv.ParseFloat(widthMatch[1], 64)
+	height, errH := strconv.ParseFloat(heightMatch[1], 64)
+	if errW != nil || errH != nil || width <= 0 || height <= 0 {
+		return 0, 0, false
+	}
+	return width, height, true
+}
+
+// isValidRatio checks if dimensions have a roughly square aspect ratio
+func isValidRatio(width, height float64) bool {
+	ratio := width / height
+	if height > width {
+		ratio = height / width
+	}
+	return ratio <= 1.3
 }
 
 // DetectIconSize detects icon size from path or filename

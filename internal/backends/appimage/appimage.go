@@ -438,20 +438,22 @@ func (a *AppImageBackend) parseAppImageMetadata(squashfsRoot string) (*appImageM
 	// Find .DirIcon (only use as fallback if no icon in .desktop file)
 	if metadata.icon == "" {
 		dirIconPath := filepath.Join(squashfsRoot, ".DirIcon")
-		if statErr := a.Fs.Stat(dirIconPath); statErr == nil {
+		if _, statErr := a.Fs.Stat(dirIconPath); statErr == nil {
 			// .DirIcon is a symlink to the actual icon file
 			// We need to read the symlink target to extract the icon name
 			// .DirIcon typically points to: "usr/share/icons/hicolor/4096x4096/apps/auto-claude-ui.png"
 			// We need just the base name without extension: "auto-claude-ui"
-			target, readlinkErr := a.Fs.Readlink(dirIconPath)
-			if readlinkErr == nil {
-				iconName := filepath.Base(target)
-				// Remove file extension if present
-				ext := filepath.Ext(iconName)
-				if ext != "" {
-					iconName = strings.TrimSuffix(iconName, ext)
+			if lr, ok := a.Fs.(afero.LinkReader); ok {
+				target, readlinkErr := lr.ReadlinkIfPossible(dirIconPath)
+				if readlinkErr == nil {
+					iconName := filepath.Base(target)
+					// Remove file extension if present
+					ext := filepath.Ext(iconName)
+					if ext != "" {
+						iconName = strings.TrimSuffix(iconName, ext)
+					}
+					metadata.icon = iconName
 				}
-				metadata.icon = iconName
 			}
 		}
 	}

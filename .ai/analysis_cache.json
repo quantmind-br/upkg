@@ -1,0 +1,3534 @@
+{
+  "version": 1,
+  "last_analysis": "2025-12-27T21:30:51.422018337-03:00",
+  "git_commit": "63ddb40",
+  "files": {
+    ".auto-claude-status": {
+      "hash": "c8103f83be0c1a584cc14566c39a88396bcf707f86712411733ead620fb2f278",
+      "modified": "2025-12-21T17:27:36.205226276-03:00",
+      "size": 447
+    },
+    ".auto-claude/.env": {
+      "hash": "c4e8226f643cbaf3cf89f9cf4a5f1d50e8a07f9c89b6e0f35f41665cab45e9dd",
+      "modified": "2025-12-21T15:40:02.764172439-03:00",
+      "size": 2723
+    },
+    ".auto-claude/.gitignore_checked": {
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "modified": "2025-12-21T15:41:25.033913794-03:00",
+      "size": 0
+    },
+    ".auto-claude/file_evolution.json": {
+      "hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "modified": "2025-12-21T17:27:36.198491111-03:00",
+      "size": 2
+    },
+    ".auto-claude/ideation/.gitkeep": {
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "modified": "2025-12-21T15:39:47.841856665-03:00",
+      "size": 0
+    },
+    ".auto-claude/ideation/graph_hints.json": {
+      "hash": "116b6edd08213305c1dee6331b0d2764d3e7310507a8de92107949dcc91f6972",
+      "modified": "2025-12-27T07:14:11.13548062-03:00",
+      "size": 130
+    },
+    ".auto-claude/ideation/ideation_context.json": {
+      "hash": "d8bbb4030aa97e5da0f971f15273fd6e310b2889a5565fadaae5a05582562e33",
+      "modified": "2025-12-27T07:14:11.135284688-03:00",
+      "size": 471
+    },
+    ".auto-claude/ideation/project_index.json": {
+      "hash": "b7f15f20559674afaa38b95e0d9b33e559d77cb150869dcfca48543433694ae5",
+      "modified": "2025-12-27T07:14:11.135042298-03:00",
+      "size": 1705
+    },
+    ".auto-claude/insights/.gitkeep": {
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "modified": "2025-12-21T15:39:47.841856665-03:00",
+      "size": 0
+    },
+    ".auto-claude/project_index.json": {
+      "hash": "b7f15f20559674afaa38b95e0d9b33e559d77cb150869dcfca48543433694ae5",
+      "modified": "2025-12-22T18:31:20.554981022-03:00",
+      "size": 1705
+    },
+    ".auto-claude/roadmap/.gitkeep": {
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "modified": "2025-12-21T15:39:47.841856665-03:00",
+      "size": 0
+    },
+    ".auto-claude/specs/.gitkeep": {
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "modified": "2025-12-21T15:39:47.841856665-03:00",
+      "size": 0
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/build-progress.txt": {
+      "hash": "7e70ee66a00d12f7a18e8549e55bfa4cb76fe6360b5554cbad26999d77118bb8",
+      "modified": "2025-12-21T15:50:01.812019732-03:00",
+      "size": 2666
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/complexity_assessment.json": {
+      "hash": "415fcf71635260dca44494d270cab11871490a77d2a269df19a0fac36343cb89",
+      "modified": "2025-12-21T15:42:44.662599836-03:00",
+      "size": 3635
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/context.json": {
+      "hash": "9ff72b6333f6000a810a9f3b730028a0f3d5192fc6e2a03c12b64d341d35727d",
+      "modified": "2025-12-21T15:47:47.773258935-03:00",
+      "size": 1572
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/implementation_plan.json": {
+      "hash": "d743e95973f7e1d8b19ee8753d975aeebb0642c0ef9f9fa99e00691a9900bed2",
+      "modified": "2025-12-21T17:27:37.732061714-03:00",
+      "size": 27025
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/init.sh": {
+      "hash": "6b6e4de5723dd7377e97cfffd82d2c54d1672cbc5d67c76b55752ade3c751205",
+      "modified": "2025-12-21T15:50:01.809019667-03:00",
+      "size": 3752
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/project_index.json": {
+      "hash": "8a6163bd2fc7f2d9c4f8f367e58f542467f669d2737c41b30dc81aed15b27910",
+      "modified": "2025-12-21T15:48:07.08735693-03:00",
+      "size": 1086
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/requirements.json": {
+      "hash": "35ba127e6220048c2baec0d0f096481886a1f55eb58e74234ad1d7b0938cddad",
+      "modified": "2025-12-21T15:41:21.300834763-03:00",
+      "size": 274
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/review_state.json": {
+      "hash": "ac6c8c21f20767662dd96bcdbceab7b7b866fc4ab12cf87721e7a3c0ab878251",
+      "modified": "2025-12-21T15:51:16.448324398-03:00",
+      "size": 184
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/spec.md": {
+      "hash": "28ce5600fda594148b09ffa1bbfe1c518d407895dd13c5e396d1ca2289df11bf",
+      "modified": "2025-12-21T15:45:24.167994341-03:00",
+      "size": 12444
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/task_logs.json": {
+      "hash": "8e067f5c1b20c4c1e5e43469a8830b0b4b118980cc70e0b138942a96353c4e38",
+      "modified": "2025-12-21T15:51:16.447479006-03:00",
+      "size": 129472
+    },
+    ".auto-claude/specs/001-debug-icon-appimage/task_metadata.json": {
+      "hash": "f581a55b5a6c4dbb9b2bb97ab241f6782d790f8a2175306e61df67b307a66a1f",
+      "modified": "2025-12-22T18:27:51.61111573-03:00",
+      "size": 363
+    },
+    ".claude/agents/codebase-analyst.md": {
+      "hash": "6dabc573de1a9c7265a9b1c5226c889b0f76497e134df19f9d695830255b26f6",
+      "modified": "2025-11-04T21:04:07.030308919-03:00",
+      "size": 3411
+    },
+    ".claude/agents/library-researcher.md": {
+      "hash": "0b10ef636739c4d56a2053cfe3a3b11eef44481446a4119c63fb6dd1a010d71d",
+      "modified": "2025-11-04T21:04:07.030308919-03:00",
+      "size": 3004
+    },
+    ".claude/commands/code-quality/refactor-simple.md": {
+      "hash": "0863b01be1491d8d7968fab537c078e6ccc083989d507b7b27e7bce80b91d3d9",
+      "modified": "2025-11-04T21:04:07.030515063-03:00",
+      "size": 849
+    },
+    ".claude/commands/code-quality/review-general.md": {
+      "hash": "23cae56f3ab1659a83fa7e250a1d0a21e9d52417c9971a2a2f60fd6519ffa088",
+      "modified": "2025-11-04T21:04:07.030515063-03:00",
+      "size": 2444
+    },
+    ".claude/commands/code-quality/review-staged-unstaged.md": {
+      "hash": "09e64cdabddd915eb1bb1809d81ea7922db1312fbcd3cb53123933fc6a1f4634",
+      "modified": "2025-11-04T21:04:07.030515063-03:00",
+      "size": 2242
+    },
+    ".claude/commands/development/create-pr.md": {
+      "hash": "d17c7ebf2353ac6574d9b9bb3c7135c4571d11e61790cbaf499256bba6abe885",
+      "modified": "2025-11-04T21:04:07.030825536-03:00",
+      "size": 1901
+    },
+    ".claude/commands/development/debug-RCA.md": {
+      "hash": "5e23896bfbe0a4fe177a87310246d385808cf80a3723fb309b5704e345823900",
+      "modified": "2025-11-04T21:04:07.030825536-03:00",
+      "size": 2554
+    },
+    ".claude/commands/development/new-dev-branch.md": {
+      "hash": "94155250693c899a7bad88ee668b2c14d123ff88538b497f8a2a8d5e04502ea5",
+      "modified": "2025-11-04T21:04:07.030825536-03:00",
+      "size": 211
+    },
+    ".claude/commands/development/onboarding.md": {
+      "hash": "a7748a846e78bae11a1fa2fd8dba7a2daa3c2f1bb3392d1a4a6b83cbdefc0b74",
+      "modified": "2025-11-04T21:04:07.030825536-03:00",
+      "size": 3070
+    },
+    ".claude/commands/development/prime-core.md": {
+      "hash": "eef92885dd4626393f21a8ce2e8c93f042aef3c3aad44c89814bb6fe0ea06754",
+      "modified": "2025-11-04T21:04:07.030825536-03:00",
+      "size": 614
+    },
+    ".claude/commands/development/smart-commit.md": {
+      "hash": "23c7e9c074f19f98fa640c0fe532481e4c9f07501bc6c10a09a3180760d25388",
+      "modified": "2025-11-04T21:04:07.030825536-03:00",
+      "size": 1193
+    },
+    ".claude/commands/git-operations/conflict-resolver-general.md": {
+      "hash": "70e0f1614cbae12d91e61c5526210b1d27872c45c4fc31d30b6c4bd36e11b0b9",
+      "modified": "2025-11-04T21:04:07.031231842-03:00",
+      "size": 1904
+    },
+    ".claude/commands/git-operations/conflict-resolver-specific.md": {
+      "hash": "ed078ede81079d9df92dec900c72f7c81ba07b897372d266ecd13ac61a85f5b7",
+      "modified": "2025-11-04T21:04:07.031231842-03:00",
+      "size": 1247
+    },
+    ".claude/commands/git-operations/smart-resolver.md": {
+      "hash": "739ee4c5d83c900ea078c2d2e3c7ce33551fcdaaba341b4010740dade497e723",
+      "modified": "2025-11-04T21:04:07.031231842-03:00",
+      "size": 1915
+    },
+    ".claude/commands/prp-commands/api-contract-define.md": {
+      "hash": "35760ecd2e5f5421baf233b49e0ef8deb5cb45b6b0fc8337bfabe4a864fe2ce6",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 3032
+    },
+    ".claude/commands/prp-commands/prp-base-create.md": {
+      "hash": "db884f675b93e8cafb2cdc8d447bb2a6fdafb01f32a28055706bcba6190a82bb",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 4777
+    },
+    ".claude/commands/prp-commands/prp-base-execute.md": {
+      "hash": "55ffb5838b890fac8b9620b56fb68e3ae18d1bc9c24d9be8d3d31bbf031be127",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 2529
+    },
+    ".claude/commands/prp-commands/prp-planning-create.md": {
+      "hash": "689bf3ae2606c8afb70cf410dcb951587c02b88650cef580a3071d36a65ffac4",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 3109
+    },
+    ".claude/commands/prp-commands/prp-poc-create-parallel.md": {
+      "hash": "c375832a2351e193236107fd6abe8e23942cb5e3bbfe15c01f8497e993e831d8",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 10950
+    },
+    ".claude/commands/prp-commands/prp-poc-execute-parallel.md": {
+      "hash": "1642b0ca38be504fb96d8d103c8098b6bcc3155ac4be86136fa36986e03313aa",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 12893
+    },
+    ".claude/commands/prp-commands/prp-spec-create.md": {
+      "hash": "32683bd279bc2d5326586da2e7776704dd66b2d9fdd7c8d2dee28767cb1b1cdc",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 2790
+    },
+    ".claude/commands/prp-commands/prp-spec-execute.md": {
+      "hash": "2f6ea6010acb12fc82ec9ad7c0595c45c069e29f158ba207d736b40a437bd96e",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 847
+    },
+    ".claude/commands/prp-commands/prp-story-create.md": {
+      "hash": "859ce5beace8765b9a2d54410bb962d43fded24a77cd9d0bc726f1d78096e2c9",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 5372
+    },
+    ".claude/commands/prp-commands/prp-story-execute.md": {
+      "hash": "d6f8008bca9d31c323f730000fc85ae2784fe853956c309ea4977f2ac68c2f91",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 2302
+    },
+    ".claude/commands/prp-commands/prp-task-create.md": {
+      "hash": "56de31c187497e8e1d5e0b1cff5069df1fef08c483106ff0b36a42cb7a4868ca",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 2172
+    },
+    ".claude/commands/prp-commands/prp-task-execute.md": {
+      "hash": "abb35b791497bd27c8ad34079fb2101bc6ff32c3305ff92119668a19c5ef5a68",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 426
+    },
+    ".claude/commands/prp-commands/prp-ts-create.md": {
+      "hash": "e9de3564956648e3d9c9f947a73f5ebf510e858991cac35a9a2791b82d26d684",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 6443
+    },
+    ".claude/commands/prp-commands/prp-ts-execute.md": {
+      "hash": "72391be95f8676d11f53d4e2b29cfef98d95284e0bf201cd61d00b21760a464c",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 3710
+    },
+    ".claude/commands/prp-commands/task-list-init.md": {
+      "hash": "4676d8d3d7e347173500b4a2c63a61d62b50f3a2e3d309f0cf59beb643041f40",
+      "modified": "2025-11-04T21:04:07.031490167-03:00",
+      "size": 1064
+    },
+    ".claude/commands/rapid-development/experimental/create-base-prp-parallel.md": {
+      "hash": "b214384b0e9ff4be54df2e4276c2cedf83aab72c565450b6fce216d49ad11925",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 8069
+    },
+    ".claude/commands/rapid-development/experimental/create-planning-parallel.md": {
+      "hash": "c697b3b10b7e78c482865bc786a299562ce150b8e44b828fc64b80052be0fdeb",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 6708
+    },
+    ".claude/commands/rapid-development/experimental/hackathon-prp-parallel.md": {
+      "hash": "5e026c41416f753c768b4e07516da6f48f62ca21665a1488557492c17196a58a",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 11066
+    },
+    ".claude/commands/rapid-development/experimental/hackathon-research.md": {
+      "hash": "f18cf3ad8843d08776b2b68d1c5c47eb8ce0f002f0bc22a6196c507df0cd3ffb",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 34629
+    },
+    ".claude/commands/rapid-development/experimental/parallel-prp-creation.md": {
+      "hash": "367ad845aabaef49fa12433e843abc7aa2436c1437a24ffd84d5eb9a16002fdc",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 18017
+    },
+    ".claude/commands/rapid-development/experimental/prp-analyze-run.md": {
+      "hash": "da8b7f373153ab2e7e3bd882d85141904263bd1b31b425e6b375e7feb2d4e949",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 21628
+    },
+    ".claude/commands/rapid-development/experimental/prp-validate.md": {
+      "hash": "7908145a2be8b99854f598be6ef34357fe3a2f5f654e9c07c218d7730b8a1608",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 4901
+    },
+    ".claude/commands/rapid-development/experimental/user-story-rapid.md": {
+      "hash": "83257cf7ed86e5b30d60c1538834976759652fb31b141f1638b74306721a0b5a",
+      "modified": "2025-11-04T21:04:07.032460997-03:00",
+      "size": 2907
+    },
+    ".claude/commands/typescript/TS-create-base-prp.md": {
+      "hash": "299feebb80d0c33eb725239a31aee7b9ba73e2f0f0121ad21365335be2ba197a",
+      "modified": "2025-11-04T21:04:07.033007236-03:00",
+      "size": 4031
+    },
+    ".claude/commands/typescript/TS-execute-base-prp.md": {
+      "hash": "44bb5cb6cb79beb4e02b9fc3fe165ae8e7876660db0f234e7a0d9b7092579941",
+      "modified": "2025-11-04T21:04:07.033007236-03:00",
+      "size": 1984
+    },
+    ".claude/commands/typescript/TS-review-general.md": {
+      "hash": "39efe1127e8588e2ed0e955ead3826c3a36224edd5bc61b663c7ccfcfa682a1b",
+      "modified": "2025-11-04T21:04:07.033007236-03:00",
+      "size": 6814
+    },
+    ".claude/commands/typescript/TS-review-staged-unstaged.md": {
+      "hash": "7a7f21ebd658f65b184f9e6d614c92a3bec2f719d5495b7a7cd07a4fff940bf6",
+      "modified": "2025-11-04T21:04:07.033007236-03:00",
+      "size": 4046
+    },
+    ".claude_settings.json": {
+      "hash": "3dd3d41b3918d53038248993df65c579987beba5e7bf9612c34701a5f607317a",
+      "modified": "2025-12-27T07:14:11.13863919-03:00",
+      "size": 582
+    },
+    ".cursor/rules/cli-conventions.mdc": {
+      "hash": "60badaf340c7eff3179173c2f68ad79f16795cd77469fb6dac5787951ed3152b",
+      "modified": "2025-12-11T18:31:18.066739425-03:00",
+      "size": 2432
+    },
+    ".cursor/rules/code-patterns.mdc": {
+      "hash": "ea3ee4dcf90f91e088ec66d86af4dc4aad85670599477c43aa1d2bb5a26ad5c1",
+      "modified": "2025-12-11T18:31:18.066725519-03:00",
+      "size": 2867
+    },
+    ".cursor/rules/project-overview.mdc": {
+      "hash": "cb4be65c8574607c7546829416182634ced9fa1d4d00ababb0240a067e9622f5",
+      "modified": "2025-12-11T18:31:18.066706593-03:00",
+      "size": 2539
+    },
+    ".editorconfig": {
+      "hash": "4a3c20e9a141c90841966af6ae365070acab11381d5bd94f0df4ced7188524b8",
+      "modified": "2025-11-04T21:31:39.734878203-03:00",
+      "size": 696
+    },
+    ".gitignore": {
+      "hash": "5bea22621fa807ce2bbe4d209b62c717bc77ddeb0b7668209d1242cfcbb625a9",
+      "modified": "2025-12-21T17:21:59.756504213-03:00",
+      "size": 806
+    },
+    ".golangci-v1.bck.yml": {
+      "hash": "0cb758a2c641f0433b31bbac0599c373283602876cce4b215f3d7ab7e4a847d9",
+      "modified": "2025-12-12T02:19:14.314755885-03:00",
+      "size": 2561
+    },
+    ".golangci.yml": {
+      "hash": "9cac0aaee41410e7e28781a29e1c38a4c423ff1619f9ec2b53050d831dad427b",
+      "modified": "2025-12-12T02:20:58.136887984-03:00",
+      "size": 1748
+    },
+    ".serena/.gitignore": {
+      "hash": "fbfced411cdffce54bcbe4c0f21c0f84ac3090a1ff47ee2ff6954da7a39407c8",
+      "modified": "2025-11-05T17:43:47.390738315-03:00",
+      "size": 7
+    },
+    ".serena/cache/go/document_symbols.pkl": {
+      "hash": "57b5d89dc52528c77d89995b8ba7f2c3dc1b03d1ca2068d3ed33135fc0157c3c",
+      "modified": "2025-11-26T06:01:39.096541799-03:00",
+      "size": 432165
+    },
+    ".serena/cache/go/raw_document_symbols.pkl": {
+      "hash": "e10a62da06eb78137cebf76be39dd64f66d3fa23a203d5e5850b04a0736e7fdb",
+      "modified": "2025-11-26T06:01:39.091541721-03:00",
+      "size": 99025
+    },
+    ".serena/memories/architecture_overview.md": {
+      "hash": "1fd4e1d19f28e4642f0d62de70d517de73043685ff5abfa03c4468337a12ceb1",
+      "modified": "2025-12-03T13:37:03.331108183-03:00",
+      "size": 5020
+    },
+    ".serena/memories/code_style_conventions.md": {
+      "hash": "c26270e4b0dc4b2ed7ff4e48eab4fb0bc5a9d8037692c358ad809b9db6e791ab",
+      "modified": "2025-12-03T13:37:03.331108183-03:00",
+      "size": 2579
+    },
+    ".serena/memories/critical_patterns.md": {
+      "hash": "1c27579e2c5fb6561003c2f98730c802cc1b9b30b8601db3269b79c213571927",
+      "modified": "2025-12-03T13:37:03.331108183-03:00",
+      "size": 4475
+    },
+    ".serena/memories/suggested_commands.md": {
+      "hash": "eec59073c44210dcd3453990a7c6896657984df2c7094f21cae6f7d320838e3a",
+      "modified": "2025-12-03T13:37:03.331108183-03:00",
+      "size": 1141
+    },
+    ".serena/memories/task_completion_checklist.md": {
+      "hash": "7d8bdd77cd5315fd49d697f8be4b25db160f033f831fe7d29c1c31f08e9a5ebf",
+      "modified": "2025-12-03T13:37:03.331108183-03:00",
+      "size": 1461
+    },
+    ".serena/project.yml": {
+      "hash": "193b71e16cb8da4fe3b86dff1e5d83733403a5a9abdf487406d4b43fddb18293",
+      "modified": "2025-11-19T19:37:52.521022765-03:00",
+      "size": 5577
+    },
+    "AGENTS.md": {
+      "hash": "d779ad89da91a7fcf1207ad53c17669d412f078edfdcfc6ec08d8b4fd45aaa94",
+      "modified": "2025-12-11T18:31:18.066603567-03:00",
+      "size": 1758
+    },
+    "CLAUDE.md": {
+      "hash": "fe7d610871dafdd64085dca23e0bb4020cf1bac44f6852087a7018c6b6c21efb",
+      "modified": "2025-12-11T18:31:18.066461958-03:00",
+      "size": 6795
+    },
+    "Makefile": {
+      "hash": "6295a6d1bcd3d6068a5e78def78a6c9f438588b4c42228c553a8c61ca3f23552",
+      "modified": "2025-12-11T23:10:37.45714712-03:00",
+      "size": 2985
+    },
+    "PLAN.md": {
+      "hash": "87919310ff92775dec3c1a134cf2d0be22fd390d6e4a93094cd8144c6bf03dfe",
+      "modified": "2025-12-26T19:36:38.203126459-03:00",
+      "size": 7549
+    },
+    "README.md": {
+      "hash": "896073404111ba215014d5db2f66cd4c66045d6ffe24c19f2d4f417807dff2d8",
+      "modified": "2025-12-11T18:47:41.213583804-03:00",
+      "size": 4142
+    },
+    "appimage.test": {
+      "hash": "b45b885d51f4ee42a64e88d55dd6edc58cae3026b720852e810e0f232efb9ab5",
+      "modified": "2025-12-21T19:38:21.420244073-03:00",
+      "size": 8654943
+    },
+    "bin/upkg": {
+      "hash": "3c49be24d5ce3b01f0ec5c5524071dfc6cd92cdd8679ab85345aa6c103b302b2",
+      "modified": "2025-12-27T21:18:02.458736233-03:00",
+      "size": 23325056
+    },
+    "cmd/upkg/main.go": {
+      "hash": "f5af67ef818ab662a2228ca970fcfd16119235d4198fe53d0c39131d12d7104c",
+      "modified": "2025-11-19T19:46:30.220514892-03:00",
+      "size": 759
+    },
+    "cmd/upkg/main_test.go": {
+      "hash": "ce28b90b24596cbdd6800aff7c177fb0851c000a141855ed801346ae813105eb",
+      "modified": "2025-12-12T03:25:02.944031109-03:00",
+      "size": 1967
+    },
+    "cover.out": {
+      "hash": "dd4671f46bd636b814fd8a5faaddae081fb115bc53c16558f23402422e12a575",
+      "modified": "2025-12-12T03:07:46.596636383-03:00",
+      "size": 183144
+    },
+    "coverage.html": {
+      "hash": "803720803dfe7380a3c5308b74e1d4cb46d6b99a2ded4ba12ca6c0505ef1ff04",
+      "modified": "2025-12-22T05:40:55.242343103-03:00",
+      "size": 78403
+    },
+    "coverage.out": {
+      "hash": "2fa1f6b79f330676feb154e0bb84ddcd6872a2a8160895371a7d0b8f5bba5a0c",
+      "modified": "2025-12-26T19:35:39.753218887-03:00",
+      "size": 32744
+    },
+    "deb_coverage.out": {
+      "hash": "2fd367f0917810cd91d3147b15bd57a7b5f0255516c09ff75e72c912677627bb",
+      "modified": "2025-12-11T18:54:00.629456932-03:00",
+      "size": 14812
+    },
+    "go.mod": {
+      "hash": "5cca9c7c8d8e2fde01787fafa4ae782e0215ba5894e471aab9d8487bf3984211",
+      "modified": "2025-12-26T19:29:22.59783261-03:00",
+      "size": 2626
+    },
+    "go.sum": {
+      "hash": "3627fba20ffeb90863100d45b09da24d70cfc78243c28b068fe8a4d398d826b3",
+      "modified": "2025-12-26T19:29:22.598832633-03:00",
+      "size": 19073
+    },
+    "icons.cover.out": {
+      "hash": "c69cd094e8652deb4d2c3ceccdc1bce44bfc0c012ebf86ef8010276e5f4a221c",
+      "modified": "2025-12-12T02:28:44.429075383-03:00",
+      "size": 2773
+    },
+    "internal/backends/appimage/appimage.go": {
+      "hash": "f105eeff17ddcc916f6ee1d18999dd8334a29969289f4f48eb1bed51ceb9962f",
+      "modified": "2025-12-26T20:01:20.516500383-03:00",
+      "size": 18900
+    },
+    "internal/backends/appimage/appimage.test": {
+      "hash": "b45b885d51f4ee42a64e88d55dd6edc58cae3026b720852e810e0f232efb9ab5",
+      "modified": "2025-12-21T19:40:04.098791962-03:00",
+      "size": 8654943
+    },
+    "internal/backends/appimage/appimage_test.go": {
+      "hash": "4b887c752427178faa2eaeee7be30c1b15357db847a6f864018762e66d94dda4",
+      "modified": "2025-12-26T19:57:30.103063841-03:00",
+      "size": 24606
+    },
+    "internal/backends/backend.go": {
+      "hash": "a5ff4d6a97dd11532813d2e261d535298d56cf24f8dbfac27e5fe8a04d32bc16",
+      "modified": "2025-12-26T19:56:13.944265002-03:00",
+      "size": 7026
+    },
+    "internal/backends/backend_test.go": {
+      "hash": "4fd22b8a509e6464e92db9d0b96993f0ec831a8ce71ebd68764804ba5dc612b6",
+      "modified": "2025-12-21T18:07:30.373549771-03:00",
+      "size": 6763
+    },
+    "internal/backends/base/base.go": {
+      "hash": "281c12a88117e7b99813252e3ebbd6ce241ab60979573ea5b7c2d98168d70c6d",
+      "modified": "2025-12-12T03:26:11.103432979-03:00",
+      "size": 1118
+    },
+    "internal/backends/base/base_test.go": {
+      "hash": "87716d2f0b8e5250f30515a42832e25eb0801cd9da7a2eca17dfa868ddc6f5a9",
+      "modified": "2025-12-12T02:35:10.776484367-03:00",
+      "size": 1591
+    },
+    "internal/backends/binary/binary.go": {
+      "hash": "f4d07d1b09a6bb609649c4b408574f8cbf628b04843bc2bc7ec32592f62a1de9",
+      "modified": "2025-12-12T03:26:11.104433-03:00",
+      "size": 10541
+    },
+    "internal/backends/binary/binary_test.go": {
+      "hash": "437756cc8f54d297444543a1500230b1b4cfa21e572a7cc7887ea321d2188351",
+      "modified": "2025-12-12T03:26:11.107527883-03:00",
+      "size": 13823
+    },
+    "internal/backends/deb/deb.go": {
+      "hash": "27469fa9bf6d6717664ed233670a8c7e592cd2fbea5a2807b2f1f5be8ab1a93a",
+      "modified": "2025-12-26T20:02:12.527726632-03:00",
+      "size": 38574
+    },
+    "internal/backends/deb/deb_icon_fallback_test.go": {
+      "hash": "e6abebfe2bd2dc0ce965884f5c00fca09429cb08aadf4b4bb08944d12a101a33",
+      "modified": "2025-12-22T06:07:49.532174467-03:00",
+      "size": 2688
+    },
+    "internal/backends/deb/deb_install_test.go": {
+      "hash": "bb3174358e75c0d47ecc511355a7fdea704ad1965e59b4418f5d90c224fb018e",
+      "modified": "2025-12-21T19:25:39.242165435-03:00",
+      "size": 5904
+    },
+    "internal/backends/deb/deb_test.go": {
+      "hash": "79d4036ee2ab6982a6f61b0588ea1452316f285266be11fcd7b8035efc4dc133",
+      "modified": "2025-12-26T20:03:21.460351407-03:00",
+      "size": 25025
+    },
+    "internal/backends/deb/deb_test_extra.go": {
+      "hash": "870d04a841c65f5394fca001edbdba9702a2928ae127ce1487cd6a281c8a7656",
+      "modified": "2025-12-26T20:05:51.927896593-03:00",
+      "size": 13549
+    },
+    "internal/backends/rpm/rpm.go": {
+      "hash": "a3921febf87c5eadf2b3bdee1f2c2f329d3339a01217566574dd44e4b4a44ed1",
+      "modified": "2025-12-21T18:31:29.823530613-03:00",
+      "size": 28977
+    },
+    "internal/backends/rpm/rpm_extra_test.go": {
+      "hash": "897f7ee8e76258ac4ad39c2f44e081ccbb98beb4ec048937caf82d117c022cda",
+      "modified": "2025-12-21T19:47:01.188365122-03:00",
+      "size": 1272
+    },
+    "internal/backends/rpm/rpm_test.go": {
+      "hash": "bdb36362c0358566e8fc566cb246d2c7c6514d97ce1d8a40d19cf81bf8824e4d",
+      "modified": "2025-12-26T20:06:10.390331476-03:00",
+      "size": 28683
+    },
+    "internal/backends/tarball/.local/share/applications/mimeinfo.cache": {
+      "hash": "4fea18b04d2fc6237fa76558b7e0e93345c4db47946d58b6be9b4b61cb5e505f",
+      "modified": "2025-12-22T06:33:58.044672703-03:00",
+      "size": 13
+    },
+    "internal/backends/tarball/.local/share/applications/test-app.desktop": {
+      "hash": "589dd67566ec1a038568af2bc22d296971aa5da506ca4cff4eba11cfb895e6aa",
+      "modified": "2025-12-26T20:07:25.03179762-03:00",
+      "size": 319
+    },
+    "internal/backends/tarball/tarball.go": {
+      "hash": "9f92d88ce1acb3226640e91a7bd0322d1aa00da7f3a66a99752151524e477269",
+      "modified": "2025-12-21T18:31:23.802515451-03:00",
+      "size": 28757
+    },
+    "internal/backends/tarball/tarball_extra_test.go": {
+      "hash": "bde36160d823ac1e1ea9c9a1c1a653e98a16635b7d9c3a60acef3f96728a7f02",
+      "modified": "2025-12-26T20:06:20.96358052-03:00",
+      "size": 19838
+    },
+    "internal/backends/tarball/tarball_icons_test.go": {
+      "hash": "ac998b0c3fa325241e3fa1e909ff926e1c5481ec6aba45a337b4b1a51e37b640",
+      "modified": "2025-12-22T05:39:04.791550213-03:00",
+      "size": 8121
+    },
+    "internal/backends/tarball/tarball_simple_test.go": {
+      "hash": "392fb4c954a10a6e7208cb46cc3b087fa3e03531a9f4e80651038706888f0f3d",
+      "modified": "2025-12-21T19:43:25.353465228-03:00",
+      "size": 1384
+    },
+    "internal/backends/tarball/tarball_test.go": {
+      "hash": "1046d6d074777677367c92306f1365fcbb81fbeaa21fa3a2a41d1b5e101e39a9",
+      "modified": "2025-12-22T06:41:55.971432112-03:00",
+      "size": 33743
+    },
+    "internal/cache/cache.go": {
+      "hash": "bd00a5509a542ddeeba861f9aee791723627f742bf5c3f6973f3123c223f0dba",
+      "modified": "2025-12-12T03:26:11.10543302-03:00",
+      "size": 2961
+    },
+    "internal/cache/cache_mock.go": {
+      "hash": "fd58602e275764fec7032db48371fa160f520d35639661a9c788d65a5e480607",
+      "modified": "2025-12-11T21:52:13.435496805-03:00",
+      "size": 823
+    },
+    "internal/cache/cache_test.go": {
+      "hash": "0c824605b9335c9c39b42d656732e7128e39fd1fcb6fca81c7c0f1c4ff13f958",
+      "modified": "2025-12-12T03:25:02.94503113-03:00",
+      "size": 3708
+    },
+    "internal/cmd/completion.go": {
+      "hash": "07869a88af589687b23ad88b176eeae55d3e44a76cc604bc44a697deba41f00d",
+      "modified": "2025-12-12T03:12:32.308559074-03:00",
+      "size": 2621
+    },
+    "internal/cmd/completion_test.go": {
+      "hash": "1d6fd83b6982ebbb1063521ca5ca082c450de16d032b86f9c22fcd54a003ffd4",
+      "modified": "2025-12-26T19:32:36.047323543-03:00",
+      "size": 877
+    },
+    "internal/cmd/doctor.go": {
+      "hash": "3bf80cae848b1ce0127616b21d7da12934054fe85a2482e50c8bdbb14ce3623f",
+      "modified": "2025-12-12T03:26:11.106433041-03:00",
+      "size": 9667
+    },
+    "internal/cmd/doctor_test.go": {
+      "hash": "063bef95612ecd1e76c66c25e5e92ed3f0c9272dc60062cf2c2ae5bde0000a4b",
+      "modified": "2025-12-21T18:45:46.64972606-03:00",
+      "size": 8900
+    },
+    "internal/cmd/info.go": {
+      "hash": "809014047e982f00e0ff19bbf6cf2870da8d19857dbacbbabba35a672a7d52b9",
+      "modified": "2025-12-12T03:12:56.221053516-03:00",
+      "size": 4748
+    },
+    "internal/cmd/info_test.go": {
+      "hash": "884136f9a24bd59cdfaea2066b97b46eee0471b0268251c5fec6f94a1dbe4b1f",
+      "modified": "2025-12-26T19:32:36.04932359-03:00",
+      "size": 361
+    },
+    "internal/cmd/install.go": {
+      "hash": "5ef35c1d3e10b10aa55722948567937313c2636ca44d108c1720376299d766c0",
+      "modified": "2025-12-21T17:21:59.756504213-03:00",
+      "size": 11410
+    },
+    "internal/cmd/install_test.go": {
+      "hash": "36fffbe12f04fcbc8b23e44d7d3e33ce62c5e51d2bad2136fd2daa43da068d31",
+      "modified": "2025-12-26T20:02:42.012421657-03:00",
+      "size": 12272
+    },
+    "internal/cmd/list.go": {
+      "hash": "2c96479e4d49c0a5c2e700e49ac7db53130510b871925d94ebcd4e12ad3f8d3f",
+      "modified": "2025-12-12T02:57:37.612834943-03:00",
+      "size": 7410
+    },
+    "internal/cmd/list_test.go": {
+      "hash": "d6114680e2f83e84b7d47a9778743d64de723e9e580e01ff7584e3721b6fe00d",
+      "modified": "2025-12-22T07:12:51.281862848-03:00",
+      "size": 3096
+    },
+    "internal/cmd/root.go": {
+      "hash": "5f5175e2f65a53d4ff986cd779bc8af7acce89de575c1640bbc81c09a034fb14",
+      "modified": "2025-11-19T19:46:30.222887983-03:00",
+      "size": 804
+    },
+    "internal/cmd/root_test.go": {
+      "hash": "964b210ba2993813d8dc065f60636cecd3706331dd24d64474d28e58e8f423c0",
+      "modified": "2025-12-26T19:32:36.045323497-03:00",
+      "size": 367
+    },
+    "internal/cmd/uninstall.go": {
+      "hash": "3e17a46981b5fe4dc7684316ecba5ad1d2892acb8866b9ecbac2cdfd9436c92b",
+      "modified": "2025-12-26T19:28:45.586973929-03:00",
+      "size": 17513
+    },
+    "internal/cmd/uninstall_test.go": {
+      "hash": "f5cc405e01818c1c38ab3c5408a5d5f45e43277d14be83deddc01a53e1b2971c",
+      "modified": "2025-12-26T19:35:31.604485252-03:00",
+      "size": 24528
+    },
+    "internal/cmd/version.go": {
+      "hash": "97d42f32c4be64bdea9c2288db51296c2225c3315a8e5b438648ab9fc2cfd145",
+      "modified": "2025-12-12T03:13:08.86431488-03:00",
+      "size": 348
+    },
+    "internal/cmd/version_test.go": {
+      "hash": "534804346ca460f5adabdcd1e80c64a2d4ba94f6c72eb7c8d53b050666d2b3e9",
+      "modified": "2025-12-21T18:40:32.915135321-03:00",
+      "size": 447
+    },
+    "internal/config/config.go": {
+      "hash": "4279f16cd752747a68c961933609f74bd462403e1a280ef6b4355ff3c0ad1761",
+      "modified": "2025-12-12T03:06:16.281756735-03:00",
+      "size": 3189
+    },
+    "internal/config/config_test.go": {
+      "hash": "fcdef6c7ca99303a7d813f707c1e6b550b6ca3355d148d6ea0fb94340d9d30ca",
+      "modified": "2025-12-12T03:17:42.052953561-03:00",
+      "size": 1235
+    },
+    "internal/core/interfaces.go": {
+      "hash": "2b652fe6174e03bfdbb049fe311d7882d29466a3781a7b679a003326a3972d5a",
+      "modified": "2025-12-21T17:21:59.756504213-03:00",
+      "size": 442
+    },
+    "internal/core/models.go": {
+      "hash": "e5759f1ccc46e66309dc9f9c2c74ae3a1d1813eb0a725de77c8f54300a80107c",
+      "modified": "2025-12-11T23:11:28.758015953-03:00",
+      "size": 3904
+    },
+    "internal/core/models_test.go": {
+      "hash": "cdf4ed195ca16c1b7a217f5defcdafee925c046ce786b52a57207ecdf93fcec1",
+      "modified": "2025-12-12T03:09:37.134931515-03:00",
+      "size": 9604
+    },
+    "internal/db/db.go": {
+      "hash": "c301df61f879d16e636bb1ef158bb5894fd60ee3f040deb992d462c136e138e3",
+      "modified": "2025-12-11T22:22:36.777407764-03:00",
+      "size": 7681
+    },
+    "internal/db/db_test.go": {
+      "hash": "03d9966109b81bc50a34a0c4c1f3737fcc874ea20ea208d956111a12fae6b3ea",
+      "modified": "2025-12-11T19:27:49.889032542-03:00",
+      "size": 2609
+    },
+    "internal/desktop/desktop.go": {
+      "hash": "82b54a9d1b7cd76ba8f6cdd7b3de594e4e7e748880ccad7a3c795d8b602df3ba",
+      "modified": "2025-12-12T03:26:11.103432979-03:00",
+      "size": 5290
+    },
+    "internal/desktop/desktop_test.go": {
+      "hash": "7132e4620465d07f9868ffa82517112cfbe80e2517e10a1bb7c0d11adb08196d",
+      "modified": "2025-12-11T22:27:56.953871387-03:00",
+      "size": 12105
+    },
+    "internal/helpers/archive.go": {
+      "hash": "1148bbc12058d2915e26e1491f1ff969ded72b697239043c80b0bf9b40b66373",
+      "modified": "2025-12-12T03:08:21.472361106-03:00",
+      "size": 8795
+    },
+    "internal/helpers/archive_test.go": {
+      "hash": "ee510d69846e116309a76a19031dc09408cf96a3494cd8e0ddd45d8bbab96dc8",
+      "modified": "2025-12-21T18:37:49.306301555-03:00",
+      "size": 5824
+    },
+    "internal/helpers/common.go": {
+      "hash": "de41867cccff734b88b0dfa09a8c791202d47602a72435612878661fcec54f46",
+      "modified": "2025-11-05T11:42:35.802407448-03:00",
+      "size": 1650
+    },
+    "internal/helpers/common_test.go": {
+      "hash": "599ad666de7041ba343b1a44b83254b0296a758fb2c991a143b157c47e216c3f",
+      "modified": "2025-12-21T18:39:27.254935473-03:00",
+      "size": 3844
+    },
+    "internal/helpers/detection.go": {
+      "hash": "37a1be5630f3f9ab4db8cca2c5b7fffdc4ccd741ddc4ff233e8746a607cc31f6",
+      "modified": "2025-12-12T03:26:11.10543302-03:00",
+      "size": 6933
+    },
+    "internal/helpers/detection_test.go": {
+      "hash": "ebd0cf1daf04267da62cc307d0df042c9dd526bde4c2d2b12557697c8de43794",
+      "modified": "2025-12-12T03:09:53.798277051-03:00",
+      "size": 8617
+    },
+    "internal/helpers/exec.go": {
+      "hash": "3757f311abdea167f0935395606f823637b4dcbcf3fdd7dc7b13b77cfd3af01d",
+      "modified": "2025-12-12T03:06:26.453968666-03:00",
+      "size": 6972
+    },
+    "internal/helpers/exec_mock.go": {
+      "hash": "e9c8192547bcd7779591258ff6955f6dfb26231cb2486f34d083504e774a2f01",
+      "modified": "2025-12-11T21:52:13.441496924-03:00",
+      "size": 3431
+    },
+    "internal/helpers/exec_test.go": {
+      "hash": "41c7793e5d2edc5df746019e504ae7c0e63a41e42dc692d4292b3673952218e5",
+      "modified": "2025-12-26T20:06:31.757834759-03:00",
+      "size": 2750
+    },
+    "internal/helpers/naming.go": {
+      "hash": "e4fec1295fdda0943daeb9ae097b04b70a2c8ece2b63c43309a5543166aad6c6",
+      "modified": "2025-11-19T19:56:47.662488071-03:00",
+      "size": 5325
+    },
+    "internal/helpers/naming_test.go": {
+      "hash": "41517d3eab7bd2eb12738228e16831151006c0646b02e4674d56eb86c245e566",
+      "modified": "2025-12-11T19:23:07.97810072-03:00",
+      "size": 4790
+    },
+    "internal/heuristics/models.go": {
+      "hash": "22b2ba964b63546eb6d531f03d613389be55ec21017b365d096b2b0eaa431d92",
+      "modified": "2025-11-19T21:59:44.224225075-03:00",
+      "size": 497
+    },
+    "internal/heuristics/scanner.go": {
+      "hash": "94577fcdad9f68345cd6535569e48377913da9d58ef70ab0dab0284e11048e58",
+      "modified": "2025-12-12T03:06:32.147087251-03:00",
+      "size": 1032
+    },
+    "internal/heuristics/scorer.go": {
+      "hash": "c5b14307e0fe5084de729a44bbec48ae3c0ae82945dba6ff5b16236b2c32be1c",
+      "modified": "2025-12-12T03:26:11.103432979-03:00",
+      "size": 6166
+    },
+    "internal/heuristics/scorer_test.go": {
+      "hash": "a77ef75ee5ff87607b297d9c6e8fe304dd4495e9c8bc69f5f2b1b58c602910ad",
+      "modified": "2025-12-21T18:42:18.013202451-03:00",
+      "size": 6144
+    },
+    "internal/hyprland/client.go": {
+      "hash": "49766034b68a1a960ea0d149b199c5ce08dc855144b9cb171a2963f10d887d9b",
+      "modified": "2025-12-03T13:37:03.333108214-03:00",
+      "size": 2086
+    },
+    "internal/hyprland/client_test.go": {
+      "hash": "fa4e7734cee40f431694d499c9131c3528c07773ec5d24f9f24e6da941dad139",
+      "modified": "2025-12-21T18:40:16.540828983-03:00",
+      "size": 3444
+    },
+    "internal/icons/icons.go": {
+      "hash": "50b6a9c5f48ad2d88b4a7a77b6177f3951c337aaf6a1f4dd5e46cdfc28159020",
+      "modified": "2025-12-27T21:20:32.396204342-03:00",
+      "size": 18104
+    },
+    "internal/icons/icons_test.go": {
+      "hash": "b6c4f771c7ecdb0cf39148f3f6c3912795b5367b00d6021d76d6e040f5a2142d",
+      "modified": "2025-12-26T20:00:37.697490626-03:00",
+      "size": 13091
+    },
+    "internal/logging/logger.go": {
+      "hash": "40e6300d89304d1b508e8bc09c3db660f5e7e40abb939a4e05a5f9aa50c9e960",
+      "modified": "2025-11-07T10:48:47.797395808-03:00",
+      "size": 2879
+    },
+    "internal/logging/logger_test.go": {
+      "hash": "162f2ba45f4bd33aa4b031154a90a1f4eac65eebe255b38e31591342a84d46c9",
+      "modified": "2025-12-21T18:45:13.610978831-03:00",
+      "size": 3776
+    },
+    "internal/paths/paths.go": {
+      "hash": "912483749ec75c87ddb8c20b97d2a1be56763a5e2a1c09acd5c319867dce678d",
+      "modified": "2025-12-12T03:06:21.395863291-03:00",
+      "size": 1908
+    },
+    "internal/paths/paths_test.go": {
+      "hash": "60a3275a34cf5031d9402599f12162cdf6dc3af3dbbebbb047b734972745bb20",
+      "modified": "2025-12-12T03:10:20.542831409-03:00",
+      "size": 4526
+    },
+    "internal/security/paths.go": {
+      "hash": "9d666e5cf9525228ea751cef3942a70f81bf8e95088a3b7609da9ab7ee7d5b81",
+      "modified": "2025-11-05T11:38:41.965454686-03:00",
+      "size": 3193
+    },
+    "internal/security/validation.go": {
+      "hash": "2d9c55c59e9d30e38fd5843496f44edfa420ef490f069f73bc2f973ddee89270",
+      "modified": "2025-12-12T03:26:11.108433082-03:00",
+      "size": 9149
+    },
+    "internal/security/validation_test.go": {
+      "hash": "8b78cfdc0a43bc71a957bfdc73c592be23457dfbe549ff696ef26c93669793d5",
+      "modified": "2025-12-11T21:52:13.438496864-03:00",
+      "size": 17844
+    },
+    "internal/syspkg/arch/pacman.go": {
+      "hash": "60e9549ba5f5aa786bd263c37aaaf6f8c1da4e21aabff103f4f65dac72157caa",
+      "modified": "2025-12-21T17:21:59.756504213-03:00",
+      "size": 3010
+    },
+    "internal/syspkg/arch/pacman_test.go": {
+      "hash": "94acbc26a0e8438935b3e955b0386dd4bc849ddc918de4cf4b01ff3e2a6a7df7",
+      "modified": "2025-12-21T17:21:59.756504213-03:00",
+      "size": 5934
+    },
+    "internal/syspkg/provider.go": {
+      "hash": "f1afcda7d3ca50f78b46c557907fe0e739fda2a705c5d914645be165a179f224",
+      "modified": "2025-12-21T17:21:59.756504213-03:00",
+      "size": 1031
+    },
+    "internal/transaction/manager.go": {
+      "hash": "2683f4c36fc23f0e6cd87c4933792b6bfb84a1f70008fd8027082f82add121fa",
+      "modified": "2025-11-19T22:02:58.74651137-03:00",
+      "size": 1820
+    },
+    "internal/transaction/manager_test.go": {
+      "hash": "4f750666ad0660540f9f5c820295c0598062a0bbd078bf97bfb86861e33c2bfc",
+      "modified": "2025-12-21T17:21:59.756504213-03:00",
+      "size": 3946
+    },
+    "internal/ui/colors.go": {
+      "hash": "7eb7cfc0c08f4f9134c7a3f17d7c916dd9343932b98638cc1612439067ba24cb",
+      "modified": "2025-12-12T03:08:02.580439403-03:00",
+      "size": 5116
+    },
+    "internal/ui/colors_test.go": {
+      "hash": "1e5a02f8eefd0a202b37c10d4caf7135a40c9bba9ec08541bf3f6c22f6c551b9",
+      "modified": "2025-12-26T19:32:36.056323752-03:00",
+      "size": 8547
+    },
+    "internal/ui/progress.go": {
+      "hash": "24dac0c6a5b0d6bf825f728d3728c523396577f3f9d524722b58565a49da8c27",
+      "modified": "2025-12-12T03:25:02.94503113-03:00",
+      "size": 8365
+    },
+    "internal/ui/progress_test.go": {
+      "hash": "c61a5207e5e42b3e3477ce8b1e7b182b5dab8b088dd40baf4bea75157ab7c8b6",
+      "modified": "2025-12-26T20:06:55.538394847-03:00",
+      "size": 6789
+    },
+    "internal/ui/prompt.go": {
+      "hash": "dc6fa403241799152e71c683cea7970fe74006ff932a600771f8291923f012db",
+      "modified": "2025-12-26T19:29:53.422547909-03:00",
+      "size": 6844
+    },
+    "internal/ui/prompt_test.go": {
+      "hash": "d86c59e3109fc09d6c09761e3b89960c10ad1c8e2cbcc2cf91e6d81331c29572",
+      "modified": "2025-12-22T12:33:10.2476551-03:00",
+      "size": 3994
+    },
+    "pkg-test/Deckboard-3.1.4.AppImage": {
+      "hash": "04dae9c48edcee8e53c7a4616f03549eab3d61ac7ae1d8f77e53109cec3904af",
+      "modified": "2025-11-04T19:53:15.991743328-03:00",
+      "size": 148509973
+    },
+    "pkg-test/MiniKeyboard-x86_64.AppImage": {
+      "hash": "fc66c908490081ec359e56ff167cdd1e9bd5e7bddbf6af6d37d8478911b7c19f",
+      "modified": "2025-11-03T05:03:15.77554297-03:00",
+      "size": 31593664
+    },
+    "pkg-test/cursor-2.0.34.el8.x86_64.rpm": {
+      "hash": "5982699bde3183097869a2e92f484dc251b312c0bb833f2f54401d9169181426",
+      "modified": "2025-11-04T22:46:36.223049976-03:00",
+      "size": 191402298
+    },
+    "pkg-test/cursor_2.0.34_amd64.deb": {
+      "hash": "eb0e7ba183084da0e81b13a18d4be90823c82c5d3e69f16e07262207aaea61a6",
+      "modified": "2025-11-04T19:49:42.711406609-03:00",
+      "size": 132209696
+    },
+    "pkg-test/goose-1.12.1-1-x86_64.pkg.tar.zst": {
+      "hash": "c32e436c77678d89f6184640c238d59b812e9ee45a2810e74e317f32956c2c51",
+      "modified": "2025-11-05T10:27:22.065606719-03:00",
+      "size": 156387223
+    },
+    "pkg-test/goose_1.12.1_amd64.deb": {
+      "hash": "0351c7f49fc7f5ab160421ffe8055199ec2d2ab0d03dd6bd06f477aca81f2645",
+      "modified": "2025-11-03T11:46:16.483781474-03:00",
+      "size": 124860750
+    },
+    "pkgctl": {
+      "hash": "f77525274cc0cd8d59405582d3cd4514feb079127b9eb6219fedac567d64a783",
+      "modified": "2025-11-19T19:26:18.236779274-03:00",
+      "size": 21077292
+    },
+    "scripts/e2e-test.sh": {
+      "hash": "15ddcbea20759e2178e8709cac6b6caaf4f49d4936d027b9997eb27e2f058d83",
+      "modified": "2025-12-11T22:09:13.647067347-03:00",
+      "size": 3323
+    },
+    "test-results/baseline.txt": {
+      "hash": "5700c666d443ebbcd258d647ca8a6d8b81e8e6c2b960df6f4c7969c899407db5",
+      "modified": "2025-12-11T23:24:28.769646837-03:00",
+      "size": 777
+    },
+    "testdata/valid.desktop": {
+      "hash": "ef059e863eed4fb8ed5b864f58ff128c4498173931d68160ee9fae71135e0465",
+      "modified": "2025-11-19T19:36:16.217038311-03:00",
+      "size": 201
+    },
+    "tmp/squashfs-root/.DirIcon": {
+      "hash": "7fb047591d20ad9af44c9813e19160b46d4f7e17c2625c50f57c7edfd89a42c2",
+      "modified": "2025-12-21T17:59:12.638688571-03:00",
+      "size": 57
+    },
+    "tmp/squashfs-root/AppRun": {
+      "hash": "09432b53432723459c99fc5a1fb474c2aec01bf7f7eb304143e47223bf78b5f1",
+      "modified": "2025-12-21T17:59:12.640246244-03:00",
+      "size": 2355
+    },
+    "tmp/squashfs-root/LICENSE.electron.txt": {
+      "hash": "5154e165bd6c2cc0cfbcd8916498c7abab0497923bafcd5cb07673fe8480087d",
+      "modified": "2025-12-21T17:59:12.640274748-03:00",
+      "size": 1096
+    },
+    "tmp/squashfs-root/LICENSES.chromium.html": {
+      "hash": "c16ee3cc1aa0d1669a839428ef26869d7a3844a43df505377b85077e1db14396",
+      "modified": "2025-12-21T17:59:12.660936524-03:00",
+      "size": 15102119
+    },
+    "tmp/squashfs-root/auto-claude-ui": {
+      "hash": "feab9d1667bce2ffc67eea1bccbbfaf99743ab26e2f01033369d60e99cff7d22",
+      "modified": "2025-12-21T17:59:13.211961773-03:00",
+      "size": 199855320
+    },
+    "tmp/squashfs-root/auto-claude-ui.desktop": {
+      "hash": "e1186cfb23f679447f74cbd2dd8cd1be8ca4622a0fbe5b4f5dfb54249088200b",
+      "modified": "2025-12-21T17:59:13.212008651-03:00",
+      "size": 252
+    },
+    "tmp/squashfs-root/chrome-sandbox": {
+      "hash": "b80ae15c6479c7feaba09d0be5baa7dc5e9f6c4a8318ad810ab2403bd19c1556",
+      "modified": "2025-12-21T17:59:13.212069146-03:00",
+      "size": 15328
+    },
+    "tmp/squashfs-root/chrome_100_percent.pak": {
+      "hash": "531e542cdef3fd67019782c1d8d24b3e49eadfdb848a971fade58922ee5f59d8",
+      "modified": "2025-12-21T17:59:13.212321743-03:00",
+      "size": 115176
+    },
+    "tmp/squashfs-root/chrome_200_percent.pak": {
+      "hash": "cef8b3eac7a4c6ac780c4463097a3654e890fdbdf3dd4629dd2cc192d57295aa",
+      "modified": "2025-12-21T17:59:13.212743691-03:00",
+      "size": 188186
+    },
+    "tmp/squashfs-root/chrome_crashpad_handler": {
+      "hash": "aedf7ab9a9c01a3b23585bb5182818a82c7a6e7e03dada2d39a71d291cc8d9d0",
+      "modified": "2025-12-21T17:59:13.21704704-03:00",
+      "size": 1545800
+    },
+    "tmp/squashfs-root/icudtl.dat": {
+      "hash": "5070de99fbd8a48378543511fb7a072f85bf36f94b4f4e1d420d54be1435d6f1",
+      "modified": "2025-12-21T17:59:13.243337152-03:00",
+      "size": 10467680
+    },
+    "tmp/squashfs-root/libvulkan.so.1": {
+      "hash": "35ec8d113d258affb9d05ab5b91b3323c8961525833caaa8b1b4bf66168ac23f",
+      "modified": "2025-12-21T17:59:13.283156731-03:00",
+      "size": 2378920
+    },
+    "tmp/squashfs-root/locales/af.pak": {
+      "hash": "02ccdd0584b452ad2d7c639c8390764d2e65f5ccf718280234fb1177b3e2c895",
+      "modified": "2025-12-21T17:59:13.284500893-03:00",
+      "size": 571965
+    },
+    "tmp/squashfs-root/locales/am.pak": {
+      "hash": "68ca51b889483c2605ccd37661a2f1375f80235c9317aa4bbe70a9174a17f737",
+      "modified": "2025-12-21T17:59:13.28619082-03:00",
+      "size": 928894
+    },
+    "tmp/squashfs-root/locales/ar.pak": {
+      "hash": "64e481ead1ba7b3c7831982c92bc85ce3c1ef8156ec7edc9eaf9f18d87b0751b",
+      "modified": "2025-12-21T17:59:13.287946079-03:00",
+      "size": 1027434
+    },
+    "tmp/squashfs-root/locales/bg.pak": {
+      "hash": "52007937575b3f702fd32fa80ec6541da677e332d2a94e02d44c03da0e8c4687",
+      "modified": "2025-12-21T17:59:13.28974954-03:00",
+      "size": 1058093
+    },
+    "tmp/squashfs-root/locales/bn.pak": {
+      "hash": "30c08fefe53550933f6ae3026b510995a42bc1d25176dae583a6497395a5e070",
+      "modified": "2025-12-21T17:59:13.291711781-03:00",
+      "size": 1366197
+    },
+    "tmp/squashfs-root/locales/ca.pak": {
+      "hash": "7adf3d10181cc6fdd9d9c4f1b0cd888ae0bdf481acd5a7d717b7a0c3048beec7",
+      "modified": "2025-12-21T17:59:13.293092853-03:00",
+      "size": 645129
+    },
+    "tmp/squashfs-root/locales/cs.pak": {
+      "hash": "b22b040db8a5d2598f109bd82620f42769d1929e962fea7d20660c9315fcb360",
+      "modified": "2025-12-21T17:59:13.294550159-03:00",
+      "size": 669417
+    },
+    "tmp/squashfs-root/locales/da.pak": {
+      "hash": "3694360b025a09936d0b6f40896b16066bc1b66db475d3d1a8d4e3a411de08c0",
+      "modified": "2025-12-21T17:59:13.295830551-03:00",
+      "size": 602856
+    },
+    "tmp/squashfs-root/locales/de.pak": {
+      "hash": "6f5a94c5a427da9711fc06b3724e308233064bc7567b8353ec606dccb5f92428",
+      "modified": "2025-12-21T17:59:13.29722599-03:00",
+      "size": 645522
+    },
+    "tmp/squashfs-root/locales/el.pak": {
+      "hash": "64ab96e431a633f8f16cbf9422facc61b71a165d9f303c2fdfa101bb654efe83",
+      "modified": "2025-12-21T17:59:13.299158044-03:00",
+      "size": 1163886
+    },
+    "tmp/squashfs-root/locales/en-GB.pak": {
+      "hash": "da9783100f1ba39ec2047ac5b4103bdc8501a6fae1eebc70e83586111fd0ff36",
+      "modified": "2025-12-21T17:59:13.300315112-03:00",
+      "size": 522054
+    },
+    "tmp/squashfs-root/locales/en-US.pak": {
+      "hash": "b9ffdb4657991b1190ecb0be43c70407a25c6396766c5bdf9f0e32147f479d76",
+      "modified": "2025-12-21T17:59:13.301486157-03:00",
+      "size": 528238
+    },
+    "tmp/squashfs-root/locales/es-419.pak": {
+      "hash": "f9757714a140c70176d06fe01b30219565154a0154ec3c6caf77905b0d6a4071",
+      "modified": "2025-12-21T17:59:13.302868892-03:00",
+      "size": 635912
+    },
+    "tmp/squashfs-root/locales/es.pak": {
+      "hash": "60b3d21b332d4a4a3ee55befacece6e3671c55128d9e2b7c229daf870b0a8327",
+      "modified": "2025-12-21T17:59:13.304222152-03:00",
+      "size": 633261
+    },
+    "tmp/squashfs-root/locales/et.pak": {
+      "hash": "3ab0888d39fc5f14ef86dae2434e3633705e8a3f4470dc2d576da4b5871b56c1",
+      "modified": "2025-12-21T17:59:13.305509466-03:00",
+      "size": 577932
+    },
+    "tmp/squashfs-root/locales/fa.pak": {
+      "hash": "e51e3e4258a4820db04c24d59d8df5a9463cda82e1804f88988c2dc5a9bd9bfb",
+      "modified": "2025-12-21T17:59:13.307175898-03:00",
+      "size": 954673
+    },
+    "tmp/squashfs-root/locales/fi.pak": {
+      "hash": "f625207b1f4c2fb6d99f4392ba446b99578cbd93f7d8d2b1c9caa65c616e9cb0",
+      "modified": "2025-12-21T17:59:13.308474955-03:00",
+      "size": 588625
+    },
+    "tmp/squashfs-root/locales/fil.pak": {
+      "hash": "87a1bf4e535e881a3bbb4a6f06cf62d3f45cc36e09065996148504589368c063",
+      "modified": "2025-12-21T17:59:13.309881425-03:00",
+      "size": 668135
+    },
+    "tmp/squashfs-root/locales/fr.pak": {
+      "hash": "086cb99302c867f8ffad0e6367dec1dd09bd7f9b5d41909d36d534fcf29af044",
+      "modified": "2025-12-21T17:59:13.311324514-03:00",
+      "size": 687684
+    },
+    "tmp/squashfs-root/locales/gu.pak": {
+      "hash": "5c771a8584eb46f6d3c35e69a8fa23ca869d19a93af5439340aa17eba0e9e03a",
+      "modified": "2025-12-21T17:59:13.313282317-03:00",
+      "size": 1348098
+    },
+    "tmp/squashfs-root/locales/he.pak": {
+      "hash": "2ac0032ac6b87e504048ca514913c13ac0a17c6a31dd6eaa5925c196e8768bca",
+      "modified": "2025-12-21T17:59:13.314809716-03:00",
+      "size": 837412
+    },
+    "tmp/squashfs-root/locales/hi.pak": {
+      "hash": "1c41b327ffba26566bc003dcbbc6310168bbdc9b194fecbfc8eef9d4d3b5b71f",
+      "modified": "2025-12-21T17:59:13.316865163-03:00",
+      "size": 1426187
+    },
+    "tmp/squashfs-root/locales/hr.pak": {
+      "hash": "5e72e9f2971bf7068e3d6879f23647f773a6073516c1c3c34d4cfb2958868d0a",
+      "modified": "2025-12-21T17:59:13.318245313-03:00",
+      "size": 644627
+    },
+    "tmp/squashfs-root/locales/hu.pak": {
+      "hash": "1b02df33e62c42cf412edf1c7c60187d24af236ff3559b6413160bd790f479ef",
+      "modified": "2025-12-21T17:59:13.319758325-03:00",
+      "size": 689991
+    },
+    "tmp/squashfs-root/locales/id.pak": {
+      "hash": "26ff3e7c0b0cf279004e432e524b9f7c2585f1365354ac02215876ae96428309",
+      "modified": "2025-12-21T17:59:13.320972862-03:00",
+      "size": 570149
+    },
+    "tmp/squashfs-root/locales/it.pak": {
+      "hash": "0f1f772c00ce28e8eda700a1fd0d6846ce0cb4ba81b265803d8802524eb3644e",
+      "modified": "2025-12-21T17:59:13.322292508-03:00",
+      "size": 624305
+    },
+    "tmp/squashfs-root/locales/ja.pak": {
+      "hash": "5d9f34305adc9b29d134fdf8f8a6eb62238f6c6f9fa71cab84fb6103cd653ff3",
+      "modified": "2025-12-21T17:59:13.323724656-03:00",
+      "size": 759096
+    },
+    "tmp/squashfs-root/locales/kn.pak": {
+      "hash": "cddc33f92917f40b21aa1669e763e676437760799ab92f4b66002d02482f8c68",
+      "modified": "2025-12-21T17:59:13.325816202-03:00",
+      "size": 1543711
+    },
+    "tmp/squashfs-root/locales/ko.pak": {
+      "hash": "33946b70c7e4ceaee6d154a7d527c0c702d4f555868a983ae60d2dc2e2fdb3da",
+      "modified": "2025-12-21T17:59:13.32710562-03:00",
+      "size": 644643
+    },
+    "tmp/squashfs-root/locales/lt.pak": {
+      "hash": "30b649f402f412653fd692b634e1b8cd8efaa5fc713e9aab2b8540300df60ad0",
+      "modified": "2025-12-21T17:59:13.328565772-03:00",
+      "size": 700855
+    },
+    "tmp/squashfs-root/locales/lv.pak": {
+      "hash": "f1402f801d9b41422f81793a98f7aa546e0714895691df6164ffff2af30e9ff9",
+      "modified": "2025-12-21T17:59:13.33003998-03:00",
+      "size": 697590
+    },
+    "tmp/squashfs-root/locales/ml.pak": {
+      "hash": "8970cb97849a4367d878e3f4e0ff0fb683bfe73c62a7630e137b0b475880695c",
+      "modified": "2025-12-21T17:59:13.332217839-03:00",
+      "size": 1594026
+    },
+    "tmp/squashfs-root/locales/mr.pak": {
+      "hash": "65060ca650d13baf981a20ac2a6e6a6ec039c3a373022ef712168f1114396ea9",
+      "modified": "2025-12-21T17:59:13.334123934-03:00",
+      "size": 1318989
+    },
+    "tmp/squashfs-root/locales/ms.pak": {
+      "hash": "467786a1d2091853cd2e7995635a9b9f74d666a9ff01eac8e89ef14a42396638",
+      "modified": "2025-12-21T17:59:13.335361014-03:00",
+      "size": 599764
+    },
+    "tmp/squashfs-root/locales/nb.pak": {
+      "hash": "b62ee1063902b483f625cc21c1f19e857d387ca3f1a2789190df9c0862f1728b",
+      "modified": "2025-12-21T17:59:13.336615646-03:00",
+      "size": 576174
+    },
+    "tmp/squashfs-root/locales/nl.pak": {
+      "hash": "f6022dade4d28e96a70d357e015227b45bae86534b2c295606ac0acb32e37c5f",
+      "modified": "2025-12-21T17:59:13.337910766-03:00",
+      "size": 599512
+    },
+    "tmp/squashfs-root/locales/pl.pak": {
+      "hash": "3f7e4894c084dd6e9275a7d0be4f786d6d71c3fceb8bf13b15aeb38e752ce57a",
+      "modified": "2025-12-21T17:59:13.339376368-03:00",
+      "size": 668723
+    },
+    "tmp/squashfs-root/locales/pt-BR.pak": {
+      "hash": "ca0a8e7b594f5792836224bc58b50d6c8850f0f38f393594f9ae5b749f4fe43e",
+      "modified": "2025-12-21T17:59:13.340722363-03:00",
+      "size": 626717
+    },
+    "tmp/squashfs-root/locales/pt-PT.pak": {
+      "hash": "2b584838c88975be8f643c53492234cc989fd611b87fb4313c0b3f9b4e70d5a8",
+      "modified": "2025-12-21T17:59:13.342063991-03:00",
+      "size": 630214
+    },
+    "tmp/squashfs-root/locales/ro.pak": {
+      "hash": "a8b97b425faa63e4406811d3858f234200b0ab524260da2ca27e4d1baf709c5b",
+      "modified": "2025-12-21T17:59:13.343439652-03:00",
+      "size": 653443
+    },
+    "tmp/squashfs-root/locales/ru.pak": {
+      "hash": "f96d7d962de071bbe17d77e64af24c0ee9b6c5b541924fe687afaaff2ab4af9c",
+      "modified": "2025-12-21T17:59:13.345281265-03:00",
+      "size": 1084207
+    },
+    "tmp/squashfs-root/locales/sk.pak": {
+      "hash": "4e8aab8de8b8cdefb900193f395e127892b91ca416caa5abc632a5049eb57fc2",
+      "modified": "2025-12-21T17:59:13.346783967-03:00",
+      "size": 680609
+    },
+    "tmp/squashfs-root/locales/sl.pak": {
+      "hash": "b930fb0d84563dbcadad5fe1c6d1b471c515742430da6eff2e2f7a77c9cf80c1",
+      "modified": "2025-12-21T17:59:13.348185037-03:00",
+      "size": 651956
+    },
+    "tmp/squashfs-root/locales/sr.pak": {
+      "hash": "77647c3952f3389a771a7b98766c8f922b74c3982e918c6a413af36b76de3742",
+      "modified": "2025-12-21T17:59:13.34989432-03:00",
+      "size": 1000950
+    },
+    "tmp/squashfs-root/locales/sv.pak": {
+      "hash": "a91a46eef9cbf76ab6e32a0bf6925088a1318f91adb37776002696e0d7738ccf",
+      "modified": "2025-12-21T17:59:13.351159623-03:00",
+      "size": 582135
+    },
+    "tmp/squashfs-root/locales/sw.pak": {
+      "hash": "1a545337402ae7fbfb9b85d3d6d94cfa4428a6563bf157fcc8186db85527f532",
+      "modified": "2025-12-21T17:59:13.352475462-03:00",
+      "size": 615432
+    },
+    "tmp/squashfs-root/locales/ta.pak": {
+      "hash": "49e5bd8fa45b6e45d481a759174cde9a73ecaa6bd77d78c9cd17f05782981150",
+      "modified": "2025-12-21T17:59:13.354567608-03:00",
+      "size": 1586974
+    },
+    "tmp/squashfs-root/locales/te.pak": {
+      "hash": "56e449bd85a5d2e3f30b3b7a1d91cc336a1d0496e6f4a7baabae0004692fbe3a",
+      "modified": "2025-12-21T17:59:13.356611995-03:00",
+      "size": 1466621
+    },
+    "tmp/squashfs-root/locales/th.pak": {
+      "hash": "5e764dc51f7e6a6bba34b8a614bf56fc45782232bde8c25009bf5b37a6ce35d3",
+      "modified": "2025-12-21T17:59:13.35835453-03:00",
+      "size": 1231470
+    },
+    "tmp/squashfs-root/locales/tr.pak": {
+      "hash": "ff82bc47c040725a676d01f4d878141c957a13d6c50ec9e32959d9679f37522d",
+      "modified": "2025-12-21T17:59:13.359687531-03:00",
+      "size": 626325
+    },
+    "tmp/squashfs-root/locales/uk.pak": {
+      "hash": "18c49d6d7716575f85d0f322bb611402b10288cdf359823680506978a156d951",
+      "modified": "2025-12-21T17:59:13.361521049-03:00",
+      "size": 1089660
+    },
+    "tmp/squashfs-root/locales/ur.pak": {
+      "hash": "1257a983552b1e8782714b23fee8b290fefc39196904c758e9bfaacadc4fca70",
+      "modified": "2025-12-21T17:59:13.363170398-03:00",
+      "size": 940410
+    },
+    "tmp/squashfs-root/locales/vi.pak": {
+      "hash": "a5bc3af5347a935a44577797a158c1bce3c2e8e8055c07b37508da54fd7ef3f4",
+      "modified": "2025-12-21T17:59:13.364589272-03:00",
+      "size": 743444
+    },
+    "tmp/squashfs-root/locales/zh-CN.pak": {
+      "hash": "9c8afe3031f580d6819dc4bdf4db7d984cb9665c87c87d23fa16b3d9ca1781de",
+      "modified": "2025-12-21T17:59:13.365771197-03:00",
+      "size": 533679
+    },
+    "tmp/squashfs-root/locales/zh-TW.pak": {
+      "hash": "3494cd83f2bfc9b44edf141d001e7e2d10d233eb952bc2b44a124f0d5c859337",
+      "modified": "2025-12-21T17:59:13.366922224-03:00",
+      "size": 527549
+    },
+    "tmp/squashfs-root/resources.pak": {
+      "hash": "a191b2dade563a07eedd6148e46fe3c97c9cbec33d575dd94fab52980a3fc517",
+      "modified": "2025-12-21T17:59:13.464981451-03:00",
+      "size": 6490209
+    },
+    "tmp/squashfs-root/resources/app-update.yml": {
+      "hash": "7d67b96509640988436864e2b5639e49ca2ade8c3389477a751043db409f1d32",
+      "modified": "2025-12-21T17:59:13.366966408-03:00",
+      "size": 96
+    },
+    "tmp/squashfs-root/resources/app.asar": {
+      "hash": "966e68136b37da450ddb1bf43961344d9885de06f9af8c92a95eb25ff4f489f6",
+      "modified": "2025-12-21T17:59:13.449722632-03:00",
+      "size": 56299481
+    },
+    "tmp/squashfs-root/resources/auto-claude/.env.example": {
+      "hash": "128fc5ddd56b9c9dfefc709bcaac2b8c00e9bec76f1d0aac5aa7207e606951d1",
+      "modified": "2025-12-21T17:59:13.450019383-03:00",
+      "size": 13951
+    },
+    "tmp/squashfs-root/resources/auto-claude/.gitignore": {
+      "hash": "d0cb8c1314a26488fa6ed325f8222fa46bb5f2684633c06df3d3d2e2ac577881",
+      "modified": "2025-12-21T17:59:13.450034642-03:00",
+      "size": 689
+    },
+    "tmp/squashfs-root/resources/auto-claude/__init__.py": {
+      "hash": "1eb288f9efac36bbff1a177697c5f29924068fe873a7c09d9a33410f2f6785cf",
+      "modified": "2025-12-21T17:59:13.450047947-03:00",
+      "size": 650
+    },
+    "tmp/squashfs-root/resources/auto-claude/agent.py": {
+      "hash": "37e0585cadbb5cd33629007179a2aa5dd9252e7bd16faedc03ebef0b1c5f2769",
+      "modified": "2025-12-21T17:59:13.450056654-03:00",
+      "size": 108
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/README.md": {
+      "hash": "acd0cb1d54bf51194acaa91cc9decd1e97f9610a7e9253e450b102f91e562a3f",
+      "modified": "2025-12-21T17:59:13.450081831-03:00",
+      "size": 4320
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/__init__.py": {
+      "hash": "daa4455402aa1711c15aaae621da49db06001b8a9714e9468d7e2298fb0449f0",
+      "modified": "2025-12-21T17:59:13.450094996-03:00",
+      "size": 1608
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/auto_claude_tools.py": {
+      "hash": "d6628bcf31bfc8dd72dd1f2d24085236e65858a357871a5aa8913940c22c06ce",
+      "modified": "2025-12-21T17:59:13.45010747-03:00",
+      "size": 1831
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/base.py": {
+      "hash": "01b3f36803b7f32a6eca613f5e1070cb2f93388da1670b9fd440b5a8cf2c138a",
+      "modified": "2025-12-21T17:59:13.450116637-03:00",
+      "size": 299
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/coder.py": {
+      "hash": "8aa60991c9c75d6da159f3fdd64ab2fd713bf468117c5bdad222c6aca87fa6a6",
+      "modified": "2025-12-21T17:59:13.450158576-03:00",
+      "size": 17537
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/memory_manager.py": {
+      "hash": "e010fc13b785b8365694dcec3b68f40683687dfd0041aff19d56874b85da4f91",
+      "modified": "2025-12-21T17:59:13.450194935-03:00",
+      "size": 14546
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/planner.py": {
+      "hash": "95c1b209ab0e0497caa85d5e147fd1327d9680d1c82642a668ff3b9fa0096cdb",
+      "modified": "2025-12-21T17:59:13.450218931-03:00",
+      "size": 5801
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/session.py": {
+      "hash": "3b89eb8f9c660e6f64d5fda6ef5628e9b4b632b2c443e531ba2a48252b40a0ec",
+      "modified": "2025-12-21T17:59:13.450264246-03:00",
+      "size": 21417
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/test_refactoring.py": {
+      "hash": "77086c3adf4bbc0963ba84ed286cb1e82148be69115e97d27bb806d75b79ebc1",
+      "modified": "2025-12-21T17:59:13.450286408-03:00",
+      "size": 4186
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/__init__.py": {
+      "hash": "258dd98ec746e32b850dc0d45735c341ee1e27ec3c29f8ff19fe03ee201e359e",
+      "modified": "2025-12-21T17:59:13.450306476-03:00",
+      "size": 1745
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/models.py": {
+      "hash": "38f8aafa4bc0acdd1237fa8e806cb5bfa84e5a77e7900be5ed8b7ef356f47d86",
+      "modified": "2025-12-21T17:59:13.450322126-03:00",
+      "size": 2643
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/permissions.py": {
+      "hash": "dbd1baa94c4c7eb0058b5f98fe935169bad483bbcd3c7533feefd04615bf1b4a",
+      "modified": "2025-12-21T17:59:13.450339819-03:00",
+      "size": 4434
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/registry.py": {
+      "hash": "1ee6429884b39518245b6613f34597fd36c700c1271851c3d24e36de22872788",
+      "modified": "2025-12-21T17:59:13.450353675-03:00",
+      "size": 1757
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/tools/__init__.py": {
+      "hash": "ae47330787963736e3fb8965c2531e709f6355b7f878bcdbc32df69defddfab6",
+      "modified": "2025-12-21T17:59:13.450369696-03:00",
+      "size": 394
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/tools/memory.py": {
+      "hash": "4ca26ba66183f47c95ce82256fd235f6111ae1223bb8ac2046c149a3b373a862",
+      "modified": "2025-12-21T17:59:13.450392128-03:00",
+      "size": 7212
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/tools/progress.py": {
+      "hash": "75948a626c535a866594f3a51571f20133b74372c05ebd30462e0ddbe4820255",
+      "modified": "2025-12-21T17:59:13.45041452-03:00",
+      "size": 4303
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/tools/qa.py": {
+      "hash": "c66b3b51c533bcbbf424c7bdf9ccb90cc72b22cc5aea67bfd5894b1584f7f736",
+      "modified": "2025-12-21T17:59:13.450434067-03:00",
+      "size": 4262
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/tools_pkg/tools/subtask.py": {
+      "hash": "16ef3598c95802d44ef180bf0d1e11879112dbedc16b6af1d2b733c14ec624ff",
+      "modified": "2025-12-21T17:59:13.450452011-03:00",
+      "size": 4151
+    },
+    "tmp/squashfs-root/resources/auto-claude/agents/utils.py": {
+      "hash": "c892ef5c5b50fa51e4f06540e0b098233fe3bd2d1c8536c6ec6bb7f873cf57b7",
+      "modified": "2025-12-21T17:59:13.450469925-03:00",
+      "size": 3597
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/__init__.py": {
+      "hash": "d8b1219807844c34dc646325a521939017aaf0944a19150f6ca2b6e72de4f8df",
+      "modified": "2025-12-21T17:59:13.45048842-03:00",
+      "size": 983
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzer.py": {
+      "hash": "222489a8f8985beffc9084e8c36d45cbf0a503dd1a1baaab6cb2f50ed34ea8a8",
+      "modified": "2025-12-21T17:59:13.450503178-03:00",
+      "size": 2532
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/__init__.py": {
+      "hash": "8fc13d4c46f0273124aaa7dcaebccfe2813662213e45565fee722775b873bed8",
+      "modified": "2025-12-21T17:59:13.450522104-03:00",
+      "size": 2534
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/base.py": {
+      "hash": "d576ad541861220171d7e1db828d342c50721970fa9bb0764cb1e1e8c5911fcf",
+      "modified": "2025-12-21T17:59:13.450539417-03:00",
+      "size": 3136
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/__init__.py": {
+      "hash": "bf9c3e3232d9638562645881807c4cebd9fe1bbca4e5c04bd1a8e6fe8326bc79",
+      "modified": "2025-12-21T17:59:13.450555046-03:00",
+      "size": 642
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/api_docs_detector.py": {
+      "hash": "f54ce209e61c1171ca85a939aebb53bf6bbc578de9a6a5fdad2be1074b657e3d",
+      "modified": "2025-12-21T17:59:13.450571277-03:00",
+      "size": 2765
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/auth_detector.py": {
+      "hash": "409e1e43c8bbf2e826e7fec84b07b82f3b965cf5ecf4a17e05ead8460e9636d2",
+      "modified": "2025-12-21T17:59:13.450590083-03:00",
+      "size": 4660
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/env_detector.py": {
+      "hash": "9fa8f007343b89d6ab2de2ee00e645017a2e44000ff34594dafb4228efb35f8f",
+      "modified": "2025-12-21T17:59:13.450613747-03:00",
+      "size": 7526
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/jobs_detector.py": {
+      "hash": "8c8b6616a7ba0077a5bd0b65388a891610b337206866cffad7e3fc7f75f3b9e6",
+      "modified": "2025-12-21T17:59:13.450630208-03:00",
+      "size": 3278
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/migrations_detector.py": {
+      "hash": "1d798e4926becdc42c5c5305330814fb48ad6d8367d76cfc9f147439fcfe9fff",
+      "modified": "2025-12-21T17:59:13.450645788-03:00",
+      "size": 3883
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/monitoring_detector.py": {
+      "hash": "ebe14327fd875ff966b3ef7a9be543402c5e8157afa52e7e1a44ae6cb283da0b",
+      "modified": "2025-12-21T17:59:13.450664814-03:00",
+      "size": 3523
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context/services_detector.py": {
+      "hash": "0df35dfa66edc36a38cc0c72f90bac0ff29483c29fbcde9149fc4b75d65ae7c1",
+      "modified": "2025-12-21T17:59:13.450687346-03:00",
+      "size": 6982
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/context_analyzer.py": {
+      "hash": "0f0c0c955db8cbedbbec4aef005a5e2e1d426f5d1872860774ac3587fc852e9e",
+      "modified": "2025-12-21T17:59:13.450701794-03:00",
+      "size": 2824
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/database_detector.py": {
+      "hash": "ad39372ec6c8b7cb8a8fb22805c3b1bd6add7b930eb0eeca70927099b0a10661",
+      "modified": "2025-12-21T17:59:13.450725939-03:00",
+      "size": 10694
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/framework_analyzer.py": {
+      "hash": "98b369dd083d604d5a2f19f18001e27cb834f432ac302e5cc772701274703875",
+      "modified": "2025-12-21T17:59:13.450754343-03:00",
+      "size": 12466
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/port_detector.py": {
+      "hash": "2aea99cee4d34c9844194b41ddfd45c6da3863992b081a6231979c0d60e03bdd",
+      "modified": "2025-12-21T17:59:13.450782697-03:00",
+      "size": 10682
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/project_analyzer_module.py": {
+      "hash": "cd51e317d898dd5393d15bf58e4354871ebd17ecc60b2193b87c7199e5a6db73",
+      "modified": "2025-12-21T17:59:13.450813104-03:00",
+      "size": 10790
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/route_detector.py": {
+      "hash": "83473b7cb8b655f390f0f0b64492d512a7f842ad3db33d1563a45be9c27175b9",
+      "modified": "2025-12-21T17:59:13.450844744-03:00",
+      "size": 14988
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/analyzers/service_analyzer.py": {
+      "hash": "2628c71a9d2439b5d4ce1478dbbcdbb66237fad8f3026b48b9d6460ba10be5d1",
+      "modified": "2025-12-21T17:59:13.450876634-03:00",
+      "size": 11318
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/ci_discovery.py": {
+      "hash": "5c13ca05628dbf925414b1db4f3a91c3176fd00f0f8ed5640a413d13e9784020",
+      "modified": "2025-12-21T17:59:13.450920037-03:00",
+      "size": 18581
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/insight_extractor.py": {
+      "hash": "b16f287683e0e123e9627286722494057aabc6af64f74283afcb1e4fa0736406",
+      "modified": "2025-12-21T17:59:13.450966174-03:00",
+      "size": 18251
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/project_analyzer.py": {
+      "hash": "dd6d4f95665d3c996c47cbcd82565c16ebd752a4b154c0fb869971cb59e90d05",
+      "modified": "2025-12-21T17:59:13.450986292-03:00",
+      "size": 3125
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/risk_classifier.py": {
+      "hash": "448d07bccb139f265027c3d084ebd9db93ca2f37a0625e130169948e0c08b020",
+      "modified": "2025-12-21T17:59:13.451028021-03:00",
+      "size": 19802
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/security_scanner.py": {
+      "hash": "736ca03665fdf7d49db5b6a012ed68109ce307dbfdf82371a493f809b69d3c1f",
+      "modified": "2025-12-21T17:59:13.451074769-03:00",
+      "size": 20832
+    },
+    "tmp/squashfs-root/resources/auto-claude/analysis/test_discovery.py": {
+      "hash": "01f8e4f6bea717be0f178f223dbdb6521303e0326a55243be70ff6333cd2d0ec",
+      "modified": "2025-12-21T17:59:13.45112291-03:00",
+      "size": 22984
+    },
+    "tmp/squashfs-root/resources/auto-claude/analyzer.py": {
+      "hash": "c1fd54116b55747dede7c82a43d4974b85a750f5b9b2ba6ca40fada69323a013",
+      "modified": "2025-12-21T17:59:13.451137678-03:00",
+      "size": 196
+    },
+    "tmp/squashfs-root/resources/auto-claude/analyzers/__init__.py": {
+      "hash": "7fa80838bd4f1fc40fed85176c3cf7349678b7acb9527cbe8818dfe3960e6e20",
+      "modified": "2025-12-21T17:59:13.451156454-03:00",
+      "size": 124
+    },
+    "tmp/squashfs-root/resources/auto-claude/auto_claude_tools.py": {
+      "hash": "9fad6d32227046170b2e6add1252e830fc87e1faa5298d4b901d1204602e373e",
+      "modified": "2025-12-21T17:59:13.451169669-03:00",
+      "size": 469
+    },
+    "tmp/squashfs-root/resources/auto-claude/ci_discovery.py": {
+      "hash": "1876b47c27a7b55ebdce8de2ee8b35c3d507edb63e688aa9f3028cdadc2f0152",
+      "modified": "2025-12-21T17:59:13.451179638-03:00",
+      "size": 393
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/__init__.py": {
+      "hash": "25a31250c1b16cf0835c97b8f6d02cd7070e0d6e8a76c246e7b1a7b0bd82b449",
+      "modified": "2025-12-21T17:59:13.451195648-03:00",
+      "size": 533
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/build_commands.py": {
+      "hash": "eb4a557321343aef5824f9ca632ed6313c7696077cb056c73f08cc47d72f5737",
+      "modified": "2025-12-21T17:59:13.451236836-03:00",
+      "size": 16043
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/followup_commands.py": {
+      "hash": "6f2f45770a927708896686cb884e501b7d6f8e54711a832b132d62e5c92ba985",
+      "modified": "2025-12-21T17:59:13.451271872-03:00",
+      "size": 12351
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/input_handlers.py": {
+      "hash": "286f06a80c3dd2fa09b527703d3f522e92b65aa5f8be2a8078b9a9587f8b374d",
+      "modified": "2025-12-21T17:59:13.451293804-03:00",
+      "size": 5261
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/main.py": {
+      "hash": "13ca22050ba71391ffa03dd507f55c83eeed9ba7951385176c197b903cebf8d6",
+      "modified": "2025-12-21T17:59:13.45132356-03:00",
+      "size": 10727
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/qa_commands.py": {
+      "hash": "d3cc92797e1d259c0dc491bfdf722a5a2176e8986df926dbc40d14a8abf92e19",
+      "modified": "2025-12-21T17:59:13.451342496-03:00",
+      "size": 3539
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/spec_commands.py": {
+      "hash": "2c155d2f187964df29333ab38e39d5db555300c68c426c04096ebf52b50e8865",
+      "modified": "2025-12-21T17:59:13.451361311-03:00",
+      "size": 3647
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/utils.py": {
+      "hash": "43714b0d98987d920bef44e4c3b176442de2d309b84cdbe8270e76781a860eb7",
+      "modified": "2025-12-21T17:59:13.451383102-03:00",
+      "size": 5843
+    },
+    "tmp/squashfs-root/resources/auto-claude/cli/workspace_commands.py": {
+      "hash": "b1fa4ad829da22f5d31a4d55d3a0ef43cec3ef8db19cb584409469f397687cd2",
+      "modified": "2025-12-21T17:59:13.451435271-03:00",
+      "size": 24891
+    },
+    "tmp/squashfs-root/resources/auto-claude/client.py": {
+      "hash": "5fcdc7b583538bbfc4e6b3a729d18253fabfefd423364250ee55fc208e3fa656",
+      "modified": "2025-12-21T17:59:13.45145055-03:00",
+      "size": 492
+    },
+    "tmp/squashfs-root/resources/auto-claude/commit_message.py": {
+      "hash": "4d3096440f3928ce81bc47652ee8bbc50c5a4280612f6d1f8b1bb81f8e6327c6",
+      "modified": "2025-12-21T17:59:13.451483272-03:00",
+      "size": 11480
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/__init__.py": {
+      "hash": "d68d8595aa3f512d442f6ffce67c98ccfe77dc51228c961f129be5c0f076dcc6",
+      "modified": "2025-12-21T17:59:13.451507317-03:00",
+      "size": 927
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/builder.py": {
+      "hash": "ce96b95cd6e396122744488ea0e28c3fb43bf8f02cefefb07233efb4efba47e0",
+      "modified": "2025-12-21T17:59:13.45153008-03:00",
+      "size": 8750
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/categorizer.py": {
+      "hash": "bcbc264e4c0741cd89a3f16dd0d10bb10bf2fd6c588f2ea77602861c7cf39d3d",
+      "modified": "2025-12-21T17:59:13.4515456-03:00",
+      "size": 2284
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/constants.py": {
+      "hash": "386bf6f3e7f4010899e4304b793e68988bed86506518348a67b191490831e0d1",
+      "modified": "2025-12-21T17:59:13.451555959-03:00",
+      "size": 679
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/graphiti_integration.py": {
+      "hash": "9968f345d9deaabbb41f116efe5466877489e2c000e7f1e908c4cd058164a523",
+      "modified": "2025-12-21T17:59:13.451568152-03:00",
+      "size": 1370
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/keyword_extractor.py": {
+      "hash": "3a8f6dbacda5e3425d612c0ca573432eaeb16d1f5d4a1adfa0632b03a9af3a96",
+      "modified": "2025-12-21T17:59:13.451581287-03:00",
+      "size": 1999
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/main.py": {
+      "hash": "370f353da3674ea2e3f1c9c65114a343f73c2d0be3c47230c53cce44c20818ab",
+      "modified": "2025-12-21T17:59:13.451597899-03:00",
+      "size": 3666
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/models.py": {
+      "hash": "a143e9c9eed7afa0ec3f261f3db8a233eb10041df0dfdf7801c34e8c3fcff40a",
+      "modified": "2025-12-21T17:59:13.451608439-03:00",
+      "size": 793
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/pattern_discovery.py": {
+      "hash": "fa37e2ded3ca245236082b7f17be34d4e6544b984d7ee7a98c5d2d516ff0c56f",
+      "modified": "2025-12-21T17:59:13.451622155-03:00",
+      "size": 2147
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/search.py": {
+      "hash": "7297c88f878a8a5c161f9ba79907f8182d43441cc4e0e92ec54354a135b0c0c9",
+      "modified": "2025-12-21T17:59:13.451637624-03:00",
+      "size": 3311
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/serialization.py": {
+      "hash": "d086b2a8bc0f43b7e9f8b2d0442312100688cfa0c6008074bded357385cd606b",
+      "modified": "2025-12-21T17:59:13.451649607-03:00",
+      "size": 1426
+    },
+    "tmp/squashfs-root/resources/auto-claude/context/service_matcher.py": {
+      "hash": "e9885e05e9e80250fb771fdc3b6a20c3283b74ad5f1d03e5319af7f6f0bbaaff",
+      "modified": "2025-12-21T17:59:13.451665837-03:00",
+      "size": 2735
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/__init__.py": {
+      "hash": "eec18f595deb191ad7818dd857e256cb1103bfe410e0f8ec19bbcf5bf1970439",
+      "modified": "2025-12-21T17:59:13.451703498-03:00",
+      "size": 1241
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/agent.py": {
+      "hash": "3bab4357a9932097bb825d7bcfe527a21795607f407e0eb7b1102657400252e2",
+      "modified": "2025-12-21T17:59:13.451716964-03:00",
+      "size": 1853
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/auth.py": {
+      "hash": "cfd01b3e87a53ec583a388361f6c91963d1d7a10e1008fc234f9109b5f1fd736",
+      "modified": "2025-12-21T17:59:13.451738915-03:00",
+      "size": 5607
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/client.py": {
+      "hash": "13de7265bcbce50e9365995cbdb4ab57dadde3d06e7403c6765b3d9d3c2a640f",
+      "modified": "2025-12-21T17:59:13.451781426-03:00",
+      "size": 14953
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/debug.py": {
+      "hash": "ed66958bf8ee3888b0c785cb7133be7b24944bd7be91effc0783879a13c9595a",
+      "modified": "2025-12-21T17:59:13.451811503-03:00",
+      "size": 10888
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/progress.py": {
+      "hash": "8778c0ebcdaaac59511b3bf2bdc79cff9f36d6887fd572e075deda6ea87f54e0",
+      "modified": "2025-12-21T17:59:13.451845758-03:00",
+      "size": 14006
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace.py": {
+      "hash": "51e9a3bb212e075776e0cab942a2967b0122e400c217f31cbe810c44a57e1dbb",
+      "modified": "2025-12-21T17:59:13.452138461-03:00",
+      "size": 46273
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace/README.md": {
+      "hash": "196b9bb9f072d39c044649b633c0e28b38c2b9e66be5ec74ea2d872d2d319120",
+      "modified": "2025-12-21T17:59:13.45187906-03:00",
+      "size": 5400
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace/__init__.py": {
+      "hash": "3f2970275173bfadedfff2c840e356a509d2777580fd28358a55be040af4e397",
+      "modified": "2025-12-21T17:59:13.451897405-03:00",
+      "size": 3855
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace/display.py": {
+      "hash": "312d4a80dc4729631387dc4d24cd6ded4418fae43737c834676af06b91bfa6c4",
+      "modified": "2025-12-21T17:59:13.451916471-03:00",
+      "size": 5443
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace/finalization.py": {
+      "hash": "96c23546c9e2361da06bad11b80f6df89a770f56542c91ffc00284729b5026d9",
+      "modified": "2025-12-21T17:59:13.451951718-03:00",
+      "size": 14624
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace/git_utils.py": {
+      "hash": "d4b15cedcbe56184049077d4a54680402fa051925491803619970e53246a4354",
+      "modified": "2025-12-21T17:59:13.451988427-03:00",
+      "size": 12434
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace/models.py": {
+      "hash": "c6707acfea4313cb73d4c19048facc49ec1f4748498842f4649d54d0c2bed8c4",
+      "modified": "2025-12-21T17:59:13.452011-03:00",
+      "size": 4030
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/workspace/setup.py": {
+      "hash": "4642e9cbb251635b311756c234cac44a511ac016e824c309034e028348e918c7",
+      "modified": "2025-12-21T17:59:13.452046798-03:00",
+      "size": 11469
+    },
+    "tmp/squashfs-root/resources/auto-claude/core/worktree.py": {
+      "hash": "97de48638d092371344314fd19c0245f037a8c9f5e52a6b499bd8e5789c7cbad",
+      "modified": "2025-12-21T17:59:13.452195008-03:00",
+      "size": 23279
+    },
+    "tmp/squashfs-root/resources/auto-claude/critique.py": {
+      "hash": "a9b5c43cd16589699a511b866c0336b5914edd3377fdf82cfeb81653e71414f3",
+      "modified": "2025-12-21T17:59:13.452207822-03:00",
+      "size": 114
+    },
+    "tmp/squashfs-root/resources/auto-claude/debug.py": {
+      "hash": "a431991d6193b5185fa855cbbdea4a2d24ed02f6d95c1cf85ce4018311e23c0c",
+      "modified": "2025-12-21T17:59:13.452219665-03:00",
+      "size": 108
+    },
+    "tmp/squashfs-root/resources/auto-claude/graphiti_config.py": {
+      "hash": "81c89171a229664a895e349be3a26c3f4a23f8e3554c595a21679c6f8e8f8b5e",
+      "modified": "2025-12-21T17:59:13.452228582-03:00",
+      "size": 144
+    },
+    "tmp/squashfs-root/resources/auto-claude/graphiti_providers.py": {
+      "hash": "32f42d4ece5adfe3aaad67f88ba63f9f15522a8620fcc673b1f41938e95d477e",
+      "modified": "2025-12-21T17:59:13.452237118-03:00",
+      "size": 158
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/__init__.py": {
+      "hash": "c6cb92271a1871d4a3c08229595714fc9496e85a4a0910611eddeaece6102d08",
+      "modified": "2025-12-21T17:59:13.452253859-03:00",
+      "size": 1365
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/analyzer.py": {
+      "hash": "0996a3c7647744bd9db32ef5b55e6c4a36379d154676a3b9c82b0d35a786f7ef",
+      "modified": "2025-12-21T17:59:13.452275039-03:00",
+      "size": 6264
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/config.py": {
+      "hash": "805ece2dc1dddaeec3ebe861810858222ce3d8589c4dd15c89459ac67e05e958",
+      "modified": "2025-12-21T17:59:13.452292202-03:00",
+      "size": 3471
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/formatter.py": {
+      "hash": "1f0212676d5734cb3a4426f6884fdc864270d6258588423a9b4c367b5d824c9e",
+      "modified": "2025-12-21T17:59:13.452311158-03:00",
+      "size": 5187
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/generator.py": {
+      "hash": "34553f3a220317bc77b0f08128445693f91a3143ff5a28d521ac009b8ff6611e",
+      "modified": "2025-12-21T17:59:13.452335243-03:00",
+      "size": 6916
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/output_streamer.py": {
+      "hash": "bb985813132439ff3522564362a0455afdb4fe825a0cc797092cba65a6336abd",
+      "modified": "2025-12-21T17:59:13.452348408-03:00",
+      "size": 1809
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/phase_executor.py": {
+      "hash": "9345b4489c1248faafa4f1bddc82eb906fc67f76328c7e4057522af4785732fc",
+      "modified": "2025-12-21T17:59:13.452379858-03:00",
+      "size": 14025
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/prioritizer.py": {
+      "hash": "e8db900e60443a31c28fb94c1df2494bd0cc7f6719a836714301d90bb60ef497",
+      "modified": "2025-12-21T17:59:13.452396469-03:00",
+      "size": 3400
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/project_index_phase.py": {
+      "hash": "7dcafdd8aa99d3437f0825ada0e8d45e548ce0c2f12c2b7d61a56f9b8e0ea8df",
+      "modified": "2025-12-21T17:59:13.452409654-03:00",
+      "size": 2352
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/runner.py": {
+      "hash": "e9a6e238604d46e40fd3ed2dbf24ceb6a855276fbf5baf6c2ab80d672ad292d8",
+      "modified": "2025-12-21T17:59:13.452436254-03:00",
+      "size": 9200
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/script_runner.py": {
+      "hash": "1f7fe54ea40dc24f30ae694e74417b7d4ad81e2c51ab89c9a4843b9f4f0b2335",
+      "modified": "2025-12-21T17:59:13.452451774-03:00",
+      "size": 1711
+    },
+    "tmp/squashfs-root/resources/auto-claude/ideation/types.py": {
+      "hash": "9ef6e3d4f32d6b90b49827f6f381d820e38ae6112bbf7f3da9616d98ec330805",
+      "modified": "2025-12-21T17:59:13.452462434-03:00",
+      "size": 845
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan.py": {
+      "hash": "11080fa7b0ebb636dc22d4e1ed00e9a4cbee9da61e144be98f4056a3e4b348ee",
+      "modified": "2025-12-21T17:59:13.452635872-03:00",
+      "size": 187
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/__init__.py": {
+      "hash": "c5200a29fabceb4cf6ba27e1daa58f701fd07322b13a9d15d6026a15067cf992",
+      "modified": "2025-12-21T17:59:13.452481971-03:00",
+      "size": 1993
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/enums.py": {
+      "hash": "d40fe919223554b4d9f2cb4334060592e7bc5cc6823b339b4c86a941ac7ae8d3",
+      "modified": "2025-12-21T17:59:13.452496588-03:00",
+      "size": 2029
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/factories.py": {
+      "hash": "bfe1c5b8b02d94862ed01ee69aaffb708a41842f484b667ffc1c53286fe3f24c",
+      "modified": "2025-12-21T17:59:13.452516696-03:00",
+      "size": 4643
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/main.py": {
+      "hash": "e4f62e9e151adf155ad94c58e8a5c46db8578b66eccec64f15fe3cdfe6aaf3d5",
+      "modified": "2025-12-21T17:59:13.452538267-03:00",
+      "size": 5944
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/phase.py": {
+      "hash": "82ac6355577362b24bf52649f3e5636e2ef47fe740a8851b855c8b5858020305",
+      "modified": "2025-12-21T17:59:13.452554598-03:00",
+      "size": 3021
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/plan.py": {
+      "hash": "15dd9168ba194c0c5f6f37bac76693230bf9159c62076cac979e49141286be9a",
+      "modified": "2025-12-21T17:59:13.452592249-03:00",
+      "size": 13970
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/subtask.py": {
+      "hash": "ef819516f323e6a1377a87e229c51d54a2e809580a8d05ca7e8c95494fadf4d6",
+      "modified": "2025-12-21T17:59:13.452613279-03:00",
+      "size": 4582
+    },
+    "tmp/squashfs-root/resources/auto-claude/implementation_plan/verification.py": {
+      "hash": "6752ae498348bba0f2423c5b929a4b27d1e4dcabab69b691a85737bb129ca8b4",
+      "modified": "2025-12-21T17:59:13.452626795-03:00",
+      "size": 1554
+    },
+    "tmp/squashfs-root/resources/auto-claude/init.py": {
+      "hash": "19ad022933e06cb1c95d1cc665595af232a17701230cd4855e81a49dcdda963f",
+      "modified": "2025-12-21T17:59:13.452652333-03:00",
+      "size": 3578
+    },
+    "tmp/squashfs-root/resources/auto-claude/insight_extractor.py": {
+      "hash": "490319de3180338f6c02cd6cbaabea883e1b44b44ab6adbe1bea9a9e5b876b04",
+      "modified": "2025-12-21T17:59:13.452666129-03:00",
+      "size": 1390
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/__init__.py": {
+      "hash": "f4c9662777fada0e0c8c5ae01456151a9cafceca4122bca6bebccdf318e30e5d",
+      "modified": "2025-12-21T17:59:13.45268229-03:00",
+      "size": 141
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/__init__.py": {
+      "hash": "9455db0d614d198f6356b885cfceff2f75e03fd9f87ccd86fef6d9ab8452dbba",
+      "modified": "2025-12-21T17:59:13.452697398-03:00",
+      "size": 949
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/config.py": {
+      "hash": "153766a1fc94a601b0d5e562643c4330e77ac12a4baf6359210fc90e9713f929",
+      "modified": "2025-12-21T17:59:13.452741311-03:00",
+      "size": 20885
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/memory.py": {
+      "hash": "f3afb8423d59feb7ae33d0bf98a9d71c542d58ba311abc79e21ea0d6dd33145f",
+      "modified": "2025-12-21T17:59:13.452766499-03:00",
+      "size": 5542
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers.py": {
+      "hash": "a75de4350829fd072ac851abfb645ca97fff6a3857c8c574ae230ba5b85d9ef0",
+      "modified": "2025-12-21T17:59:13.452780265-03:00",
+      "size": 2065
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/__init__.py": {
+      "hash": "10896a23951696231de062759c6a9dc71ba248e01cbd6921945e4171cedbfd54",
+      "modified": "2025-12-21T17:59:13.45279897-03:00",
+      "size": 1873
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/cross_encoder.py": {
+      "hash": "deb689abeb430f53dabd947d0b2f9197aa18e408397685a338422c3d04a2323d",
+      "modified": "2025-12-21T17:59:13.452812295-03:00",
+      "size": 1790
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/embedder_providers/__init__.py": {
+      "hash": "cc2767f99ba2df7ea8929da7010d1e3f492cbcc492311c46b2389db506c2812e",
+      "modified": "2025-12-21T17:59:13.452831552-03:00",
+      "size": 686
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/embedder_providers/azure_openai_embedder.py": {
+      "hash": "13ba507119068a7ab37b17b4a00561af6a61d17d8ee4b06e41fd378092ead88e",
+      "modified": "2025-12-21T17:59:13.452845087-03:00",
+      "size": 1728
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/embedder_providers/google_embedder.py": {
+      "hash": "68565aa455553bbd395831acdb8cbf909603e07b78537a8fd85c4be84a387aa6",
+      "modified": "2025-12-21T17:59:13.452863653-03:00",
+      "size": 4338
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/embedder_providers/ollama_embedder.py": {
+      "hash": "676a8055718ff78de7ade81a59865f042f6dca77019b432a9a280ac87e2d631b",
+      "modified": "2025-12-21T17:59:13.452877439-03:00",
+      "size": 1607
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/embedder_providers/openai_embedder.py": {
+      "hash": "3c79032a6ab08282a6003ec0643f798b854d586cef313c8f6ca51fbb29e483b5",
+      "modified": "2025-12-21T17:59:13.452889271-03:00",
+      "size": 1222
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/embedder_providers/voyage_embedder.py": {
+      "hash": "6ebc0feb1dfba9957b54acb1ad4cf41d486f12b0a0b13cd381b2c16fa8be1de3",
+      "modified": "2025-12-21T17:59:13.452901234-03:00",
+      "size": 1318
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/exceptions.py": {
+      "hash": "983dd08f4e0db93fb8f85df91144c160ef5d581cbb0594e30b14cb24ce647107",
+      "modified": "2025-12-21T17:59:13.452912695-03:00",
+      "size": 344
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/factory.py": {
+      "hash": "dec0cb3023a35b24130a97985c6230d9be0e65dd7bbbe4792fd8b59b41d4e33b",
+      "modified": "2025-12-21T17:59:13.45292589-03:00",
+      "size": 2627
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/llm_providers/__init__.py": {
+      "hash": "b2f5c591ac1cef10766f2dd7d47f6b371f5dd87dd91754ab4bba88490b2e3a09",
+      "modified": "2025-12-21T17:59:13.45294147-03:00",
+      "size": 675
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/llm_providers/anthropic_llm.py": {
+      "hash": "2e5e6d9a370c3da043fd8dcc1559cecf882c4734eec43005d528a41fee29ce57",
+      "modified": "2025-12-21T17:59:13.452953472-03:00",
+      "size": 1305
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/llm_providers/azure_openai_llm.py": {
+      "hash": "7b347a5204a3ed3df451f3536a7ed07cfff798a6caa5402550d99b77b3824350",
+      "modified": "2025-12-21T17:59:13.452968331-03:00",
+      "size": 1864
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/llm_providers/google_llm.py": {
+      "hash": "b1797263ac7bffbd264447aa7182c14b8e39a408f93ae730337f26d966210fe0",
+      "modified": "2025-12-21T17:59:13.45298919-03:00",
+      "size": 5443
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/llm_providers/ollama_llm.py": {
+      "hash": "2fd3c372d391c1bd32e84e2b697b60548aaadae0026860a9880595ec4b89c81c",
+      "modified": "2025-12-21T17:59:13.453002726-03:00",
+      "size": 1616
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/llm_providers/openai_llm.py": {
+      "hash": "2cc173bf122e347648e229ad869580b8d8b0cfc99d90c133a099b7f43f9e89db",
+      "modified": "2025-12-21T17:59:13.45301578-03:00",
+      "size": 1758
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/models.py": {
+      "hash": "a56c72a9f3ab84c287716e2ec1550c44968e3521244410306f7756e3ea974bea",
+      "modified": "2025-12-21T17:59:13.453028214-03:00",
+      "size": 1300
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/utils.py": {
+      "hash": "f0f2ca0a43a6ad200498db4179fec4e028e662a02eec0a292538a2aef5ba2119",
+      "modified": "2025-12-21T17:59:13.453044855-03:00",
+      "size": 3062
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/providers_pkg/validators.py": {
+      "hash": "f85e5a6f108872a74822df936637759b1aa2d0ca4eea37078f3fb8314efedd27",
+      "modified": "2025-12-21T17:59:13.453064793-03:00",
+      "size": 5786
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/queries_pkg/__init__.py": {
+      "hash": "31a04ee4fcb31cc575ebfa9319eb199df5b94576699332c782b78f10d4251465",
+      "modified": "2025-12-21T17:59:13.453082927-03:00",
+      "size": 1106
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/queries_pkg/client.py": {
+      "hash": "47bca83da34fbd5462702b1f7e1c99a5e046617a4365b05c7e69d69c1f4a038b",
+      "modified": "2025-12-21T17:59:13.453101823-03:00",
+      "size": 5288
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/queries_pkg/graphiti.py": {
+      "hash": "fc3ab5ac7ecd3a1497fa0b9ee61517d110aa334d4ab5504bb0a77a29a786844d",
+      "modified": "2025-12-21T17:59:13.453135667-03:00",
+      "size": 11900
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/queries_pkg/queries.py": {
+      "hash": "37d2d1188cbd0e5776df09ea999013e9cdb17ad7b1471795ff5eec12b33a7061",
+      "modified": "2025-12-21T17:59:13.453169912-03:00",
+      "size": 18002
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/queries_pkg/schema.py": {
+      "hash": "c94de28ba5ff1b978aaf03dc90a69dd9fcdb069df8b10e04ae8a8febe48e396c",
+      "modified": "2025-12-21T17:59:13.453209537-03:00",
+      "size": 837
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/queries_pkg/search.py": {
+      "hash": "876bb9015c4936f49fe443209200ef5ec76599fd70c855edb168af7d8f663eea",
+      "modified": "2025-12-21T17:59:13.453235025-03:00",
+      "size": 7209
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/graphiti/test_graphiti_memory.py": {
+      "hash": "9bb88982fb8a4cac5f12a73df9925c5227d97517bbd08236eaf136beb250837e",
+      "modified": "2025-12-21T17:59:13.453281212-03:00",
+      "size": 19362
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/linear/__init__.py": {
+      "hash": "1ac7231f2913029767e544009ab71d6ccc9c70d08329effd6d47ac0dc52e5107",
+      "modified": "2025-12-21T17:59:13.453300489-03:00",
+      "size": 890
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/linear/config.py": {
+      "hash": "cf36883dc4f6d8dca7c3ae476e30d40f050b82d5f904bacd3648ac6820f11d10",
+      "modified": "2025-12-21T17:59:13.453332209-03:00",
+      "size": 10233
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/linear/integration.py": {
+      "hash": "72fa2f487d924dc47d8412b53aa5c0293ff2a2bc403e295d87f1bfe4c9493cbe",
+      "modified": "2025-12-21T17:59:13.453376793-03:00",
+      "size": 16518
+    },
+    "tmp/squashfs-root/resources/auto-claude/integrations/linear/updater.py": {
+      "hash": "0daf9f791d1dca02790412b36d38ef8bbaa0f4ad393e5090e50b86e3127e237a",
+      "modified": "2025-12-21T17:59:13.453415045-03:00",
+      "size": 12840
+    },
+    "tmp/squashfs-root/resources/auto-claude/linear_config.py": {
+      "hash": "63b5339e442a5a3d1250f36e7f5a304f973ef896af70f760e84619ac91b93c58",
+      "modified": "2025-12-21T17:59:13.45342791-03:00",
+      "size": 140
+    },
+    "tmp/squashfs-root/resources/auto-claude/linear_integration.py": {
+      "hash": "caf070c46b74a3fe945cfdaa00925a12f38fc1970e607e04ce59f4d4d211e632",
+      "modified": "2025-12-21T17:59:13.453435734-03:00",
+      "size": 150
+    },
+    "tmp/squashfs-root/resources/auto-claude/linear_updater.py": {
+      "hash": "6b943b856fa995914c119e59527a3a57c7f0a09c300b95c78bf44bef0b43c211",
+      "modified": "2025-12-21T17:59:13.453444241-03:00",
+      "size": 142
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/__init__.py": {
+      "hash": "294a641bc515db1d1727da04a3c9316ba18751f45d7bee618908559752dc874c",
+      "modified": "2025-12-21T17:59:13.45346534-03:00",
+      "size": 3228
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/codebase_map.py": {
+      "hash": "ad125122c39a52ee675e5f841c6f282aa0d1a8acac9472864842fcb9248b57e6",
+      "modified": "2025-12-21T17:59:13.453480629-03:00",
+      "size": 2931
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/graphiti_helpers.py": {
+      "hash": "097fd4ddc5899c047bc2bd63090a4ce7d0a4e321191b183b901e8fd3d19eccb0",
+      "modified": "2025-12-21T17:59:13.453497672-03:00",
+      "size": 3576
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/main.py": {
+      "hash": "3de001c21e52cd7dae3d680838002f81efa8c65ef3c1d4cca494d0f075fd1ad2",
+      "modified": "2025-12-21T17:59:13.453517048-03:00",
+      "size": 5110
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/paths.py": {
+      "hash": "22c24f16f1a26a58480175b88cc90f073a64de9ef711bd75635057c84a1fd875",
+      "modified": "2025-12-21T17:59:13.453529622-03:00",
+      "size": 1347
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/patterns.py": {
+      "hash": "4de31439c0f23ae314214be17435836aa1017b54b19cec0cf9a80a4af0f05f73",
+      "modified": "2025-12-21T17:59:13.453546394-03:00",
+      "size": 5005
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/sessions.py": {
+      "hash": "6df9622455dca67e6de201a4ee7a47d52306bcb08f7aca313893f2ae7e1b85c0",
+      "modified": "2025-12-21T17:59:13.45356563-03:00",
+      "size": 4137
+    },
+    "tmp/squashfs-root/resources/auto-claude/memory/summary.py": {
+      "hash": "ab2cae7e7610d9ce3333461cb9891166374d41cef49310becbc2e137ae734a40",
+      "modified": "2025-12-21T17:59:13.453578034-03:00",
+      "size": 1243
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ARCHITECTURE.md": {
+      "hash": "932706e5068862a4d1e11669c1c4bcc7b2ee038c43489b21114d920216b7cd65",
+      "modified": "2025-12-21T17:59:13.453607249-03:00",
+      "size": 8421
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/REFACTORING_DETAILS.md": {
+      "hash": "6ee4d5094b91aa369e119754d19ebc910ce70e913dd8893e50d8c28e13f18277",
+      "modified": "2025-12-21T17:59:13.453637827-03:00",
+      "size": 9168
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/REFACTORING_SUMMARY.md": {
+      "hash": "6b5ab6e203f846b3104aa9aa69bcf95b800e1a8b61e7cd848ffc4395a7f4cc53",
+      "modified": "2025-12-21T17:59:13.453667332-03:00",
+      "size": 6140
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/__init__.py": {
+      "hash": "5802bd82509047c93e97227aa6dabe664ddf067b3ae7f144852f0dbd1fb69096",
+      "modified": "2025-12-21T17:59:13.453684735-03:00",
+      "size": 3189
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver.py": {
+      "hash": "d4b84b9396e828ea25d5f14c1cb54820a22691c51e7967a08a93357ff54d4bc6",
+      "modified": "2025-12-21T17:59:13.453845479-03:00",
+      "size": 997
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/README.md": {
+      "hash": "e7d917010661943b02de46370fdef2a93f0573784d240fe82af28f6b9360b59c",
+      "modified": "2025-12-21T17:59:13.453709332-03:00",
+      "size": 4002
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/__init__.py": {
+      "hash": "5a4c7cfc0e58f00be0febd8706bc3e2a1161d2fa570e8fd710b99a5757188f19",
+      "modified": "2025-12-21T17:59:13.453720223-03:00",
+      "size": 954
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/claude_client.py": {
+      "hash": "2c0c13320ab126d5b69ce7ca921074b913571f22ffcba3718d8cbc3d66f08324",
+      "modified": "2025-12-21T17:59:13.453736123-03:00",
+      "size": 3116
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/context.py": {
+      "hash": "2fe6c5d5fa85729454108b0438fa55dc995f2bce6fc092d66c5111e9e9742516",
+      "modified": "2025-12-21T17:59:13.453750299-03:00",
+      "size": 2318
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/language_utils.py": {
+      "hash": "a3cacfd69130aa2d4114c7c290c92ad7992e7146ca57b0cf8d8ff9c9faea1981",
+      "modified": "2025-12-21T17:59:13.453765999-03:00",
+      "size": 1683
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/parsers.py": {
+      "hash": "8f76eb17afd9bd316500520aa335e0b51a465ea426b01736791a40b070880fc4",
+      "modified": "2025-12-21T17:59:13.453781458-03:00",
+      "size": 2830
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/prompts.py": {
+      "hash": "d6e9439e3ca63946e0e8f305bfb8dec2107e3183f9851d3d6f71b9842ad863e7",
+      "modified": "2025-12-21T17:59:13.453796857-03:00",
+      "size": 2793
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/ai_resolver/resolver.py": {
+      "hash": "e036d3347d81fd2dca8ebe9dad7b4d7d5abb77ac8b20567db81f8edcb05f923d",
+      "modified": "2025-12-21T17:59:13.453831393-03:00",
+      "size": 14304
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger.py": {
+      "hash": "def5a4b6a6ac0e8d4aace2f43a3fc7f06fc0addaf0ebdeca685bf475797f90ea",
+      "modified": "2025-12-21T17:59:13.45403084-03:00",
+      "size": 1286
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/__init__.py": {
+      "hash": "59b720d57928ab241daa80383d5a82f0d2eca20ad986a9a303f0d97c8a997c48",
+      "modified": "2025-12-21T17:59:13.453859977-03:00",
+      "size": 209
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/context.py": {
+      "hash": "039f0434e7eef8180d7842e774ea918dc041729585e604f96df449d426c1e9c9",
+      "modified": "2025-12-21T17:59:13.453869605-03:00",
+      "size": 392
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/helpers.py": {
+      "hash": "f32d23d8149b060e77e54d932883e9678c25ac40114ea83f6a73ac44cd486426",
+      "modified": "2025-12-21T17:59:13.453894282-03:00",
+      "size": 7509
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/merger.py": {
+      "hash": "713d826b27c4664cb03f08e8000651517f25ae1a4aaf238db6cef9af28be0f63",
+      "modified": "2025-12-21T17:59:13.453911274-03:00",
+      "size": 2894
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/strategies/__init__.py": {
+      "hash": "169b552dcf65e67d40805ba5313efad1000e939c4e0421be94c098b63c468be5",
+      "modified": "2025-12-21T17:59:13.453928236-03:00",
+      "size": 521
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/strategies/append_strategy.py": {
+      "hash": "fdc13adf41e663f84fbc9bf4001506cc8ebcbe8229ce1512a971ec9e25043423",
+      "modified": "2025-12-21T17:59:13.453945579-03:00",
+      "size": 4609
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/strategies/base_strategy.py": {
+      "hash": "a57f82efd3c073d65ddc950d6ad41329e90a6e7e443b68c226bdfa308851427f",
+      "modified": "2025-12-21T17:59:13.453957491-03:00",
+      "size": 617
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/strategies/hooks_strategy.py": {
+      "hash": "3c2679c6434de63e780e44b662bf0f370452e523edcf42294db063d4436b6ba0",
+      "modified": "2025-12-21T17:59:13.453973812-03:00",
+      "size": 3843
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/strategies/import_strategy.py": {
+      "hash": "e300667c73f445b64a0ca313f78bcd46fb3a6ec174a53d3c41691d8adfa830a0",
+      "modified": "2025-12-21T17:59:13.453989311-03:00",
+      "size": 3000
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/strategies/ordering_strategy.py": {
+      "hash": "fbe60ba51d8538fa2a59faec090c7fe70bd869a479ec991c3cb9bc527c36ffd5",
+      "modified": "2025-12-21T17:59:13.454004941-03:00",
+      "size": 3620
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger/strategies/props_strategy.py": {
+      "hash": "b1b8ef51b7cdb291d4037fdf3506bf715d27f1e8b2ac72c510c095ab00921ed6",
+      "modified": "2025-12-21T17:59:13.454017956-03:00",
+      "size": 1873
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/auto_merger_old.py": {
+      "hash": "f921be5067a68cabafbfdc2c217f147845f1d1f0d8cc54fd1e9c5af313eedfca",
+      "modified": "2025-12-21T17:59:13.454081195-03:00",
+      "size": 24690
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/compatibility_rules.py": {
+      "hash": "74fe14769e0d67d8aee5f245a0774702c9e3cc2f20bb192ac64e0518b8e2a3e7",
+      "modified": "2025-12-21T17:59:13.454108667-03:00",
+      "size": 10812
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/conflict_analysis.py": {
+      "hash": "dc661c23172800d2fb2d8dbc5b0747367eb32895711e4b55b3a23dbb74920ae9",
+      "modified": "2025-12-21T17:59:13.454139165-03:00",
+      "size": 9091
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/conflict_detector.py": {
+      "hash": "02f36ee3ea54da65c9291f637965c82ede1da2986dd42c8ac49898e6a1953ab3",
+      "modified": "2025-12-21T17:59:13.45416284-03:00",
+      "size": 5290
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/conflict_explanation.py": {
+      "hash": "b9798deb3e146ab8ed413b5f4d31a0fc98dd23d122766354e1bde10dc733fed5",
+      "modified": "2025-12-21T17:59:13.454180052-03:00",
+      "size": 3204
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/conflict_resolver.py": {
+      "hash": "4ae3cd0b7658f36a0654adee5f8367ba390084a5a126f2bff3973bde2d8cfb3c",
+      "modified": "2025-12-21T17:59:13.454201553-03:00",
+      "size": 5959
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_evolution.py": {
+      "hash": "1c54a338d16ccd8c4ab65b974a258ca996ec256d78b8d7c3f2380befa7490992",
+      "modified": "2025-12-21T17:59:13.454356686-03:00",
+      "size": 819
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_evolution/__init__.py": {
+      "hash": "d719573a01ac6500acc30f9a71a1c8f3794841e9cd391e7f70890ec227ad81ee",
+      "modified": "2025-12-21T17:59:13.454220779-03:00",
+      "size": 759
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_evolution/baseline_capture.py": {
+      "hash": "b3f0d41dde946c4152d2c3cdf124011eed629a4ef704c27c92bfec0031521f04",
+      "modified": "2025-12-21T17:59:13.454241809-03:00",
+      "size": 5896
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_evolution/evolution_queries.py": {
+      "hash": "a73de0410c5311c9022dff6bc172e0079669d89df814394d7022892a8bf54ab8",
+      "modified": "2025-12-21T17:59:13.454267187-03:00",
+      "size": 9190
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_evolution/modification_tracker.py": {
+      "hash": "10d25aa10ef57e11285393aa0df9cacb8c528cb28b6e5abbad63a9278a4c3865",
+      "modified": "2025-12-21T17:59:13.454292415-03:00",
+      "size": 7670
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_evolution/storage.py": {
+      "hash": "20079b26745dcdebb587b6d78c5d00db17a4ee32b2aa7b23a4ff37172a4a6356",
+      "modified": "2025-12-21T17:59:13.454313625-03:00",
+      "size": 5780
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_evolution/tracker.py": {
+      "hash": "1f4e2467dcbc6883c1a58d3b26ccf44d0130f5e4d718e3b03fb3bc59947d3ff5",
+      "modified": "2025-12-21T17:59:13.45434273-03:00",
+      "size": 10469
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_merger.py": {
+      "hash": "dd596131fc72978ed55800443fe09857e68d19abe797ce9dae324f0f028d0f15",
+      "modified": "2025-12-21T17:59:13.454377866-03:00",
+      "size": 6381
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/file_timeline.py": {
+      "hash": "f20f4a78c2e93c76d7b048926b8e07f30c9a83b131a366a66bbe61f9d29ab27d",
+      "modified": "2025-12-21T17:59:13.454393636-03:00",
+      "size": 2295
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/git_utils.py": {
+      "hash": "05d9fa72f47ad0197bbe5a517ed8adc86e3dce5f4e9a3366e48a34b7abbbf9d2",
+      "modified": "2025-12-21T17:59:13.454407713-03:00",
+      "size": 2062
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/hooks/post-commit": {
+      "hash": "513eb7baecc01ef5cb073f51e4718f79900046bfdac24e43d21aead7fe76b366",
+      "modified": "2025-12-21T17:59:13.454425186-03:00",
+      "size": 1368
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/install_hook.py": {
+      "hash": "a0648e04fbeaa01b58a4031e1e3888c4a0bcda29460aed01a97dc812e610381f",
+      "modified": "2025-12-21T17:59:13.454445444-03:00",
+      "size": 5307
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/merge_pipeline.py": {
+      "hash": "6d11d30d841ef1a7c8ea279271aace563ea15f2a02de702db6268b34237b3164",
+      "modified": "2025-12-21T17:59:13.454465863-03:00",
+      "size": 4800
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/models.py": {
+      "hash": "07a7b4da9bd561dcdbdf90d3c55436928bd282320b75d8764503a58165afa585",
+      "modified": "2025-12-21T17:59:13.454483626-03:00",
+      "size": 3550
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/orchestrator.py": {
+      "hash": "3749ba047586e74297c73322b131101ccf22963e4d8be17ef4c011860cd5a25e",
+      "modified": "2025-12-21T17:59:13.454531176-03:00",
+      "size": 22224
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/prompts.py": {
+      "hash": "2b930c25ffe8216c46832f731d17a50cc5235243bbcbef76449f4bdcef817dfa",
+      "modified": "2025-12-21T17:59:13.454579718-03:00",
+      "size": 17506
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/semantic_analysis/__init__.py": {
+      "hash": "17f57663baa90c5099e2f3d3c8e6b095a918c471d1f1c11a64e25705b2bb4cba",
+      "modified": "2025-12-21T17:59:13.454598283-03:00",
+      "size": 478
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/semantic_analysis/comparison.py": {
+      "hash": "0cc5509438609209d8d069af19f2cfb3844676b9c92edd410615355d3958cb1c",
+      "modified": "2025-12-21T17:59:13.454619443-03:00",
+      "size": 7053
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/semantic_analysis/js_analyzer.py": {
+      "hash": "ceb7228a7d6c4e6452f5716ba89087c3cd06075ff3f7ac5b88ea7b7896fcff08",
+      "modified": "2025-12-21T17:59:13.45463915-03:00",
+      "size": 6498
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/semantic_analysis/models.py": {
+      "hash": "a92df607639d7bdd7881bdfb84723dff95d2675b65946edbf73e671e2ffd661e",
+      "modified": "2025-12-21T17:59:13.454650201-03:00",
+      "size": 566
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/semantic_analysis/python_analyzer.py": {
+      "hash": "3dbd5e88c0db88b005d3bc83be162d32003209a07a261b4c8e10d8b48c677515",
+      "modified": "2025-12-21T17:59:13.454690618-03:00",
+      "size": 4130
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/semantic_analysis/regex_analyzer.py": {
+      "hash": "c47de0a7b51eff5af8a9a2604aa39fa13c6729c5cb0a6ef82b49fcd67f60f189",
+      "modified": "2025-12-21T17:59:13.454765369-03:00",
+      "size": 5708
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/semantic_analyzer.py": {
+      "hash": "1bfb5c339545a5ad9675331e76b9ab2fd47121394417ce2a75c3259dfe657332",
+      "modified": "2025-12-21T17:59:13.454796398-03:00",
+      "size": 9812
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/timeline_git.py": {
+      "hash": "f3aa21364592815ca6979ea7b84f4d6ad225e9c4b8608a28b810c7207e6a6094",
+      "modified": "2025-12-21T17:59:13.454821926-03:00",
+      "size": 8058
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/timeline_models.py": {
+      "hash": "f1e913a1a605fea448968231fda65e21214bb92ed6ef3b55b3bb600facf550d6",
+      "modified": "2025-12-21T17:59:13.454852514-03:00",
+      "size": 10667
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/timeline_persistence.py": {
+      "hash": "31a24f28311f31137cd67c6fd9dbcdcd0015993ac412f775df7de3c3fb065019",
+      "modified": "2025-12-21T17:59:13.454872752-03:00",
+      "size": 3922
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/timeline_tracker.py": {
+      "hash": "f1ff9bf4844b257344c2b14361912a584f117f4fc58cf01359d2bd31ad5d0ddb",
+      "modified": "2025-12-21T17:59:13.454914862-03:00",
+      "size": 19969
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/tracker_cli.py": {
+      "hash": "b2022344ea62dd494bb7deb236465a4c9f03eff2696b79223c80feeef473a8d2",
+      "modified": "2025-12-21T17:59:13.454941873-03:00",
+      "size": 7726
+    },
+    "tmp/squashfs-root/resources/auto-claude/merge/types.py": {
+      "hash": "2e5d501462b16fab9d952de70fc03c947aba53f33ab2a5262d7e102609da475b",
+      "modified": "2025-12-21T17:59:13.454989303-03:00",
+      "size": 19564
+    },
+    "tmp/squashfs-root/resources/auto-claude/phase_config.py": {
+      "hash": "6405cdcebb368bc8d2f5bc4a5ecb6a73ac8bf384dea8111a90a1fbdad181f60b",
+      "modified": "2025-12-21T17:59:13.455016694-03:00",
+      "size": 8649
+    },
+    "tmp/squashfs-root/resources/auto-claude/planner_lib/__init__.py": {
+      "hash": "50ad4f939b57a039508140309428419f95f63c1e5d0af734645605c0f0d13214",
+      "modified": "2025-12-21T17:59:13.455032835-03:00",
+      "size": 348
+    },
+    "tmp/squashfs-root/resources/auto-claude/planner_lib/context.py": {
+      "hash": "90bc8838d49bc67eeabb9042a78d7af3631278146f8b32667cf3012f4375818d",
+      "modified": "2025-12-21T17:59:13.455053865-03:00",
+      "size": 6802
+    },
+    "tmp/squashfs-root/resources/auto-claude/planner_lib/generators.py": {
+      "hash": "daa7c1797439bd28bdadee32ed488f22b7cd671c85f47f3de93e5b73d6975ea6",
+      "modified": "2025-12-21T17:59:13.455084052-03:00",
+      "size": 13655
+    },
+    "tmp/squashfs-root/resources/auto-claude/planner_lib/main.py": {
+      "hash": "ca9a03ea374db8aa4a4134cddf04cc9d2f84ce506f6e798af211bc63515eef95",
+      "modified": "2025-12-21T17:59:13.455101795-03:00",
+      "size": 3347
+    },
+    "tmp/squashfs-root/resources/auto-claude/planner_lib/models.py": {
+      "hash": "cc5cb6865b45b59bc3db610bbd40e04e87912f4d7e13151d733f5b0e037ef827",
+      "modified": "2025-12-21T17:59:13.455111183-03:00",
+      "size": 411
+    },
+    "tmp/squashfs-root/resources/auto-claude/planner_lib/utils.py": {
+      "hash": "26b4662d42cb04e8daa990b69d0936e7b2a7283033029ac9d9cf577876dd6476",
+      "modified": "2025-12-21T17:59:13.455133115-03:00",
+      "size": 5716
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/__init__.py": {
+      "hash": "b48b3b6a7822cb79bb2f52dfc7960743756ae20217a8eb2724c4fd1a2af2b99d",
+      "modified": "2025-12-21T17:59:13.45515189-03:00",
+      "size": 1496
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/checklist_generator.py": {
+      "hash": "78bbf95533073496bd25cea5539abc0cca76315f438516aecaa10ebe8e83a5f5",
+      "modified": "2025-12-21T17:59:13.455169253-03:00",
+      "size": 5029
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/formatter.py": {
+      "hash": "50e1098b70ea7471bdd5f62ff08c0fd96c26cbd20fd6212e362a757a1ee22edc",
+      "modified": "2025-12-21T17:59:13.455185955-03:00",
+      "size": 4674
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/main.py": {
+      "hash": "ff43548a06f4ea49f7698375c4116222e4320c51f100f6f837581d535aa27596",
+      "modified": "2025-12-21T17:59:13.455200151-03:00",
+      "size": 2239
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/memory_loader.py": {
+      "hash": "107be2892a24009dc5a1410e820ff3e4f32011e1874854449d2a042d958c7878",
+      "modified": "2025-12-21T17:59:13.455213928-03:00",
+      "size": 2802
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/models.py": {
+      "hash": "f03a8988b6c5ad0306d5c7116064aaadfeac9fcb180bb252c6f33a1f445db5dd",
+      "modified": "2025-12-21T17:59:13.455224708-03:00",
+      "size": 1160
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/patterns.py": {
+      "hash": "4391fe00317ee60164db77b516b525fae2233c6f2d97659fc45ff7ba72d85b52",
+      "modified": "2025-12-21T17:59:13.455249314-03:00",
+      "size": 8945
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/predictor.py": {
+      "hash": "7d8992d5648e559bcd2082cccbe225973d6b7a8f5e9b08a4dbbc9ae58a1bf69d",
+      "modified": "2025-12-21T17:59:13.455266477-03:00",
+      "size": 4084
+    },
+    "tmp/squashfs-root/resources/auto-claude/prediction/risk_analyzer.py": {
+      "hash": "c73c6fee1370ce1a4a72ab0fc797280dba9346ed93b10ff06df79663903ad4c3",
+      "modified": "2025-12-21T17:59:13.455284411-03:00",
+      "size": 4798
+    },
+    "tmp/squashfs-root/resources/auto-claude/progress.py": {
+      "hash": "495887d4f741204b61126cb443774b5467f1c5a6ac5931c8c46b323ab40c4d71",
+      "modified": "2025-12-21T17:59:13.455293087-03:00",
+      "size": 114
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/__init__.py": {
+      "hash": "fcc0a83212f382a3b360640a1d62de87ab5f298a47e3e6026a4571aa5bf29aaf",
+      "modified": "2025-12-21T17:59:13.455317403-03:00",
+      "size": 3073
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/analyzer.py": {
+      "hash": "eb343a846ccda41f0a471a28d3175e9c424a66297e313e45428a9a6e3ab10d26",
+      "modified": "2025-12-21T17:59:13.455349123-03:00",
+      "size": 12341
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry.py": {
+      "hash": "a7b1b927c6d99fe9fe01032ff033a9fee9fb0770e9527f768521d0264f23966c",
+      "modified": "2025-12-21T17:59:13.455517271-03:00",
+      "size": 1643
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/README.md": {
+      "hash": "cc270422628047a3e997b981ab7ef05f9a66f8afdcf33a0181e15d68658b9582",
+      "modified": "2025-12-21T17:59:13.45537373-03:00",
+      "size": 3649
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/__init__.py": {
+      "hash": "db7225571af2860e73196957e5d1b72b04da311ea3a2e2f8c19e310737e97cfd",
+      "modified": "2025-12-21T17:59:13.455385662-03:00",
+      "size": 1464
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/base.py": {
+      "hash": "f2449aaa29d520e9433fa121f5f0adb175842572894ea3c8be021efee8526c79",
+      "modified": "2025-12-21T17:59:13.45540048-03:00",
+      "size": 2726
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/cloud.py": {
+      "hash": "73e5b8d992274a2051dd23b5642b557aaa1085df9b9794b63f598294acde1c1f",
+      "modified": "2025-12-21T17:59:13.455411952-03:00",
+      "size": 1295
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/code_quality.py": {
+      "hash": "92472ff18e0dc1c6aa57e5a1b682b8da72da3bc0e09f242537a4252ebfe40e20",
+      "modified": "2025-12-21T17:59:13.455422773-03:00",
+      "size": 1069
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/databases.py": {
+      "hash": "cb6c42ddba2bc64d918c9064a4e35f09918a76c8c0258433f568dd354a89bf0d",
+      "modified": "2025-12-21T17:59:13.455435978-03:00",
+      "size": 2207
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/frameworks.py": {
+      "hash": "64c83f93135c626b61725b357bcb1c451c99d420a17ffd8e8d91716f4fd01ded",
+      "modified": "2025-12-21T17:59:13.455455995-03:00",
+      "size": 4393
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/infrastructure.py": {
+      "hash": "c2036f2dc7481c60c7692f4bb14ba0999f57bee43309d9f99d51902f0f1236a0",
+      "modified": "2025-12-21T17:59:13.4554691-03:00",
+      "size": 1583
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/languages.py": {
+      "hash": "8e6d06a56337033a521cfb7bb5aa7e4975a6cfb81bd929a4152668e91a96497a",
+      "modified": "2025-12-21T17:59:13.455483137-03:00",
+      "size": 2446
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/package_managers.py": {
+      "hash": "6a2c8be6b6674ba50dca3412f792ed51cb4feb56ff1a9967d9f837edf655b4e7",
+      "modified": "2025-12-21T17:59:13.455494508-03:00",
+      "size": 1072
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/command_registry/version_managers.py": {
+      "hash": "4b841da3f8ba8b50b0e3e51e8dbd2c650d473dc81074c3c377229bf65f4df0f9",
+      "modified": "2025-12-21T17:59:13.455505209-03:00",
+      "size": 668
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/config_parser.py": {
+      "hash": "230bfeb6f2e8a40e35a947d3c7e0d2736f18846f281eb203d8585e87dea7685f",
+      "modified": "2025-12-21T17:59:13.455531107-03:00",
+      "size": 2472
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/framework_detector.py": {
+      "hash": "b8c1f4f1588a65bc9af05b9c084af4fa0664e18c016a8b5bff2d79e73b3277c6",
+      "modified": "2025-12-21T17:59:13.455555123-03:00",
+      "size": 8130
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/models.py": {
+      "hash": "da93639b9ccb0704544744309ba16dbe69a8d785272ce79bcbad6f46919ecbef",
+      "modified": "2025-12-21T17:59:13.455571273-03:00",
+      "size": 3460
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/stack_detector.py": {
+      "hash": "b2fb1c7e9bbbb9d1fed3a8d0af096a6e2279f3e338f421695630d08eb5d4e521",
+      "modified": "2025-12-21T17:59:13.45560094-03:00",
+      "size": 13606
+    },
+    "tmp/squashfs-root/resources/auto-claude/project/structure_analyzer.py": {
+      "hash": "4d8ab278342c257524da2bb992164f8e65e00a009a6dd7db45a559ca1d4072e9",
+      "modified": "2025-12-21T17:59:13.455623913-03:00",
+      "size": 4308
+    },
+    "tmp/squashfs-root/resources/auto-claude/project_analyzer.py": {
+      "hash": "dd6d4f95665d3c996c47cbcd82565c16ebd752a4b154c0fb869971cb59e90d05",
+      "modified": "2025-12-21T17:59:13.455641737-03:00",
+      "size": 3125
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompt_generator.py": {
+      "hash": "bf34f8db385c29f477822ec7ba98529cab01df2e9ddfe66d399171029cea5cee",
+      "modified": "2025-12-21T17:59:13.455650944-03:00",
+      "size": 144
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts.py": {
+      "hash": "ebc54374477f28a5fe0097044b018a6ef7a84c738c440f18fd3a5afd535d1da5",
+      "modified": "2025-12-21T17:59:13.456666395-03:00",
+      "size": 126
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/_archived_ideation_high_value.md": {
+      "hash": "3ca3ddebf18ba850d60f6e738c7091a5c9274499543a361bf30df82692976a3f",
+      "modified": "2025-12-21T17:59:13.455697602-03:00",
+      "size": 11872
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/_archived_ideation_low_hanging_fruit.md": {
+      "hash": "816e9f4b0ee0d4b1b3d0d972728a272638a7946466de35771593564b99e00d76",
+      "modified": "2025-12-21T17:59:13.455731707-03:00",
+      "size": 9190
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/coder.md": {
+      "hash": "d0275cc0268eb3cd8a45115c76241b7624b1fa65fdf19e49faee9746c528dcdb",
+      "modified": "2025-12-21T17:59:13.455808542-03:00",
+      "size": 27111
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/coder_recovery.md": {
+      "hash": "a39e456f145e552028fc4a4e09db6a123fd1dfa489f802a34201345aaee17694",
+      "modified": "2025-12-21T17:59:13.455841685-03:00",
+      "size": 8832
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/competitor_analysis.md": {
+      "hash": "614cebca1a32c5c833f12117a42c06a908cab98f77cf8003c07c56a9f3185088",
+      "modified": "2025-12-21T17:59:13.455879607-03:00",
+      "size": 10927
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/complexity_assessor.md": {
+      "hash": "aeb68ac94df04cdd8f53c6a46fe121a7d022965ea11b14a89d56a181a85aa9c9",
+      "modified": "2025-12-21T17:59:13.455932306-03:00",
+      "size": 21398
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/followup_planner.md": {
+      "hash": "c8a6941823998aac60b9b13ab2b484619f4e25a90461f8f4f9e7caeb95a065c2",
+      "modified": "2025-12-21T17:59:13.455969016-03:00",
+      "size": 9668
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/ideation_code_improvements.md": {
+      "hash": "96d15f445a3e58d47da923d145f638dff33a2d4f822d49f4170dea9973f7b708",
+      "modified": "2025-12-21T17:59:13.456010905-03:00",
+      "size": 12442
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/ideation_code_quality.md": {
+      "hash": "6ab2c254863fc740218751f56a52addfec87e1ef44394684228e6200d25974ba",
+      "modified": "2025-12-21T17:59:13.456049869-03:00",
+      "size": 10615
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/ideation_documentation.md": {
+      "hash": "e6d454c4d4ebebc318fb3be8682c3506cad6abf7fc620768c872778a9871b395",
+      "modified": "2025-12-21T17:59:13.456074545-03:00",
+      "size": 5174
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/ideation_performance.md": {
+      "hash": "3d36aa2374b4eb9277af8abc53ca0181350d574b4ade73ba692f7ee6fb5bf820",
+      "modified": "2025-12-21T17:59:13.456106055-03:00",
+      "size": 7672
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/ideation_security.md": {
+      "hash": "d6fca4822c2192255c112e5269fbd4c2a7cac55b4c5ad4724c39281aeaaebfee",
+      "modified": "2025-12-21T17:59:13.456136282-03:00",
+      "size": 6727
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/ideation_ui_ux.md": {
+      "hash": "b0a8188583a6aca73af4d1381a17895811652f119e181d92437e663bfb2539ed",
+      "modified": "2025-12-21T17:59:13.45617236-03:00",
+      "size": 10405
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/insight_extractor.md": {
+      "hash": "d7143dc353f51be57c25c8255b8a9ae1e4c1a9d8c56969069a0c28da76022a8a",
+      "modified": "2025-12-21T17:59:13.456197528-03:00",
+      "size": 5430
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/mcp_tools/api_validation.md": {
+      "hash": "b16f5e18826c8c9913b584be0a6e927ef0bfa95b41caf49f2f364f27e7e75aa9",
+      "modified": "2025-12-21T17:59:13.45621957-03:00",
+      "size": 2752
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/mcp_tools/database_validation.md": {
+      "hash": "9aa39b805be9c511f21a4fe06687b7c472ad98cd7d04d8ad14930b4b2fc10504",
+      "modified": "2025-12-21T17:59:13.456232955-03:00",
+      "size": 1857
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/mcp_tools/electron_validation.md": {
+      "hash": "16b1c660e0300d5eeef73063190e4d534cccda38d44b1b19fc91389c0e0114e3",
+      "modified": "2025-12-21T17:59:13.456249055-03:00",
+      "size": 3146
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/mcp_tools/puppeteer_browser.md": {
+      "hash": "bf0ee512b41c3fe7469b0a913d4ccdc3a90f927ba0b8b0c07ea4169974afaa53",
+      "modified": "2025-12-21T17:59:13.456263653-03:00",
+      "size": 2567
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/planner.md": {
+      "hash": "a79d1256418cbc7ba9d2454c7ea098d24c0dd74cf49222610d7e258a717b9b0f",
+      "modified": "2025-12-21T17:59:13.456335178-03:00",
+      "size": 28270
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/qa_fixer.md": {
+      "hash": "16c40044c6dc262e5613fd81eda30a6ecfe119664e43fdb7526ce2a48ed75b29",
+      "modified": "2025-12-21T17:59:13.456363692-03:00",
+      "size": 5498
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/qa_reviewer.md": {
+      "hash": "ef49258e42f06767401ce0d166a37c963385489f0eac84c3e186a8e9a9801a33",
+      "modified": "2025-12-21T17:59:13.456406092-03:00",
+      "size": 12810
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/roadmap_discovery.md": {
+      "hash": "dbe24ec8d6821d4d09b23dad00de17e3aed2e4a7ff0f5704026f1db94834a2a7",
+      "modified": "2025-12-21T17:59:13.456446078-03:00",
+      "size": 11514
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/roadmap_features.md": {
+      "hash": "ccde35bc7106b4eeb4e7971eff6ca75c914d8d37bb2804d05720773dec38446b",
+      "modified": "2025-12-21T17:59:13.456486995-03:00",
+      "size": 12630
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/spec_critic.md": {
+      "hash": "6cea5ed43a00a7107ff7e70d2182aa40d84736e49f2df0f7b4ce016c079de5b0",
+      "modified": "2025-12-21T17:59:13.45652132-03:00",
+      "size": 8464
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/spec_gatherer.md": {
+      "hash": "de618fb69fc88b3efa66b23c07077c8d8eb879300d96a8c9aecc8eef49911209",
+      "modified": "2025-12-21T17:59:13.456544875-03:00",
+      "size": 4894
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/spec_quick.md": {
+      "hash": "02dd365699aec18afe7b9602a3798886546f772d248f7a18be3481a7345dcfe0",
+      "modified": "2025-12-21T17:59:13.456565504-03:00",
+      "size": 3878
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/spec_researcher.md": {
+      "hash": "9735cfb252dd04f498e157cbcbdb4e2e3e9ff9a44393214a3ca81650519ad6dc",
+      "modified": "2025-12-21T17:59:13.456597124-03:00",
+      "size": 9173
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/spec_writer.md": {
+      "hash": "9a3deeb4b7bce67fe1d59a749c4930463129a8473e0ca1c55786d40cb3f26844",
+      "modified": "2025-12-21T17:59:13.456629294-03:00",
+      "size": 7711
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts/validation_fixer.md": {
+      "hash": "012acd04647aab848a05515b2c5dd933dd93e32ea9be0ad54cfa7b3b02d6adbf",
+      "modified": "2025-12-21T17:59:13.456654101-03:00",
+      "size": 5439
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts_pkg/__init__.py": {
+      "hash": "95859df442428fea79ca1ef95be5d966847833ac855382d67485589f3daa9148",
+      "modified": "2025-12-21T17:59:13.456682645-03:00",
+      "size": 1338
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts_pkg/project_context.py": {
+      "hash": "d06323bc24775fcdca358774d0aa5c30a8fc0d687e53b3a0c990558eadee2bb7",
+      "modified": "2025-12-21T17:59:13.456708835-03:00",
+      "size": 8925
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts_pkg/prompt_generator.py": {
+      "hash": "133e3d02ddc69725ac53d676f4f353570f598b6071e364d107179a1ea2bab3bd",
+      "modified": "2025-12-21T17:59:13.456744783-03:00",
+      "size": 12097
+    },
+    "tmp/squashfs-root/resources/auto-claude/prompts_pkg/prompts.py": {
+      "hash": "716646661717a8034718671d17bf2a1a2fd57d881d21fcb592d4ee15d1bbd5a0",
+      "modified": "2025-12-21T17:59:13.456781903-03:00",
+      "size": 13522
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa/__init__.py": {
+      "hash": "c1b62f61e8e5c0acd54c81ae8e448f4dc9c97f830db8c211b8f93d954c75fea5",
+      "modified": "2025-12-21T17:59:13.456803003-03:00",
+      "size": 2388
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa/criteria.py": {
+      "hash": "dfd0942878f0d562fe36098ed08e0fcd071bd9aa723cc084167ca4729c330a76",
+      "modified": "2025-12-21T17:59:13.456821418-03:00",
+      "size": 5387
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa/fixer.py": {
+      "hash": "84453040e5c3c3506af4fa494ef1dfc1a0f661b6621740d44e150b93c225e1ec",
+      "modified": "2025-12-21T17:59:13.456849601-03:00",
+      "size": 10490
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa/loop.py": {
+      "hash": "e284a06d29b99f077808f65bf4cbe1fb3bdd1a369e368b70c3f5c18d35c979ba",
+      "modified": "2025-12-21T17:59:13.456893825-03:00",
+      "size": 18597
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa/qa_loop.py": {
+      "hash": "d279e347a8ee1623dbadec091fba883be0ff33d30efabb33eb4a319d4cb5e16e",
+      "modified": "2025-12-21T17:59:13.456910937-03:00",
+      "size": 2626
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa/report.py": {
+      "hash": "f7feddcdc0dbdaedb899d239eba6960ce6a6c013f7cba542f4d3b404ea3164b1",
+      "modified": "2025-12-21T17:59:13.456953738-03:00",
+      "size": 14976
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa/reviewer.py": {
+      "hash": "56359285f240b4df68f0a348d026e80233fc6aa96af8da56dd979f3114f2a549",
+      "modified": "2025-12-21T17:59:13.457038629-03:00",
+      "size": 13230
+    },
+    "tmp/squashfs-root/resources/auto-claude/qa_loop.py": {
+      "hash": "9b7f2f02a948fa7b397301705cb639e9ab2da114a5a59c7c849065e7c4e487b9",
+      "modified": "2025-12-21T17:59:13.457058176-03:00",
+      "size": 1747
+    },
+    "tmp/squashfs-root/resources/auto-claude/recovery.py": {
+      "hash": "23f3a7a32c0a6bd6571d41c86afdfc85bb5a96afe1626c9720a9684738d7f995",
+      "modified": "2025-12-21T17:59:13.457068525-03:00",
+      "size": 349
+    },
+    "tmp/squashfs-root/resources/auto-claude/requirements.txt": {
+      "hash": "19b20005b326518e7bc695d31c6a2bb38450bfa70f612570fe455da3749881a6",
+      "modified": "2025-12-21T17:59:13.457078805-03:00",
+      "size": 373
+    },
+    "tmp/squashfs-root/resources/auto-claude/review/__init__.py": {
+      "hash": "8dcecd3bad921e5f3d9f89006bb5af1767c65241bd96cc1b43bcb78bb5a0e3ae",
+      "modified": "2025-12-21T17:59:13.457099955-03:00",
+      "size": 2360
+    },
+    "tmp/squashfs-root/resources/auto-claude/review/diff_analyzer.py": {
+      "hash": "4b70a1c7d14845220e151f9a485179b39f721ea0a731588ef8fb6af0937e5b62",
+      "modified": "2025-12-21T17:59:13.457117047-03:00",
+      "size": 3418
+    },
+    "tmp/squashfs-root/resources/auto-claude/review/formatters.py": {
+      "hash": "c89a28422d02a663faaa8d241b294c99d65d60cf2d32e55533b8d4833b5ef7d8",
+      "modified": "2025-12-21T17:59:13.457146853-03:00",
+      "size": 10770
+    },
+    "tmp/squashfs-root/resources/auto-claude/review/main.py": {
+      "hash": "7afeb870727cb9fcfada77d86b928db2b819e4fa75087389008d731d431fce53",
+      "modified": "2025-12-21T17:59:13.457164627-03:00",
+      "size": 3153
+    },
+    "tmp/squashfs-root/resources/auto-claude/review/reviewer.py": {
+      "hash": "d2ae0b9f313c2b433455bf45da1586e32beae25950034a5b97b21140d19d09c9",
+      "modified": "2025-12-21T17:59:13.457194964-03:00",
+      "size": 10671
+    },
+    "tmp/squashfs-root/resources/auto-claude/review/state.py": {
+      "hash": "dfd101a9c9506a444c53ccd3e7ba141d6e34129dc5d91c7d850d5b616a243137",
+      "modified": "2025-12-21T17:59:13.457220002-03:00",
+      "size": 6998
+    },
+    "tmp/squashfs-root/resources/auto-claude/risk_classifier.py": {
+      "hash": "502d021e4be84067154610cd4d0a9dc9d73fbaa7210e755fe854164d9e697b5f",
+      "modified": "2025-12-21T17:59:13.457231323-03:00",
+      "size": 739
+    },
+    "tmp/squashfs-root/resources/auto-claude/run.py": {
+      "hash": "a24bc989eaef08d1c72f9a1d4ac0444f91441dd7413358ca691f0a999126b9de",
+      "modified": "2025-12-21T17:59:13.457247153-03:00",
+      "size": 2647
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/__init__.py": {
+      "hash": "ccc8b073e20252fb7b6cc02737fbb3cfeb1714db8bc01a4653db866ea734dc6a",
+      "modified": "2025-12-21T17:59:13.457261911-03:00",
+      "size": 513
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/EXAMPLES.md": {
+      "hash": "3a3dd5f7e5fd52dfe7f2603958507723aa5d705cc0f75c62169985e1419b7357",
+      "modified": "2025-12-21T17:59:13.4572984-03:00",
+      "size": 9936
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/README.md": {
+      "hash": "7c03db7a73654ad6907a167ed90699de654e6e6ac97f6584c582f7e729c6753e",
+      "modified": "2025-12-21T17:59:13.457324189-03:00",
+      "size": 4368
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/REFACTORING.md": {
+      "hash": "a0f5e3264ef6c68563dfa6f670c26c1ba6c10cc6d3e57827e142f4c006053c02",
+      "modified": "2025-12-21T17:59:13.457353584-03:00",
+      "size": 7410
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/__init__.py": {
+      "hash": "687b42d14bf176a1bb93998bc7ed375ca2a32820d4ea18ccbcba9d6da38d293a",
+      "modified": "2025-12-21T17:59:13.457363493-03:00",
+      "size": 285
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/analyzers.py": {
+      "hash": "0f97e8bc2eacc7e126ee135bae6b93b85183b2327e0dc12895543677942c9007",
+      "modified": "2025-12-21T17:59:13.457392708-03:00",
+      "size": 9046
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/cache_manager.py": {
+      "hash": "709351a837283c7984b3e205c5774d145f387e349540cda598c308a7b4d8f9c0",
+      "modified": "2025-12-21T17:59:13.457407206-03:00",
+      "size": 1708
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/claude_client.py": {
+      "hash": "532beb718cd0bdb45b7ffb6d1816acd16892a87e066c31e49dd7e539d8955fc7",
+      "modified": "2025-12-21T17:59:13.45742554-03:00",
+      "size": 4048
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/cost_estimator.py": {
+      "hash": "58a3660c784bf4915ff80b4de5dee236cd8dec26fae0ca1634f300b2900d1e20",
+      "modified": "2025-12-21T17:59:13.45744099-03:00",
+      "size": 2809
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/models.py": {
+      "hash": "1c197adb2ab2bb2f869b6e8405ec9f60baf3d525c3a672d24bc4a58abc08c2c6",
+      "modified": "2025-12-21T17:59:13.457454174-03:00",
+      "size": 1859
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/result_parser.py": {
+      "hash": "37c98d779ebdd89a028deb99101492c85d3cedbebd5140f135c10275756f9771",
+      "modified": "2025-12-21T17:59:13.457466848-03:00",
+      "size": 1665
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/runner.py": {
+      "hash": "2e816e58e88c289d056aeef3f6b375a6293cf4ae0ee657331adba7ade6093d80",
+      "modified": "2025-12-21T17:59:13.457490253-03:00",
+      "size": 6330
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer/summary_printer.py": {
+      "hash": "08494f1535e5b9d980b24d0437bdc4d2173fac1cb338b2cb5606e940dbfc0271",
+      "modified": "2025-12-21T17:59:13.457507325-03:00",
+      "size": 3229
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ai_analyzer_runner.py": {
+      "hash": "f2190cd66f054e322939664e1e0fc9f391f9b725e4fff6d322ca069f7544c089",
+      "modified": "2025-12-21T17:59:13.457526712-03:00",
+      "size": 2336
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/ideation_runner.py": {
+      "hash": "0eeedcff34d6645567df84f497d716d82f84be0f7024f1503db94f5f2e28a529",
+      "modified": "2025-12-21T17:59:13.457546048-03:00",
+      "size": 4663
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/insights_runner.py": {
+      "hash": "e4777632d4ecd50967761fee64d87250c0f9b823006dd945bb8d3d8d4c9f3a07",
+      "modified": "2025-12-21T17:59:13.457586455-03:00",
+      "size": 14223
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/__init__.py": {
+      "hash": "f981a53cfd457c69b715919a1a8c281346ebd1cea85ce985abb414ebd4b98d85",
+      "modified": "2025-12-21T17:59:13.457603817-03:00",
+      "size": 397
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/competitor_analyzer.py": {
+      "hash": "531594f6d39705dc8d6bfd29bbb8f3f65fc0c69f41d1bd22ae5f25224fa0535c",
+      "modified": "2025-12-21T17:59:13.457626931-03:00",
+      "size": 6682
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/executor.py": {
+      "hash": "4b8036e9c2739a2190fe6924cef1f21ce8607fb4e0c8df381fa0f2e3f497c1b8",
+      "modified": "2025-12-21T17:59:13.45764765-03:00",
+      "size": 5993
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/graph_integration.py": {
+      "hash": "f8e5a5489070e74712b5cbb209f08145edc990182d6d73ad16c9f4663fd57a36",
+      "modified": "2025-12-21T17:59:13.45766867-03:00",
+      "size": 4272
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/models.py": {
+      "hash": "ddb286fb0cc9de48704734a1cba5f11c2aadb53341f98128c341497bac1bfe1c",
+      "modified": "2025-12-21T17:59:13.457680352-03:00",
+      "size": 613
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/orchestrator.py": {
+      "hash": "c2a361fee06e2f15220221c2d0e891dcc489632457289172a06bd2f676a59642",
+      "modified": "2025-12-21T17:59:13.45770537-03:00",
+      "size": 8652
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/phases.py": {
+      "hash": "e1e549502a12a125596eec18dce99a60b1d0deaf6c297fbeca437d23e76d4f41",
+      "modified": "2025-12-21T17:59:13.457735176-03:00",
+      "size": 12561
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap/project_index.json": {
+      "hash": "d6ff9396521c40e0712f01fb38c4ff38f93903b87bbf82ab146f64dbf8fb34a2",
+      "modified": "2025-12-21T17:59:13.457746527-03:00",
+      "size": 265
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/roadmap_runner.py": {
+      "hash": "05d8b836de3a818f3608c670f293eb055b9313b73325d815e4d4b338f517b31b",
+      "modified": "2025-12-21T17:59:13.457764311-03:00",
+      "size": 3911
+    },
+    "tmp/squashfs-root/resources/auto-claude/runners/spec_runner.py": {
+      "hash": "5dc3f4947e1aae89e155a9f33bd5c0febca212dd5fe9577c2169291174d1caba",
+      "modified": "2025-12-21T17:59:13.457803615-03:00",
+      "size": 13154
+    },
+    "tmp/squashfs-root/resources/auto-claude/scan-for-secrets": {
+      "hash": "0514089001f41c0169dacad209a35d8076b5b35caed43ec265200dd72bba2382",
+      "modified": "2025-12-21T17:59:13.457818584-03:00",
+      "size": 890
+    },
+    "tmp/squashfs-root/resources/auto-claude/scan_secrets.py": {
+      "hash": "e37faefe268e3141f57ab34ea6887daed469f466e1143601c2f4c26e17e8fb8f",
+      "modified": "2025-12-21T17:59:13.457828192-03:00",
+      "size": 130
+    },
+    "tmp/squashfs-root/resources/auto-claude/security.py": {
+      "hash": "af5f34311e29fdd97d687d9460b270cf42534cfe7f4ae368b71e54fae10f85dc",
+      "modified": "2025-12-21T17:59:13.45809162-03:00",
+      "size": 111
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/__init__.py": {
+      "hash": "243b3c7221252ec18a18a7b735baaad723ea6aa1d663ebf20869de3f9ba482a8",
+      "modified": "2025-12-21T17:59:13.457848831-03:00",
+      "size": 2686
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/database_validators.py": {
+      "hash": "dcefb0b7ec0f7ab1ffc41b5de0babcd599b46957a32f55f8d072e9fbedaa5fc0",
+      "modified": "2025-12-21T17:59:13.457877585-03:00",
+      "size": 12552
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/filesystem_validators.py": {
+      "hash": "8baf5380b066e608c9e19cbe47f752a0914702296f86ca9433f85a1ff2d778c8",
+      "modified": "2025-12-21T17:59:13.457896291-03:00",
+      "size": 3708
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/git_validators.py": {
+      "hash": "7613d7989fbaccb6c08f01b4d0100714a8cc2c89b334bf659b5498e38d41a9e7",
+      "modified": "2025-12-21T17:59:13.457913122-03:00",
+      "size": 3299
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/hooks.py": {
+      "hash": "1a51014b97f4b03c72216c42f7d794200e69e4ed6df03da59807fb3ec0054e96",
+      "modified": "2025-12-21T17:59:13.457933351-03:00",
+      "size": 4407
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/main.py": {
+      "hash": "b3341fee27f3ee8d1c411c72b31b73f1b65e536e321f84fabb18dce7b15daa42",
+      "modified": "2025-12-21T17:59:13.457950864-03:00",
+      "size": 2850
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/parser.py": {
+      "hash": "b20916ebd4704eb912fd7c1de0110c260401c2b573b0416fdd9e9d564b084ac2",
+      "modified": "2025-12-21T17:59:13.457967195-03:00",
+      "size": 3456
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/process_validators.py": {
+      "hash": "7933a79eb9c3ae8abe8e3c009029ac1ac27f091e882250d91cbaae673a4c4022",
+      "modified": "2025-12-21T17:59:13.457983095-03:00",
+      "size": 2980
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/profile.py": {
+      "hash": "f0f17de657db7b988b217c5750f11382b32e56cee9ed24ddabf14b2767843403",
+      "modified": "2025-12-21T17:59:13.457995258-03:00",
+      "size": 1623
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/scan_secrets.py": {
+      "hash": "5b374c7e18b7fd1148281793e20a9b348ecd87b42e7f82820e008171b9f8102b",
+      "modified": "2025-12-21T17:59:13.458043168-03:00",
+      "size": 16851
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/validation_models.py": {
+      "hash": "05795c8e4d92a2bf1b68537a41a7f65e726e06dd2386896f54c7b5ef4b82b8c1",
+      "modified": "2025-12-21T17:59:13.458056233-03:00",
+      "size": 348
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/validator.py": {
+      "hash": "9f91acc26254554d2af3ef6c03e6664b0fcf1b75c65c1c5136e1500f05b3dce3",
+      "modified": "2025-12-21T17:59:13.458069789-03:00",
+      "size": 2161
+    },
+    "tmp/squashfs-root/resources/auto-claude/security/validator_registry.py": {
+      "hash": "c0aef7250f5d66cec5a7f1f98bf0c98a7d68477122356253fe4211e1d8b16afd",
+      "modified": "2025-12-21T17:59:13.458083414-03:00",
+      "size": 1947
+    },
+    "tmp/squashfs-root/resources/auto-claude/security_scanner.py": {
+      "hash": "03256aa65714b33ca43543d19db8d06578910d8483c64d7a88e9408890c20ead",
+      "modified": "2025-12-21T17:59:13.458100837-03:00",
+      "size": 138
+    },
+    "tmp/squashfs-root/resources/auto-claude/service_orchestrator.py": {
+      "hash": "368b6240b251ddca26ccf52a4742af64da9d4aab67852adc6a576c27db875cd9",
+      "modified": "2025-12-21T17:59:13.458110486-03:00",
+      "size": 431
+    },
+    "tmp/squashfs-root/resources/auto-claude/services/__init__.py": {
+      "hash": "5b701dfebba0fac693f4bb92cb0803f29ceeeef70a26656dfe604f799ba995e7",
+      "modified": "2025-12-21T17:59:13.458124642-03:00",
+      "size": 304
+    },
+    "tmp/squashfs-root/resources/auto-claude/services/context.py": {
+      "hash": "bca72c988e0f6f1357c7b825144b522513f2177cb2d045ca317f670b26d4ca40",
+      "modified": "2025-12-21T17:59:13.458162103-03:00",
+      "size": 16423
+    },
+    "tmp/squashfs-root/resources/auto-claude/services/orchestrator.py": {
+      "hash": "7c3801048b5a0161538971943f94d39a60a97027cb2ce1e591b6bd2327c7a8ea",
+      "modified": "2025-12-21T17:59:13.458207389-03:00",
+      "size": 19282
+    },
+    "tmp/squashfs-root/resources/auto-claude/services/recovery.py": {
+      "hash": "269d00e15f31491637610c2f75ce541d0d2950e72eeac84cb91fdb52cb4ee8a4",
+      "modified": "2025-12-21T17:59:13.458253927-03:00",
+      "size": 19806
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/__init__.py": {
+      "hash": "83347effde7a03636eae0203cc06cc5d9623708116788441fb5e7476d920a9b6",
+      "modified": "2025-12-21T17:59:13.458275688-03:00",
+      "size": 1263
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/compaction.py": {
+      "hash": "af4d9429e52f8562994188584235fe8db0cb1229e8c865043cbaeb455a56350e",
+      "modified": "2025-12-21T17:59:13.458297519-03:00",
+      "size": 5288
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/complexity.py": {
+      "hash": "0115c49cfb166d1ce5a4f038319ff5078cff84eb29d20a44e3b73b4023bdd697",
+      "modified": "2025-12-21T17:59:13.458338918-03:00",
+      "size": 15783
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/context.py": {
+      "hash": "645224d093e316ffda954094a4eddf8384d061eccc8c410d1d4881ab0cda5430",
+      "modified": "2025-12-21T17:59:13.458357763-03:00",
+      "size": 3596
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/critique.py": {
+      "hash": "e2b175ef1884312253638191f6c62d748d9288c61f23f1a98628894c258bbc8a",
+      "modified": "2025-12-21T17:59:13.458391878-03:00",
+      "size": 11247
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/discovery.py": {
+      "hash": "6a36971abe39de06fb25169bbb736d4c28d6ed1e5ebb9c1bbda064b27a393bcb",
+      "modified": "2025-12-21T17:59:13.458406986-03:00",
+      "size": 2130
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases.py": {
+      "hash": "5deebc02b08ee5a244d047fae66b42ceece3875c5d293ace86440cfc2668513e",
+      "modified": "2025-12-21T17:59:13.458584011-03:00",
+      "size": 434
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/README.md": {
+      "hash": "d8f4f99715850c58fb5c16da4cfd9923751548ad80ef924d77f8eac9a9652495",
+      "modified": "2025-12-21T17:59:13.4584301-03:00",
+      "size": 3018
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/__init__.py": {
+      "hash": "3503e40f7662a10260ad488994625c246d572e94e1fe26fcaae0e3a9a9ee8263",
+      "modified": "2025-12-21T17:59:13.45844059-03:00",
+      "size": 662
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/discovery_phases.py": {
+      "hash": "c4b3df1e01a48c7b81e5ecafa6c043dc9f80cc7ed280536c0e46a464fbe90915",
+      "modified": "2025-12-21T17:59:13.458456751-03:00",
+      "size": 3896
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/executor.py": {
+      "hash": "7ed5be9ca6faf3301ce2cca4c4501fb892351b2c0aaac111f9b677ac54bb8f2d",
+      "modified": "2025-12-21T17:59:13.458478612-03:00",
+      "size": 2355
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/models.py": {
+      "hash": "799b5b9976da6e30f2eac016babee5154364729b4f81eda82ce7da56f915bd12",
+      "modified": "2025-12-21T17:59:13.458488471-03:00",
+      "size": 385
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/planning_phases.py": {
+      "hash": "e8f5ff5845d3802b87efdd0339c4441ef0745b9c746b9244bf296172e7309e36",
+      "modified": "2025-12-21T17:59:13.458508939-03:00",
+      "size": 6924
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/requirements_phases.py": {
+      "hash": "aadf678a38c2f3937bff8f7a830e60f3f69a2ad155efbccad99d5aaaeff64c81",
+      "modified": "2025-12-21T17:59:13.458534217-03:00",
+      "size": 9300
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/spec_phases.py": {
+      "hash": "ed6bd9a6ff2ab46c69a51227d9fb60bad40d144d0bf58e22bae8e01a57065124",
+      "modified": "2025-12-21T17:59:13.458559294-03:00",
+      "size": 7442
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/phases/utils.py": {
+      "hash": "7d666e7a7e3009f5697a326b9eb704f9665991fb8c41e0881463fdaa6034a71e",
+      "modified": "2025-12-21T17:59:13.458572469-03:00",
+      "size": 1182
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/pipeline.py": {
+      "hash": "446f6355b9a62153cc5ac1fc36b677c3b689d1e829c628ef5ac5a4cbc481e79d",
+      "modified": "2025-12-21T17:59:13.458780353-03:00",
+      "size": 650
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/pipeline/__init__.py": {
+      "hash": "7734f156dddbb1fc17a494f34535bd37a3d260d96f3b8c356fdfcc2669867989",
+      "modified": "2025-12-21T17:59:13.458600202-03:00",
+      "size": 449
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/pipeline/agent_runner.py": {
+      "hash": "cfb7b0b10dc3e23d10f9a870232861866df66ba177c4e957f918072111b3118e",
+      "modified": "2025-12-21T17:59:13.458630008-03:00",
+      "size": 10680
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/pipeline/models.py": {
+      "hash": "b5d9bf2515b0a21a5dc20f41a28e36efb53e1208e7ef163e12ec5164a60f9264",
+      "modified": "2025-12-21T17:59:13.458658222-03:00",
+      "size": 7156
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/pipeline/orchestrator.py": {
+      "hash": "26ecbe041758857a3053b08beebad4c5b3da38255172a399032a8a4eef084e7e",
+      "modified": "2025-12-21T17:59:13.458716722-03:00",
+      "size": 25080
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/requirements.py": {
+      "hash": "e5b115fec8d7a35614e1c65cb28754788e1189fd8ea6599d04148ea00c74d40c",
+      "modified": "2025-12-21T17:59:13.458803887-03:00",
+      "size": 5982
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/MIGRATION.md": {
+      "hash": "c04e9a8447c55f537ee595afa0bc1a1d8384ba41b28d70c1e64e18e1e783e689",
+      "modified": "2025-12-21T17:59:13.45884233-03:00",
+      "size": 4678
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/README.md": {
+      "hash": "16c6135ffea21c81611cc2ea7c4c2f3c8f47d15d50510859007ba0730e8f4a63",
+      "modified": "2025-12-21T17:59:13.458865674-03:00",
+      "size": 5573
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/__init__.py": {
+      "hash": "01c38c0bc335aa28db7a91bcafab63691029fc6beaea5c295ce2aa9ea392e187",
+      "modified": "2025-12-21T17:59:13.458876264-03:00",
+      "size": 647
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/auto_fix.py": {
+      "hash": "d8c22a0e5fb061dc62794540c038e9f6c0df08036cd62f5470c4075805ed707d",
+      "modified": "2025-12-21T17:59:13.458889008-03:00",
+      "size": 1932
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/models.py": {
+      "hash": "546c0e5f2c0adfbc55b6ba99c4d997d51aa4194cf8d06bbbe96cc67c899f341b",
+      "modified": "2025-12-21T17:59:13.458899989-03:00",
+      "size": 1150
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/schemas.py": {
+      "hash": "dfa3598e83689764cce804cf52e4465c9f9ee1181797e372b9aa199e41c94430",
+      "modified": "2025-12-21T17:59:13.458914456-03:00",
+      "size": 2999
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/spec_validator.py": {
+      "hash": "44e9bad0cbe613b0e79a0d17877fb7e7fad2269efec2d7bc8929d84b22bd92d8",
+      "modified": "2025-12-21T17:59:13.458929244-03:00",
+      "size": 2358
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/validators/__init__.py": {
+      "hash": "3b4685e31b6905e23bb9e788fea118590b92e20699bfa540ca278acebaea1c30",
+      "modified": "2025-12-21T17:59:13.458945916-03:00",
+      "size": 459
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/validators/context_validator.py": {
+      "hash": "f471fdd525b49d53f81d6330698514e40819884e995a82c165a6513989f1f28d",
+      "modified": "2025-12-21T17:59:13.458961645-03:00",
+      "size": 2263
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/validators/implementation_plan_validator.py": {
+      "hash": "e2a8ceaad504c64573462dae8e2584b1838f97b2ce5b5d3a50ce80cae5034832",
+      "modified": "2025-12-21T17:59:13.458986432-03:00",
+      "size": 7854
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/validators/prereqs_validator.py": {
+      "hash": "798686131f387f82e6d0b4cd945b9e55afc7ac685cc953c2fafdc5893641d6a1",
+      "modified": "2025-12-21T17:59:13.459001741-03:00",
+      "size": 1970
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_pkg/validators/spec_document_validator.py": {
+      "hash": "47d7169dc2cc4bda8015ca2c12ce98c4c301abc6995f486bc3e48a0bd9e107d8",
+      "modified": "2025-12-21T17:59:13.459015527-03:00",
+      "size": 2191
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validate_spec.py": {
+      "hash": "f3a7874fa150533162d1b624a3c6212cd7f132d089c8326221836982e38982b2",
+      "modified": "2025-12-21T17:59:13.459032089-03:00",
+      "size": 3166
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validation_strategy.py": {
+      "hash": "82be94512f191ea1ede74a6dcbc2caae1bbdac2b611c96ea6dbaf82ba93cf421",
+      "modified": "2025-12-21T17:59:13.459088355-03:00",
+      "size": 34082
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/validator.py": {
+      "hash": "49747500515ee1fac761b81a7f90d29365b6c9d5931a40dfc5d945eaf811d0d9",
+      "modified": "2025-12-21T17:59:13.459105327-03:00",
+      "size": 1714
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec/writer.py": {
+      "hash": "ee7f3d6abdf2a344b07096373c6556067539c2005bbc00c3a1b827e394c49e3e",
+      "modified": "2025-12-21T17:59:13.459119985-03:00",
+      "size": 2218
+    },
+    "tmp/squashfs-root/resources/auto-claude/spec_contract.json": {
+      "hash": "5943cd3341d3e05704cf4ee56d96122e19448d928b6423590a561461317bc747",
+      "modified": "2025-12-21T17:59:13.459140894-03:00",
+      "size": 5505
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/README.md": {
+      "hash": "151dcac184734b83b28f2ee9501b7f35b9f5e2c4386990d3b16d7988bd36fba3",
+      "modified": "2025-12-21T17:59:13.45917023-03:00",
+      "size": 4862
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/__init__.py": {
+      "hash": "410b7b15f8301b66c1731bbecfbc948ebb7996e140749d4923bcd3ea13ce1c4d",
+      "modified": "2025-12-21T17:59:13.459182894-03:00",
+      "size": 1159
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/capture.py": {
+      "hash": "7455bc9f1fd3cfe2baaacaddc974f78df8aadb3602ddeebb5369690be3600626",
+      "modified": "2025-12-21T17:59:13.459202721-03:00",
+      "size": 5235
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/logger.py": {
+      "hash": "f677f87515e0bee777c414c219da856e1c26c5e14929632853edfe0d80aa283f",
+      "modified": "2025-12-21T17:59:13.459240072-03:00",
+      "size": 17895
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/main.py": {
+      "hash": "75f3004ee01b3fffe821ce084a67233025a91fd2cc8dfdd46b6caf9751cb84b0",
+      "modified": "2025-12-21T17:59:13.459256713-03:00",
+      "size": 1290
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/models.py": {
+      "hash": "6645fc55edbdcf39ef071b22f2a5d7921b27e7e55144998e24dbfa138c73cc9f",
+      "modified": "2025-12-21T17:59:13.459269377-03:00",
+      "size": 1891
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/storage.py": {
+      "hash": "cc5b2b937def29b4c525f23ec5c9212c0ef3edcefed94776a43aaff8842f4b7b",
+      "modified": "2025-12-21T17:59:13.459289515-03:00",
+      "size": 6081
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/streaming.py": {
+      "hash": "8b3d4033d733c91a1f163ec7d5670d1c0b2fd42bcece0d8f451060b37c348272",
+      "modified": "2025-12-21T17:59:13.45930236-03:00",
+      "size": 638
+    },
+    "tmp/squashfs-root/resources/auto-claude/task_logger/utils.py": {
+      "hash": "80d6f490c04d91ced85ad367a5365fb1303f620a0507d4d92528e345ff31a0e2",
+      "modified": "2025-12-21T17:59:13.459316056-03:00",
+      "size": 1718
+    },
+    "tmp/squashfs-root/resources/auto-claude/test_discovery.py": {
+      "hash": "4682d17aeb994e455f04f1b2a1a7b102ab1bee47759ae6396c053ae33b7d5f2b",
+      "modified": "2025-12-21T17:59:13.459326896-03:00",
+      "size": 459
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/__init__.py": {
+      "hash": "c8c3f355db20680a97aeb78117f4ae6665c5f9ea5ac3ee376388b327d27f6ed3",
+      "modified": "2025-12-21T17:59:13.459347275-03:00",
+      "size": 2052
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/boxes.py": {
+      "hash": "aa4ba835a596df4571faa35392d28ba1b6406a626a7a59716c91bbbdf8638d02",
+      "modified": "2025-12-21T17:59:13.459364517-03:00",
+      "size": 3794
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/capabilities.py": {
+      "hash": "508453fe496535e9075db566fe33318a542fc81ab9c51015e621aa0fa75371a5",
+      "modified": "2025-12-21T17:59:13.459379546-03:00",
+      "size": 3110
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/colors.py": {
+      "hash": "fa5cc520fb294d8e075f2fb95fd1778c2adeba59ac6754444608ac5a895de8c2",
+      "modified": "2025-12-21T17:59:13.459392079-03:00",
+      "size": 2036
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/formatters.py": {
+      "hash": "bd5e73486f2c0127d0ad07226bc83f9420c4cc07702ca314d404832e63b5d6c7",
+      "modified": "2025-12-21T17:59:13.459406677-03:00",
+      "size": 3221
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/icons.py": {
+      "hash": "3b989e4accf2f319a09aa0c4ce19a4598122d25417bc2b6ccbca37437cba3083",
+      "modified": "2025-12-21T17:59:13.459421024-03:00",
+      "size": 2218
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/main.py": {
+      "hash": "a219a5d8bb3759b72032a3f2fc063349fc32fb555de2ba8661a9871b35b88c6e",
+      "modified": "2025-12-21T17:59:13.459433939-03:00",
+      "size": 2156
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/menu.py": {
+      "hash": "41a2630857f274b2370507999ce9b279a9d905a1906f96f0a336e1e51f35c606",
+      "modified": "2025-12-21T17:59:13.459457403-03:00",
+      "size": 7083
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/progress.py": {
+      "hash": "2a9aeba5ff28498a67defbcac29bedf9fc5a684f899fbcee9f5471ca449b6323",
+      "modified": "2025-12-21T17:59:13.459470107-03:00",
+      "size": 1505
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/spinner.py": {
+      "hash": "98df4b2e95d0d1ac9e1a7baca0dbddb6e35a6fc3d73e6ecaaaac8c6e4f86e2cc",
+      "modified": "2025-12-21T17:59:13.45948232-03:00",
+      "size": 1855
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/status.py": {
+      "hash": "08ee9ee26b234f536d0e5955f9add62882f51c88c8820fd7edfcc1bd3fafa5dd",
+      "modified": "2025-12-21T17:59:13.459503159-03:00",
+      "size": 6398
+    },
+    "tmp/squashfs-root/resources/auto-claude/ui/statusline.py": {
+      "hash": "376ad084893a1cc79cdb53015551866c878904655dcce6fdbeff6a6d85072622",
+      "modified": "2025-12-21T17:59:13.459527646-03:00",
+      "size": 6560
+    },
+    "tmp/squashfs-root/resources/auto-claude/validate_spec/__init__.py": {
+      "hash": "f36f5d1c3210d3050cc291ecc005f62702c58412c2ee0ea6e2cefc5837707c0a",
+      "modified": "2025-12-21T17:59:13.459546842-03:00",
+      "size": 1633
+    },
+    "tmp/squashfs-root/resources/auto-claude/validate_spec/auto_fix.py": {
+      "hash": "a0ab8a98fcbae166811d0e2bc390dc33b261e3aca51ec05150c8df16b77eee6d",
+      "modified": "2025-12-21T17:59:13.459558103-03:00",
+      "size": 1346
+    },
+    "tmp/squashfs-root/resources/auto-claude/validate_spec/spec_validator.py": {
+      "hash": "4146571357f61094bd018df6fe002cee099aff70485de0147930c521320c860f",
+      "modified": "2025-12-21T17:59:13.459569004-03:00",
+      "size": 1396
+    },
+    "tmp/squashfs-root/resources/auto-claude/validation_strategy.py": {
+      "hash": "537849c43d93d0ecc5317892a21a3d10a29c6fe6179e4547f9229874bbbb6211",
+      "modified": "2025-12-21T17:59:13.459578893-03:00",
+      "size": 136
+    },
+    "tmp/squashfs-root/resources/auto-claude/workspace.py": {
+      "hash": "e8b2058dd60f75b939fc8080d3b5d46e97182449db4a0ea6790054f3ad89c4f3",
+      "modified": "2025-12-21T17:59:13.459592789-03:00",
+      "size": 1773
+    },
+    "tmp/squashfs-root/resources/auto-claude/worktree.py": {
+      "hash": "5d798a03c6f21cfe48ffe6e3d1de5023a939f6ec81c1c98d59612e368afbed60",
+      "modified": "2025-12-21T17:59:13.459605924-03:00",
+      "size": 1582
+    },
+    "tmp/squashfs-root/usr/lib/libXss.so.1": {
+      "hash": "270fe6e4d430118793d01cac5c6081d0ea9e244cfcf510475bc779bef21b754a",
+      "modified": "2025-12-21T17:59:13.465717362-03:00",
+      "size": 14488
+    },
+    "tmp/squashfs-root/usr/lib/libXtst.so.6": {
+      "hash": "38f9ccb12d2c477aad85db6279afc334d9f250f613884c188ace7232b83e9b68",
+      "modified": "2025-12-21T17:59:13.465786503-03:00",
+      "size": 22880
+    },
+    "tmp/squashfs-root/usr/lib/libappindicator.so.1": {
+      "hash": "033b8803f20b98e8cd56fc8e75e3a71a552f75c0cff9bd0937f3ddd6ee5d2145",
+      "modified": "2025-12-21T17:59:13.465921048-03:00",
+      "size": 52128
+    },
+    "tmp/squashfs-root/usr/lib/libgconf-2.so.4": {
+      "hash": "ba977334112bb81f6457ee4aad833c6d5f1ff731c718073cd50777d613b23185",
+      "modified": "2025-12-21T17:59:13.466274977-03:00",
+      "size": 192296
+    },
+    "tmp/squashfs-root/usr/lib/libindicator.so.7": {
+      "hash": "3b61ae3424c4800975c1806245a2d286f6e1fc49cd9350913075c27a95f3c7a0",
+      "modified": "2025-12-21T17:59:13.466591896-03:00",
+      "size": 60648
+    },
+    "tmp/squashfs-root/usr/lib/libnotify.so.4": {
+      "hash": "8f42294247a886c5a94b2a0ce1c0b65e953616d7efe8da664b3826cdeae47948",
+      "modified": "2025-12-21T17:59:13.466687377-03:00",
+      "size": 31304
+    },
+    "tmp/squashfs-root/vk_swiftshader_icd.json": {
+      "hash": "c9eef28b6b984fec220ef0abfecc40b502d46946706e47bfe97707027cb818bd",
+      "modified": "2025-12-21T17:59:13.473026927-03:00",
+      "size": 107
+    }
+  },
+  "agents": {
+    "api_analyzer": {
+      "last_run": "2025-12-27T21:30:51.422829626-03:00",
+      "success": true
+    },
+    "data_flow_analyzer": {
+      "last_run": "2025-12-27T21:30:51.422828834-03:00",
+      "success": true
+    },
+    "dependency_analyzer": {
+      "last_run": "2025-12-27T21:30:51.422829776-03:00",
+      "success": true
+    },
+    "request_flow_analyzer": {
+      "last_run": "2025-12-27T21:30:51.422829566-03:00",
+      "success": true
+    },
+    "structure_analyzer": {
+      "last_run": "2025-12-27T21:30:51.422829716-03:00",
+      "success": true
+    }
+  }
+}

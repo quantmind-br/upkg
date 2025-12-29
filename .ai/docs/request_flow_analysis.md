@@ -1,131 +1,59 @@
-
-Based on my analysis of the upkg project, I can now provide a comprehensive request flow analysis. This is a CLI application built with Cobra, so the "request flow" refers to command execution flow.
-
 # Request Flow Analysis
 
-## Entry Points Overview
-The system has a single entry point: `cmd/upkg/main.go`.
+The `upkg` utility is a CLI-based package manager. As such, its "request flow" refers to the lifecycle of a command execution from the terminal to the underlying system changes and final output.
 
-1. **Initialization**: The `main()` function establishes a base `context.Background()` for request propagation
-2. **Configuration Loading**: Calls `config.Load()` to read application configuration from TOML files and environment variables
-3. **Logger Setup**: Initializes structured logger via `logging.NewLogger()` with dual output (console + file)
-4. **Root Command Creation**: Constructs the entire command tree using `cmd.NewRootCmd(cfg, log, version)`
-5. **Execution**: Hands control to Cobra engine via `rootCmd.ExecuteContext(ctx)`
-6. **Top-Level Error Handling**: Errors are logged and application exits with appropriate status codes
+## API Endpoints
 
-## Request Routing Map
-Request routing is handled by the Cobra command structure defined in `internal/cmd/root.go`. The root command routes execution to subcommands based on the first argument:
+Since `upkg` is a CLI tool, its "endpoints" are the subcommands provided by the `cobra` library. All commands are rooted at `upkg` (the `RootCmd`).
 
-| Command | Handler Function | Description |
-|---------|------------------|-------------|
-| `upkg install [package]` | `NewInstallCmd` | Installs a package file (AppImage, DEB, RPM, Tarball, Binary) |
-| `upkg uninstall [id/name]` | `NewUninstallCmd` | Uninstalls a tracked package with interactive selection |
-| `upkg list` | `NewListCmd` | Lists installed packages with filtering and sorting |
-| `upkg info [id/name]` | `NewInfoCmd` | Shows detailed information for a package |
-| `upkg doctor` | `NewDoctorCmd` | Performs system diagnostics |
-| `upkg completion` | `NewCompletionCmd` | Generates shell completion scripts |
-| `upkg version` | `NewVersionCmd` | Prints the application version |
+| Command | Arguments | Description |
+|---------|-----------|-------------|
+| `install` | `[package]` | Detects and installs a package (AppImage, DEB, RPM, Tarball, Binary). |
+| `uninstall` | `[package-id]` | Removes an installed package and its associated metadata. |
+| `list` | None | Lists all packages currently managed by `upkg`. |
+| `info` | `[package-id]` | Shows detailed metadata and files associated with a package. |
+| `doctor` | None | Performs system checks and validates package integrity. |
+| `version` | None | Displays the application version. |
+| `completion`| `[shell]` | Generates shell completion scripts (bash, zsh, fish, powershell). |
 
-## Middleware Pipeline
-The CLI architecture implements middleware through essential setup and context management steps:
+## Request Processing Pipeline
 
-### Global Pre-Execution (in `main.go`)
-- **Configuration**: `config.Load()` ensures all components have access to paths and settings
-- **Logging**: `logging.NewLogger()` sets up zerolog instance for structured logging throughout the application
+When a user executes a command, the request flows through the following pipeline:
 
-### Command-Specific Preprocessing (in `RunE` functions)
-1. **Context Management**: Commands create time-bound contexts with timeouts for long-running operations
-2. **Database Initialization**: `db.New(ctx, cfg.Paths.DBFile)` opens SQLite database with separate read/write pools
-3. **Backend Registry**: `backends.NewRegistry(cfg, log)` instantiates package type detection and backend management
-4. **Transaction Management**: `transaction.NewManager(log)` for atomic operations with rollback capability
+1.  **Entry Point (`cmd/upkg/main.go`)**: The application initializes the configuration and logger, then passes control to the `internal/cmd/root.go`.
+2.  **Command Validation (`spf13/cobra`)**: Cobra validates arguments (e.g., `ExactArgs(1)`) and flags.
+3.  **Sanitization & Security (`internal/security`)**: Paths and package names are validated and sanitized (e.g., `security.ValidatePath`, `security.SanitizeString`) before processing.
+4.  **Database Initialization (`internal/db`)**: A connection to the local SQLite database (typically `~/.config/upkg/upkg.db`) is established to track the state.
+5.  **Context & Timeout**: A `context.Context` is created, often with a timeout (default 300s), to ensure long-running operations like downloads or extractions can be cancelled.
+6.  **Transaction Management (`internal/transaction`)**: A transaction manager is initialized to track file system changes and allow for rollback in case of failure.
 
-## Controller/Handler Analysis
-Each command's `RunE` function acts as the controller, orchestrating business logic:
+## Routing Logic
 
-### `install` Command Flow (`internal/cmd/install.go`)
-1. **Input Validation**: Validates package file existence using `os.Stat`
-2. **Backend Detection**: `registry.DetectBackend()` determines package type through magic number detection
-3. **Core Execution**: `backend.Install(ctx, packagePath, installOpts, tx)` executes package-specific installation logic
-4. **Persistence**: Creates database record via `database.Create()` and commits transaction
-5. **Post-Install Hook**: Optional `fixDockIcon` for Hyprland dock compatibility
-6. **Response**: Success details printed with colored console output
+Routing in `upkg` is handled by the `cobra` command hierarchy and a specialized **Backend Registry**:
 
-### `uninstall` Command Flow (`internal/cmd/uninstall.go`)
-1. **Routing**: Interactive mode with `ui.MultiSelectPrompt` or single package mode
-2. **Package Lookup**: Retrieves from database by InstallID or name with case-insensitive search
-3. **Core Execution**: `backend.Uninstall(ctx, record)` removes package files and desktop integration
-4. **Persistence**: Deletes database record via `database.Delete()`
-5. **Response**: Status messages with success/failure summary
+1.  **Command Routing**: Cobra routes the execution to the `RunE` function of the specific subcommand (e.g., `NewInstallCmd`).
+2.  **Backend Detection (`internal/backends/registry.go`)**: For commands like `install`, the application uses a priority-based registry to detect the package type:
+    *   **Priority 1**: DEB and RPM (via magic bytes/headers).
+    *   **Priority 2**: AppImage (via ELF headers and AppImage-specific signatures).
+    *   **Priority 3**: Standalone ELF Binaries.
+    *   **Priority 4**: Archives (Tarball/Zip).
+3.  **Dynamic Dispatch**: Once detected, the request is routed to the specific `Backend` implementation (e.g., `appimage.Backend`) which satisfies the `Backend` interface (`Detect`, `Install`, `Uninstall`).
 
-### `list` Command Flow (`internal/cmd/list.go`)
-1. **Data Retrieval**: `database.List(ctx)` fetches all installed packages
-2. **Data Transformation**: Applies filters (`filterInstalls`) and sorting (`sortInstalls`)
-3. **Response Formation**: JSON output or formatted tables using `tablewriter` library
+## Response Generation
 
-## Authentication & Authorization Flow
-The application implements local security controls rather than external authentication:
+Response generation is handled through the **UI Layer** (`internal/ui`):
 
-- **OS-Level Authorization**: Access controlled by file permissions for config, database, and installation directories
-- **Input Validation**: `internal/security/validation.go` provides comprehensive validation for:
-  - Package names (regex patterns, length limits, suspicious pattern detection)
-  - File paths (path traversal prevention, sensitive system path protection)
-  - Version strings (dangerous pattern detection, format validation)
-- **Path Sanitization**: `security.SanitizeString()` removes dangerous characters and normalizes input
+1.  **Standard Output (Stdout)**: General information and success messages are printed using the `ui` helper (e.g., `ui.PrintSuccess`).
+2.  **Structured Data**: For programmatic use, commands like `list` and `info` support a `--json` flag, which bypasses the table-based UI and encodes the internal models directly to JSON.
+3.  **Progress Tracking (`internal/ui/progress.go`)**: For long-running operations (extracting, moving files), a progress bar is displayed to the user.
+4.  **Colorization**: Output is color-coded using `fatih/color` to differentiate between package types, success messages (Green), warnings (Yellow), and errors (Red).
 
-## Error Handling Pathways
-Multi-layered error handling combines Go error returns with user-friendly output:
+## Error Handling
 
-| Layer | Mechanism | User Output | Internal Logging |
-|-------|-----------|-------------|------------------|
-| **Top-Level** | `os.Exit(1)` | `fmt.Fprintf(os.Stderr, ...)` | `log.Error().Err(err)` |
-| **Command** | `return fmt.Errorf(...)` | `color.Red("Error: %v", err)` | `log.Error().Err(err)` |
-| **Transaction** | Deferred Rollback | Handled by command failure | `log.Warn().Err(err)` |
-| **Database** | Manual Cleanup | `color.Red("Error: failed to save...")` | `log.Warn().Err(cleanupErr)` |
+Error handling is implemented at multiple levels of the flow:
 
-Error responses use colored console output (`github.com/fatih/color`) for visibility and structured logging (`zerolog`) for debugging.
-
-## Request Lifecycle Diagram
-
-```mermaid
-graph TD
-    A[OS Shell: upkg command] --> B[main.go: main()]
-    B --> C{Load Config & Init Logger}
-    C --> D[root.go: NewRootCmd]
-    D --> E[cobra: ExecuteContext]
-    E --> F{Route to Subcommand}
-    F -->|install| G[install.go: RunE]
-    F -->|uninstall| H[uninstall.go: RunE]
-    F -->|list| I[list.go: RunE]
-    
-    G --> J[Context with Timeout]
-    J --> K[db.New: Database]
-    K --> L[backends.NewRegistry]
-    L --> M[transaction.NewManager]
-    M --> N{registry.DetectBackend}
-    N --> O[backend.Install]
-    O --> P{Success?}
-    P -->|Yes| Q[database.Create]
-    Q --> R[tx.Commit]
-    R --> S[Optional: fixDockIcon]
-    S --> T[UI: Success Output]
-    P -->|No| U[tx.Rollback]
-    U --> V[UI: Error Output]
-    
-    H --> W[Interactive Selection?]
-    W -->|Yes| X[ui.MultiSelectPrompt]
-    W -->|No| Y[Direct Lookup]
-    X --> Z[database.List]
-    Y --> Z
-    Z --> AA[backend.Uninstall]
-    AA --> BB[database.Delete]
-    BB --> CC[UI: Summary Output]
-    
-    I --> DD[database.List]
-    DD --> EE[filterInstalls]
-    EE --> FF[sortInstalls]
-    FF --> GG{JSON Output?}
-    GG -->|Yes| HH[JSON Encode]
-    GG -->|No| II[tablewriter Format]
-    HH --> JJ[UI: Output]
-    II --> JJ
-```
+1.  **Error Propagation**: Errors are propagated up the call stack using `fmt.Errorf("...: %w", err)`.
+2.  **User Notifications**: Subcommands use `ui.PrintError` to display human-friendly error messages to `os.Stderr`.
+3.  **Transaction Rollback**: If an operation fails during `install`, the `transaction.Manager` executes a rollback, attempting to delete partially created files or directories to prevent system pollution.
+4.  **Exit Codes**: The `main` function captures the error from `RootCmd.Execute()` and exits with a non-zero status code (typically 1) to signal failure to the shell.
+5.  **Database Safety**: Database operations use context-aware transactions to ensure the local state remains consistent even if the process is interrupted.

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/quantmind-br/upkg/internal/cache"
@@ -651,6 +652,12 @@ Icon=/usr/share/icons/hicolor/256x256/apps/myapp.png`
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
 		require.NoError(t, os.MkdirAll(squashfsRoot, 0755))
 
+		// Create icon file with no extension
+		iconDir := filepath.Join(squashfsRoot, "usr", "share", "icons", "hicolor", "256x256", "apps")
+		require.NoError(t, os.MkdirAll(iconDir, 0755))
+		iconFile := filepath.Join(iconDir, "myapp")
+		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
+
 		// Create .DirIcon symlink pointing to file with no extension
 		dirIconFile := filepath.Join(squashfsRoot, ".DirIcon")
 		require.NoError(t, os.Symlink("usr/share/icons/hicolor/256x256/apps/myapp", dirIconFile))
@@ -951,7 +958,6 @@ func TestExtractAppImage(t *testing.T) {
 func TestIconExtraction(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
-	backend := New(cfg, &logger)
 
 	t.Run("extracts icons from mock AppImage with embedded .desktop", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -960,6 +966,9 @@ func TestIconExtraction(t *testing.T) {
 		origHomeDir := os.Getenv("HOME")
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHomeDir)
+
+		// Create backend after setting HOME so it picks up the mock home directory
+		backend := New(cfg, &logger)
 
 		// Create mock AppImage directory structure (simulating extracted squashfs-root)
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
@@ -1022,12 +1031,12 @@ Categories=Utility;`
 			assert.FileExists(t, path, "installed icon file should exist")
 			assert.Contains(t, path, expectedIconsDir, "icon should be in hicolor theme")
 
-			if filepath.Contains(path, "256x256") {
+			if strings.Contains(path, "256x256") {
 				icon256Installed = true
 				assert.True(t, filepath.Base(path) == "myapp.png" || filepath.Base(path) == "myapp.svg",
 					"icon filename should be myapp")
 			}
-			if filepath.Contains(path, "scalable") {
+			if strings.Contains(path, "scalable") {
 				iconScalableInstalled = true
 			}
 		}
@@ -1043,6 +1052,9 @@ Categories=Utility;`
 		origHomeDir := os.Getenv("HOME")
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHomeDir)
+
+		// Create backend after setting HOME so it picks up the mock home directory
+		backend := New(cfg, &logger)
 
 		// Create mock AppImage directory structure without .desktop file
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
@@ -1074,6 +1086,9 @@ Categories=Utility;`
 
 	t.Run("prioritizes Icon field over .DirIcon", func(t *testing.T) {
 		tmpDir := t.TempDir()
+
+		// Create backend for this test
+		backend := New(cfg, &logger)
 
 		// Create mock AppImage directory structure
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
@@ -1110,6 +1125,9 @@ Icon=desktopicon`
 
 	t.Run("extracts icon name from full path in Icon field", func(t *testing.T) {
 		tmpDir := t.TempDir()
+
+		// Create backend for this test
+		backend := New(cfg, &logger)
 
 		// Create mock AppImage directory structure
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")

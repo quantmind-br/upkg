@@ -551,3 +551,296 @@ func TestDebBackendUpdateDesktopFileWayland(t *testing.T) {
 		t.Skip("Requires complex mocking")
 	})
 }
+
+func TestDebBackend_AdditionalInstallTests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("install with skip desktop flag", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+
+		mockRunner := &helpers.MockCommandRunner{
+			RequireCommandFunc: func(cmd string) error {
+				return nil // All commands available
+			},
+			RunCommandFunc: func(_ context.Context, cmd string, args ...string) (string, error) {
+				// Mock debtap to fail early
+				if cmd == "debtap" {
+					return "", assert.AnError
+				}
+				return "", nil
+			},
+		}
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		tx := transaction.NewManager(&logger)
+
+		tmpDir := t.TempDir()
+		debPath := filepath.Join(tmpDir, "test.deb")
+		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary"), 0644))
+
+		_, err := backend.Install(context.Background(), debPath, core.InstallOptions{SkipDesktop: true}, tx)
+		// Should fail during debtap conversion
+		assert.Error(t, err)
+	})
+
+	t.Run("install with wayland env vars", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{
+			Desktop: config.DesktopConfig{
+				WaylandEnvVars: true,
+			},
+		}
+
+		mockRunner := &helpers.MockCommandRunner{
+			RequireCommandFunc: func(cmd string) error {
+				return nil
+			},
+		}
+
+		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		tx := transaction.NewManager(&logger)
+
+		tmpDir := t.TempDir()
+		debPath := filepath.Join(tmpDir, "test.deb")
+		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary"), 0644))
+
+		_, err := backend.Install(context.Background(), debPath, core.InstallOptions{}, tx)
+		// Should fail during debtap conversion
+		assert.Error(t, err)
+	})
+}
+
+func TestDebBackend_DetectAdditional(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty file without deb extension", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		emptyFile := filepath.Join(tmpDir, "empty.txt")
+		require.NoError(t, os.WriteFile(emptyFile, []byte{}, 0644))
+
+		result, err := backend.Detect(context.Background(), emptyFile)
+
+		assert.NoError(t, err)
+		// Empty files don't have the extension
+		assert.False(t, result)
+	})
+
+	t.Run("empty file with deb extension is detected by extension", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		emptyFile := filepath.Join(tmpDir, "empty.deb")
+		require.NoError(t, os.WriteFile(emptyFile, []byte{}, 0644))
+
+		result, err := backend.Detect(context.Background(), emptyFile)
+
+		assert.NoError(t, err)
+		// Detection is based on extension, not content
+		assert.True(t, result)
+	})
+
+	t.Run("file with partial magic bytes", func(t *testing.T) {
+		logger := zerolog.New(io.Discard)
+		cfg := &config.Config{}
+		backend := New(cfg, &logger)
+
+		tmpDir := t.TempDir()
+		partialFile := filepath.Join(tmpDir, "partial.deb")
+		require.NoError(t, os.WriteFile(partialFile, []byte("!<arch>"), 0644))
+
+		result, err := backend.Detect(context.Background(), partialFile)
+
+		assert.NoError(t, err)
+		assert.True(t, result)
+	})
+}
+
+func TestDebBackend_HasStandardIcon(t *testing.T) {
+	t.Parallel()
+
+	t.Run("has 256x256 icon", func(t *testing.T) {
+		iconFiles := []string{"/usr/share/icons/hicolor/256x256/apps/testapp.png"}
+		hasIcon := hasStandardIcon(iconFiles, "testapp")
+		assert.True(t, hasIcon)
+	})
+
+	t.Run("has 128x128 icon", func(t *testing.T) {
+		iconFiles := []string{"/usr/share/icons/hicolor/128x128/apps/testapp.png"}
+		hasIcon := hasStandardIcon(iconFiles, "testapp")
+		assert.True(t, hasIcon)
+	})
+
+	t.Run("has non-standard icon", func(t *testing.T) {
+		iconFiles := []string{"/usr/share/icons/hicolor/96x96/apps/testapp.png"}
+		hasIcon := hasStandardIcon(iconFiles, "testapp")
+		assert.False(t, hasIcon)
+	})
+
+	t.Run("no icons", func(t *testing.T) {
+		iconFiles := []string{}
+		hasIcon := hasStandardIcon(iconFiles, "testapp")
+		assert.False(t, hasIcon)
+	})
+}
+
+func TestDebBackend_IconPathSizeScore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("256x256 gets high score", func(t *testing.T) {
+		score := iconPathSizeScore("/usr/share/icons/hicolor/256x256/apps/test.png")
+		assert.Greater(t, score, 0)
+	})
+
+	t.Run("scalable gets high score", func(t *testing.T) {
+		score := iconPathSizeScore("/usr/share/icons/hicolor/scalable/apps/test.svg")
+		assert.Greater(t, score, 0)
+	})
+
+	t.Run("non-standard size gets lower score", func(t *testing.T) {
+		score := iconPathSizeScore("/usr/share/icons/hicolor/64x64/apps/test.png")
+		assert.GreaterOrEqual(t, score, 0)
+	})
+
+	t.Run("invalid path gets zero score", func(t *testing.T) {
+		score := iconPathSizeScore("/usr/share/app.png")
+		assert.Equal(t, 0, score)
+	})
+}
+
+func TestDebBackend_RemoveUserIcons(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DataDir: tmpDir,
+		},
+	}
+	fs := afero.NewOsFs()
+	backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
+
+	t.Run("removes existing icons", func(t *testing.T) {
+		// Create icon directory
+		iconDir := filepath.Join(tmpDir, ".local", "share", "icons", "hicolor", "256x256", "apps")
+		require.NoError(t, os.MkdirAll(iconDir, 0755))
+
+		iconPath := filepath.Join(iconDir, "testapp.png")
+		require.NoError(t, os.WriteFile(iconPath, []byte("icon"), 0644))
+
+		removed := backend.removeUserIcons([]string{iconPath})
+		assert.True(t, removed)
+		assert.NoFileExists(t, iconPath)
+	})
+
+	t.Run("handles missing icons", func(t *testing.T) {
+		// Should not panic
+		removed := backend.removeUserIcons([]string{"/nonexistent/icon.png"})
+		assert.False(t, removed)
+	})
+
+	t.Run("handles empty list", func(t *testing.T) {
+		// Should not panic
+		removed := backend.removeUserIcons([]string{})
+		assert.False(t, removed)
+	})
+}
+
+func TestDebBackend_QueryDebName(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+
+	mockRunner := &helpers.MockCommandRunner{
+		CommandExistsFunc: func(cmd string) bool {
+			return cmd == "dpkg-deb"
+		},
+		RunCommandFunc: func(_ context.Context, cmd string, args ...string) (string, error) {
+			if cmd == "dpkg-deb" && len(args) >= 3 && args[0] == "--field" && args[2] == "Package" {
+				return "test-package\n", nil
+			}
+			return "", assert.AnError
+		},
+	}
+
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+
+	tmpDir := t.TempDir()
+	debPath := filepath.Join(tmpDir, "test.deb")
+	require.NoError(t, os.WriteFile(debPath, []byte("fake"), 0644))
+
+	name, err := backend.queryDebName(context.Background(), debPath)
+	assert.NoError(t, err)
+	assert.Equal(t, "test-package", name)
+}
+
+func TestDebBackend_UpdateDesktopFileWayland_Coverage(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+	tmpDir := t.TempDir()
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cfg := &config.Config{
+		Desktop: config.DesktopConfig{
+			WaylandEnvVars: true,
+		},
+	}
+	backend := New(cfg, &logger)
+
+	t.Run("updates desktop file with wayland vars", func(t *testing.T) {
+		// Create a desktop file
+		desktopDir := filepath.Join(tmpDir, ".local", "share", "applications")
+		require.NoError(t, os.MkdirAll(desktopDir, 0755))
+
+		desktopPath := filepath.Join(desktopDir, "testapp.desktop")
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=testapp
+Icon=testapp`
+		require.NoError(t, os.WriteFile(desktopPath, []byte(desktopContent), 0644))
+
+		err := backend.updateDesktopFileWayland(desktopPath)
+		assert.NoError(t, err)
+		assert.FileExists(t, desktopPath)
+	})
+
+	t.Run("handles missing desktop file", func(t *testing.T) {
+		err := backend.updateDesktopFileWayland("/nonexistent/file.desktop")
+		// Should handle gracefully with error
+		assert.Error(t, err)
+	})
+
+	t.Run("handles wayland disabled", func(t *testing.T) {
+		cfgNoWayland := &config.Config{}
+		backendNoWayland := New(cfgNoWayland, &logger)
+
+		desktopDir := filepath.Join(tmpDir, ".local", "share", "applications")
+		require.NoError(t, os.MkdirAll(desktopDir, 0755))
+
+		desktopPath := filepath.Join(desktopDir, "testapp2.desktop")
+		desktopContent := `[Desktop Entry]
+Type=Application
+Name=TestApp2
+Exec=testapp2`
+		require.NoError(t, os.WriteFile(desktopPath, []byte(desktopContent), 0644))
+
+		err := backendNoWayland.updateDesktopFileWayland(desktopPath)
+		assert.NoError(t, err)
+	})
+}

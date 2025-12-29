@@ -435,17 +435,32 @@ func (a *AppImageBackend) parseAppImageMetadata(squashfsRoot string) (*appImageM
 		}
 	}
 
-	// Find .DirIcon
-	dirIconPath := filepath.Join(squashfsRoot, ".DirIcon")
-	if _, err := a.Fs.Stat(dirIconPath); err == nil {
-		metadata.icon = dirIconPath
+	// Find .DirIcon (only use as fallback if no icon in .desktop file)
+	if metadata.icon == "" {
+		dirIconPath := filepath.Join(squashfsRoot, ".DirIcon")
+		if statErr := a.Fs.Stat(dirIconPath); statErr == nil {
+			// .DirIcon is a symlink to the actual icon file
+			// We need to read the symlink target to extract the icon name
+			// .DirIcon typically points to: "usr/share/icons/hicolor/4096x4096/apps/auto-claude-ui.png"
+			// We need just the base name without extension: "auto-claude-ui"
+			target, readlinkErr := a.Fs.Readlink(dirIconPath)
+			if readlinkErr == nil {
+				iconName := filepath.Base(target)
+				// Remove file extension if present
+				ext := filepath.Ext(iconName)
+				if ext != "" {
+					iconName = strings.TrimSuffix(iconName, ext)
+				}
+				metadata.icon = iconName
+			}
+		}
 	}
 
 	return metadata, nil
 }
 
 // installIcons installs all icon files from the AppImage
-func (a *AppImageBackend) installIcons(squashfsRoot, binName string, _ *appImageMetadata) ([]string, error) {
+func (a *AppImageBackend) installIcons(squashfsRoot, binName string, metadata *appImageMetadata) ([]string, error) {
 	homeDir := a.Paths.HomeDir()
 	if homeDir == "" {
 		return nil, fmt.Errorf("failed to get home directory")
@@ -460,9 +475,15 @@ func (a *AppImageBackend) installIcons(squashfsRoot, binName string, _ *appImage
 		Int("count", len(discoveredIcons)).
 		Msg("discovered icons in AppImage")
 
+	// Use icon name from .desktop file if available, otherwise use binName
+	iconName := metadata.icon
+	if iconName == "" {
+		iconName = binName
+	}
+
 	// Install each icon
 	for _, iconFile := range discoveredIcons {
-		targetPath, err := icons.InstallIcon(iconFile, binName, homeDir)
+		targetPath, err := icons.InstallIcon(iconFile, iconName, homeDir)
 		if err != nil {
 			a.Log.Warn().
 				Err(err).
@@ -547,12 +568,12 @@ func (a *AppImageBackend) createDesktopFile(squashfsRoot, appName, binName, exec
 
 	entry.Exec += " %U"
 
-	// Set icon (use normalized name for theme compatibility)
-	if entry.Icon != "" && !filepath.IsAbs(entry.Icon) {
-		entry.Icon = binName
-	} else {
-		entry.Icon = binName
+	// Set icon (use icon name from embedded .desktop file if available, otherwise binName)
+	iconName := metadata.icon
+	if iconName == "" {
+		iconName = binName
 	}
+	entry.Icon = iconName
 
 	// Ensure categories
 	if len(entry.Categories) == 0 {

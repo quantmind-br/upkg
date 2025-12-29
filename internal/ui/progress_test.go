@@ -250,3 +250,354 @@ func TestUpdateIndeterminateWithElapsed(t *testing.T) {
 		tracker.Finish()
 	})
 }
+
+func TestGetSpinner(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+
+	// Test various spinner indices
+	for i := 0; i < 10; i++ {
+		spinner := tracker.getSpinner()
+		if spinner == "" {
+			t.Errorf("getSpinner should not return empty string at index %d", i)
+		}
+		tracker.spinnerIndex++
+	}
+}
+
+func TestGetCompletedWeight(t *testing.T) {
+	t.Run("single phase", func(_ *testing.T) {
+		phases := []InstallationPhase{
+			{Name: "Phase 1", Weight: 100, Deterministic: true},
+		}
+		tracker := NewProgressTracker(phases, "Test", true)
+		tracker.StartPhase(0)
+
+		weight := tracker.getCompletedWeight()
+		if weight < 0 || weight > 100 {
+			t.Errorf("getCompletedWeight should be between 0 and 100, got %d", weight)
+		}
+	})
+
+	t.Run("multiple phases", func(_ *testing.T) {
+		phases := []InstallationPhase{
+			{Name: "Phase 1", Weight: 30, Deterministic: true},
+			{Name: "Phase 2", Weight: 70, Deterministic: true},
+		}
+		tracker := NewProgressTracker(phases, "Test", true)
+		tracker.StartPhase(0)
+
+		weight := tracker.getCompletedWeight()
+		if weight < 0 || weight > 30 {
+			t.Errorf("getCompletedWeight for first phase should be <= 30, got %d", weight)
+		}
+	})
+}
+
+func TestClearLine(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+
+	// Test that clearLine doesn't panic
+	tracker.clearLine()
+}
+
+func TestSetProgressEdgeCases(t *testing.T) {
+	t.Run("zero total", func(_ *testing.T) {
+		phases := []InstallationPhase{
+			{Name: "Phase 1", Weight: 100, Deterministic: true},
+		}
+		tracker := NewProgressTracker(phases, "Test", true)
+		tracker.StartPhase(0)
+
+		// Should not panic with total = 0
+		tracker.SetProgress(50, 0)
+	})
+
+	t.Run("negative current", func(_ *testing.T) {
+		phases := []InstallationPhase{
+			{Name: "Phase 1", Weight: 100, Deterministic: true},
+		}
+		tracker := NewProgressTracker(phases, "Test", true)
+		tracker.StartPhase(0)
+
+		// Should not panic with negative current
+		tracker.SetProgress(-10, 100)
+	})
+
+	t.Run("no active phase", func(_ *testing.T) {
+		phases := []InstallationPhase{
+			{Name: "Phase 1", Weight: 100, Deterministic: true},
+		}
+		tracker := NewProgressTracker(phases, "Test", true)
+
+		// No phase started - should not panic
+		tracker.SetProgress(50, 100)
+	})
+
+	t.Run("indeterminate phase", func(_ *testing.T) {
+		phases := []InstallationPhase{
+			{Name: "Phase 1", Weight: 100, Deterministic: false},
+		}
+		tracker := NewProgressTracker(phases, "Test", true)
+		tracker.StartPhase(0)
+
+		// Indeterminate phase - should not affect progress
+		tracker.SetProgress(50, 100)
+	})
+}
+
+func TestUpdateIndeterminateThrottling(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+
+	// Rapid updates should be throttled
+	for i := 0; i < 10; i++ {
+		tracker.UpdateIndeterminate("Rapid update")
+	}
+	tracker.Finish()
+}
+
+func TestUpdateIndeterminateWithElapsedThrottling(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+
+	// Rapid updates should be throttled
+	for i := 0; i < 10; i++ {
+		tracker.UpdateIndeterminateWithElapsed("Rapid", time.Duration(i)*time.Second)
+	}
+	tracker.Finish()
+}
+
+func TestProgressTrackerFullLifecycle(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Download", Weight: 30, Deterministic: true},
+		{Name: "Extract", Weight: 40, Deterministic: false},
+		{Name: "Install", Weight: 30, Deterministic: true},
+	}
+	tracker := NewProgressTracker(phases, "Full Test", true)
+
+	// Start first phase
+	tracker.StartPhase(0)
+	tracker.SetProgress(25, 50)
+
+	// Move to second phase (indeterminate)
+	tracker.AdvancePhase()
+	tracker.UpdateIndeterminate("Extracting files...")
+
+	// Move to third phase
+	tracker.AdvancePhase()
+	tracker.SetProgress(15, 30)
+
+	// Finish
+	tracker.Finish()
+}
+
+func TestProgressTrackerMultipleAdvances(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 50, Deterministic: false},
+		{Name: "Phase 2", Weight: 50, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+
+	tracker.StartPhase(0)
+	tracker.AdvancePhase()
+	tracker.AdvancePhase() // Beyond last phase
+	tracker.AdvancePhase() // Still beyond
+	tracker.Finish()
+}
+
+func TestProgressTrackerWithAllDeterministic(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 33, Deterministic: true},
+		{Name: "Phase 2", Weight: 33, Deterministic: true},
+		{Name: "Phase 3", Weight: 34, Deterministic: true},
+	}
+	tracker := NewProgressTracker(phases, "All Deterministic", true)
+
+	tracker.StartPhase(0)
+	tracker.SetProgress(10, 100)
+	tracker.AdvancePhase()
+	tracker.SetProgress(20, 100)
+	tracker.AdvancePhase()
+	tracker.SetProgress(30, 100)
+	tracker.Finish()
+}
+
+func TestProgressTrackerWithAllIndeterminate(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 50, Deterministic: false},
+		{Name: "Phase 2", Weight: 50, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "All Indeterminate", true)
+
+	tracker.StartPhase(0)
+	tracker.UpdateIndeterminate("Processing phase 1")
+	tracker.AdvancePhase()
+	tracker.UpdateIndeterminate("Processing phase 2")
+	tracker.Finish()
+}
+
+func TestProgressTrackerClearAndRestart(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+
+	tracker.StartPhase(0)
+	tracker.UpdateIndeterminate("First run")
+	tracker.Clear()
+
+	// Can still use after clear
+	tracker.UpdateIndeterminate("Second run")
+	tracker.Finish()
+}
+
+func TestSimpleSpinner(t *testing.T) {
+	t.Run("with indeterminate updates", func(_ *testing.T) {
+		spinner := NewSimpleSpinner("Working...")
+		spinner.UpdateIndeterminate("Step 1")
+		spinner.UpdateIndeterminate("Step 2")
+		spinner.Finish()
+	})
+
+	t.Run("with progress", func(_ *testing.T) {
+		spinner := NewSimpleSpinner("Downloading...")
+		spinner.SetProgress(50, 100)
+		spinner.SetProgress(75, 100)
+		spinner.SetProgress(100, 100)
+		spinner.Finish()
+	})
+
+	t.Run("disabled", func(_ *testing.T) {
+		spinner := NewSimpleSpinner("Disabled")
+		// Simple spinner is always enabled, just test it doesn't panic
+		spinner.UpdateIndeterminate("Should not show")
+		spinner.Finish()
+	})
+}
+
+func TestUpdateIndeterminateThrottleBypass(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+
+	// Wait for throttle period to pass (100ms)
+	time.Sleep(150 * time.Millisecond)
+	tracker.UpdateIndeterminate("After throttle")
+	tracker.Finish()
+}
+
+func TestUpdateIndeterminateWithElapsedThrottleBypass(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+
+	// Wait for throttle period to pass (100ms)
+	time.Sleep(150 * time.Millisecond)
+	tracker.UpdateIndeterminateWithElapsed("After throttle", 10*time.Second)
+	tracker.Finish()
+}
+
+func TestClearLineDisabled(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", false)
+	tracker.StartPhase(0)
+
+	// Should not panic when disabled
+	tracker.clearLine()
+}
+
+func TestClearLineNilWriter(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+	// Set writer to nil to test that branch
+	originalWriter := tracker.originalWriter
+	tracker.originalWriter = nil
+
+	// Should not panic when writer is nil
+	tracker.clearLine()
+
+	// Restore writer for cleanup
+	tracker.originalWriter = originalWriter
+	tracker.Finish()
+}
+
+func TestGetSpinnerAllFrames(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+
+	// Test all possible spinner frame indices
+	for i := 0; i < 20; i++ {
+		tracker.spinnerIndex = i
+		spinner := tracker.getSpinner()
+		if spinner == "" {
+			t.Errorf("getSpinner should not return empty string at index %d", i)
+		}
+		// Each spinner should be a single character (emoji or similar)
+		if len(spinner) == 0 {
+			t.Errorf("getSpinner returned empty at index %d", i)
+		}
+	}
+	tracker.Finish()
+}
+
+func TestUpdateIndeterminateAfterThrottle(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+
+	// First call may be throttled
+	tracker.UpdateIndeterminate("First")
+
+	// Wait for throttle to pass
+	time.Sleep(150 * time.Millisecond)
+
+	// Second call should pass throttle
+	tracker.UpdateIndeterminate("Second")
+
+	tracker.Finish()
+}
+
+func TestUpdateIndeterminateWithElapsedAfterThrottle(t *testing.T) {
+	phases := []InstallationPhase{
+		{Name: "Phase 1", Weight: 100, Deterministic: false},
+	}
+	tracker := NewProgressTracker(phases, "Test", true)
+	tracker.StartPhase(0)
+
+	// First call may be throttled
+	tracker.UpdateIndeterminateWithElapsed("First", 5*time.Second)
+
+	// Wait for throttle to pass
+	time.Sleep(150 * time.Millisecond)
+
+	// Second call should pass throttle
+	tracker.UpdateIndeterminateWithElapsed("Second", 10*time.Second)
+
+	tracker.Finish()
+}

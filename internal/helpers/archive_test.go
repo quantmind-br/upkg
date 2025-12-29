@@ -137,6 +137,71 @@ func TestExtractZip(t *testing.T) {
 		err := ExtractZip(corruptedPath, destDir)
 		assert.Error(t, err)
 	})
+
+	t.Run("non-existent zip file", func(t *testing.T) {
+		destDir := filepath.Join(tmpDir, "extract3")
+		require.NoError(t, os.MkdirAll(destDir, 0755))
+
+		err := ExtractZip("/nonexistent/file.zip", destDir)
+		assert.Error(t, err)
+	})
+}
+
+func TestExtractTarGzErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	t.Run("non-existent tar.gz file", func(t *testing.T) {
+		destDir := filepath.Join(tmpDir, "extract")
+		require.NoError(t, os.MkdirAll(destDir, 0755))
+
+		err := ExtractTarGz("/nonexistent/file.tar.gz", destDir)
+		assert.Error(t, err)
+	})
+}
+
+func TestExtractTarErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	t.Run("non-existent tar file", func(t *testing.T) {
+		destDir := filepath.Join(tmpDir, "extract")
+		require.NoError(t, os.MkdirAll(destDir, 0755))
+
+		err := ExtractTar("/nonexistent/file.tar", destDir)
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid tar file", func(t *testing.T) {
+		invalidPath := filepath.Join(tmpDir, "invalid.tar")
+		require.NoError(t, os.WriteFile(invalidPath, []byte("not a tar"), 0644))
+
+		destDir := filepath.Join(tmpDir, "extract2")
+		require.NoError(t, os.MkdirAll(destDir, 0755))
+
+		err := ExtractTar(invalidPath, destDir)
+		assert.Error(t, err)
+	})
+}
+
+func TestExtractTarXzErrors(t *testing.T) {
+	t.Run("non-existent tar.xz file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		destDir := filepath.Join(tmpDir, "extract")
+		require.NoError(t, os.MkdirAll(destDir, 0755))
+
+		err := ExtractTarXz("/nonexistent/file.tar.xz", destDir)
+		assert.Error(t, err)
+	})
+}
+
+func TestExtractTarBz2Errors(t *testing.T) {
+	t.Run("non-existent tar.bz2 file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		destDir := filepath.Join(tmpDir, "extract")
+		require.NoError(t, os.MkdirAll(destDir, 0755))
+
+		err := ExtractTarBz2("/nonexistent/file.tar.bz2", destDir)
+		assert.Error(t, err)
+	})
 }
 
 func TestExtractionLimiter(t *testing.T) {

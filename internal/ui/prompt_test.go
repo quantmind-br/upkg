@@ -164,3 +164,56 @@ func TestPromptErrorHandling(t *testing.T) {
 		t.Error("custom error should not be nil")
 	}
 }
+
+func TestMultiSelectPromptEmpty(t *testing.T) {
+	// Test empty items handling
+	selected, err := MultiSelectPrompt("Test", []string{})
+	if err != nil {
+		t.Errorf("MultiSelectPrompt with empty items should not error: %v", err)
+	}
+	if selected != nil {
+		t.Errorf("MultiSelectPrompt with empty items should return nil, got %v", selected)
+	}
+}
+
+func TestConfirmDangerousAction(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	// Actually running it would require interactive input
+	// So we just verify it compiles and can be referenced
+	_ = ConfirmDangerousAction
+}
+
+func TestConfirmWithDefault(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	_ = ConfirmWithDefault
+}
+
+func TestPasswordPrompt(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	_ = PasswordPrompt
+}
+
+func TestInputPrompt(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	_ = InputPrompt
+}
+
+func TestSelectPrompt(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	_ = SelectPrompt
+}
+
+func TestSelectPromptDetailed(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	_ = SelectPromptDetailed
+}
+
+func TestMultiSelectPromptLegacy(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	_ = MultiSelectPromptLegacy
+}
+
+func TestConfirmPrompt(t *testing.T) {
+	// This test verifies the function exists and has the right signature
+	_ = ConfirmPrompt
+}

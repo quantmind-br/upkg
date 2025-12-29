@@ -473,3 +473,262 @@ func TestInstallIconWithResizing(t *testing.T) {
 		t.Errorf("Destination icon size = %dx%d, want 50x50", cfg.Width, cfg.Height)
 	}
 }
+
+func TestIsValidRatio(t *testing.T) {
+	tests := []struct {
+		name     string
+		width    float64
+		height   float64
+		expected bool
+	}{
+		{"Perfect square", 48, 48, true},
+		{"Slight rectangle", 50, 48, true},
+		{"Maximum acceptable ratio", 48, 37, true},
+		{"Just over limit", 48, 36, false},
+		{"Very wide", 100, 50, false},
+		{"Very tall", 50, 100, false},
+		{"Almost square", 64, 64, true},
+		{"Square large", 512, 512, true},
+		{"Rectangle within limit", 100, 80, true},
+		{"Rectangle at limit", 130, 100, true},
+		{"Rectangle over limit", 131, 100, false},
+		{"Zero width (invalid)", 0, 48, false},
+		{"Zero height (invalid)", 48, 0, false},
+		{"Both zero", 0, 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidRatio(tt.width, tt.height)
+			if result != tt.expected {
+				t.Errorf("isValidRatio(%v, %v) = %v, want %v", tt.width, tt.height, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractSVGDimensions(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		hasWidth bool
+		hasHeight bool
+	}{
+		{
+			name: "Valid SVG with width and height",
+			content: `<svg width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+				<rect width="48" height="48"/>
+			</svg>`,
+			hasWidth: true,
+			hasHeight: true,
+		},
+		{
+			name: "SVG without dimensions but with rect (extracts from first rect)",
+			content: `<svg xmlns="http://www.w3.org/2000/svg">
+				<rect width="48" height="48"/>
+			</svg>`,
+			hasWidth: true,
+			hasHeight: true,
+		},
+		{
+			name: "SVG with viewBox only (extracts from viewBox)",
+			content: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+				<rect width="24" height="24"/>
+			</svg>`,
+			hasWidth: true,
+			hasHeight: true,
+		},
+		{
+			name: "Invalid SVG",
+			content: `not an svg`,
+			hasWidth: false,
+			hasHeight: false,
+		},
+		{
+			name: "SVG with fractional dimensions",
+			content: `<svg width="48.5" height="48.5" xmlns="http://www.w3.org/2000/svg">
+				<rect width="48.5" height="48.5"/>
+			</svg>`,
+			hasWidth: true,
+			hasHeight: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			width, height, _ := extractSVGDimensions(tt.content)
+			hasWidth := width > 0
+			hasHeight := height > 0
+
+			if hasWidth != tt.hasWidth {
+				t.Errorf("extractSVGDimensions() width = %v, hasWidth %v, want %v", width, hasWidth, tt.hasWidth)
+			}
+			if hasHeight != tt.hasHeight {
+				t.Errorf("extractSVGDimensions() height = %v, hasHeight %v, want %v", height, hasHeight, tt.hasHeight)
+			}
+		})
+	}
+}
+
+func TestExtractSVGViewBox(t *testing.T) {
+	tests := []struct {
+		name       string
+		content    string
+		hasViewBox bool
+	}{
+		{
+			name: "SVG with viewBox",
+			content: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+				<rect width="24" height="24"/>
+			</svg>`,
+			hasViewBox: true,
+		},
+		{
+			name: "SVG without viewBox",
+			content: `<svg xmlns="http://www.w3.org/2000/svg">
+				<rect width="24" height="24"/>
+			</svg>`,
+			hasViewBox: false,
+		},
+		{
+			name:       "Invalid SVG",
+			content:    `not an svg`,
+			hasViewBox: false,
+		},
+		{
+			name: "SVG with malformed viewBox",
+			content: `<svg viewBox="invalid" xmlns="http://www.w3.org/2000/svg">
+				<rect width="24" height="24"/>
+			</svg>`,
+			hasViewBox: false, // Function returns false for invalid viewBox
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, hasViewBox := extractSVGViewBox(tt.content)
+			if hasViewBox != tt.hasViewBox {
+				t.Errorf("extractSVGViewBox() hasViewBox = %v, want %v", hasViewBox, tt.hasViewBox)
+			}
+		})
+	}
+}
+
+func TestIsValidIconAspectRatio(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	manager := NewManager(fs, testIconsDir)
+
+	t.Run("non-existent file returns true (assumes valid)", func(t *testing.T) {
+		result := manager.isValidIconAspectRatio("/nonexistent/icon.png")
+		if !result {
+			t.Error("isValidIconAspectRatio() should return true for non-existent file")
+		}
+	})
+
+	t.Run("valid square icon", func(t *testing.T) {
+		// Create a test PNG file
+		iconPath := filepath.Join(t.TempDir(), "test.png")
+		createTestPNG(t, iconPath, 48, 48)
+
+		manager := NewManager(afero.NewOsFs(), testIconsDir)
+		result := manager.isValidIconAspectRatio(iconPath)
+		if !result {
+			t.Error("isValidIconAspectRatio() should return true for square icon")
+		}
+	})
+
+	t.Run("invalid rectangular icon", func(t *testing.T) {
+		// Create a very wide PNG
+		iconPath := filepath.Join(t.TempDir(), "wide.png")
+		createTestPNG(t, iconPath, 200, 48)
+
+		manager := NewManager(afero.NewOsFs(), testIconsDir)
+		result := manager.isValidIconAspectRatio(iconPath)
+		if result {
+			t.Error("isValidIconAspectRatio() should return false for very wide icon")
+		}
+	})
+
+	t.Run("invalid PNG file", func(t *testing.T) {
+		// Create invalid PNG file
+		iconPath := filepath.Join(t.TempDir(), "invalid.png")
+		err := os.WriteFile(iconPath, []byte("not a png"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		manager := NewManager(afero.NewOsFs(), testIconsDir)
+		result := manager.isValidIconAspectRatio(iconPath)
+		if !result {
+			t.Error("isValidIconAspectRatio() should return true for undecodable file (assumes valid)")
+		}
+	})
+}
+
+func TestIsValidSVGAspectRatio(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	manager := NewManager(fs, testIconsDir)
+
+	t.Run("non-existent SVG returns true", func(t *testing.T) {
+		result := manager.isValidSVGAspectRatio("/nonexistent/icon.svg")
+		if !result {
+			t.Error("isValidSVGAspectRatio() should return true for non-existent file")
+		}
+	})
+
+	t.Run("valid square SVG", func(t *testing.T) {
+		svgPath := filepath.Join(t.TempDir(), "test.svg")
+		content := `<svg width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+			<rect width="48" height="48"/>
+		</svg>`
+		afero.WriteFile(fs, svgPath, []byte(content), 0644)
+
+		result := manager.isValidSVGAspectRatio(svgPath)
+		if !result {
+			t.Error("isValidSVGAspectRatio() should return true for square SVG")
+		}
+	})
+
+	t.Run("invalid rectangular SVG", func(t *testing.T) {
+		svgPath := filepath.Join(t.TempDir(), "wide.svg")
+		content := `<svg width="200" height="48" xmlns="http://www.w3.org/2000/svg">
+			<rect width="200" height="48"/>
+		</svg>`
+		afero.WriteFile(fs, svgPath, []byte(content), 0644)
+
+		result := manager.isValidSVGAspectRatio(svgPath)
+		if result {
+			t.Error("isValidSVGAspectRatio() should return false for very wide SVG")
+		}
+	})
+
+	t.Run("SVG with viewBox", func(t *testing.T) {
+		svgPath := filepath.Join(t.TempDir(), "viewbox.svg")
+		content := `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+			<rect width="24" height="24"/>
+		</svg>`
+		afero.WriteFile(fs, svgPath, []byte(content), 0644)
+
+		result := manager.isValidSVGAspectRatio(svgPath)
+		if !result {
+			t.Error("isValidSVGAspectRatio() should return true for square viewBox SVG")
+		}
+	})
+}
+
+// createTestPNG creates a simple PNG file with specified dimensions
+func createTestPNG(t *testing.T, path string, width, height int) {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	err = png.Encode(file, img)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

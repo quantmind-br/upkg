@@ -504,6 +504,9 @@ func TestTarballBackend_CreateDesktopFile(t *testing.T) {
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHome)
 
+		// Update the backend's paths resolver to use the new home
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
+
 		// Create necessary directory structure for desktop files
 		appsDir := filepath.Join(tmpDir, ".local", "share", "applications")
 		require.NoError(t, os.MkdirAll(appsDir, 0755))
@@ -534,6 +537,9 @@ func TestTarballBackend_CreateDesktopFile(t *testing.T) {
 		origHome := os.Getenv("HOME")
 		os.Setenv("HOME", tmpDir)
 		defer os.Setenv("HOME", origHome)
+
+		// Update the backend's paths resolver to use the new home
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))

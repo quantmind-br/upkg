@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestChooseBestExecutablePrefersCoreBinary(t *testing.T) {
@@ -218,4 +219,96 @@ func TestDefaultScorerStruct(t *testing.T) {
 	if scorer.Logger == nil {
 		t.Error("logger should not be nil")
 	}
+}
+
+func TestIsInvalidWrapperScript(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	scorer := NewScorer(&logger)
+
+	t.Run("non-existent file", func(t *testing.T) {
+		result := scorer.isInvalidWrapperScript("/nonexistent/file")
+		assert.False(t, result, "Non-existent file should return false")
+	})
+
+	t.Run("large file (> 10KB)", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		largeFile := filepath.Join(tmpDir, "large")
+		content := bytes.Repeat([]byte{0}, 11*1024)
+		os.WriteFile(largeFile, content, 0755)
+
+		result := scorer.isInvalidWrapperScript(largeFile)
+		assert.False(t, result, "Large files should be skipped")
+	})
+
+	t.Run("file without shebang", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptFile := filepath.Join(tmpDir, "script.sh")
+		os.WriteFile(scriptFile, []byte("echo hello\n"), 0755)
+
+		result := scorer.isInvalidWrapperScript(scriptFile)
+		assert.False(t, result, "Non-script files should return false")
+	})
+
+	t.Run("script with invalid build path /home/runner/", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptFile := filepath.Join(tmpDir, "wrapper.sh")
+		content := []byte("#!/bin/bash\nexec /home/runner/work/app/app/binary \"$@\"\n")
+		os.WriteFile(scriptFile, content, 0755)
+
+		result := scorer.isInvalidWrapperScript(scriptFile)
+		assert.True(t, result, "Script with /home/runner/ path should be invalid")
+	})
+
+	t.Run("script with invalid build path /tmp/build/", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptFile := filepath.Join(tmpDir, "wrapper.sh")
+		content := []byte("#!/bin/bash\nexec /tmp/build/app/binary \"$@\"\n")
+		os.WriteFile(scriptFile, content, 0755)
+
+		result := scorer.isInvalidWrapperScript(scriptFile)
+		assert.True(t, result, "Script with /tmp/build/ path should be invalid")
+	})
+
+	t.Run("script with /workspace/ path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptFile := filepath.Join(tmpDir, "wrapper.sh")
+		content := []byte("#!/bin/sh\n/workspace/build/app \"$@\"\n")
+		os.WriteFile(scriptFile, content, 0755)
+
+		result := scorer.isInvalidWrapperScript(scriptFile)
+		assert.True(t, result, "Script with /workspace/ path should be invalid")
+	})
+
+	t.Run("valid script with local path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptFile := filepath.Join(tmpDir, "app.sh")
+		content := []byte("#!/bin/bash\nexec ./binary \"$@\"\n")
+		os.WriteFile(scriptFile, content, 0755)
+
+		result := scorer.isInvalidWrapperScript(scriptFile)
+		assert.False(t, result, "Script with local path should be valid")
+	})
+
+	t.Run("valid script with $APPDIR", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptFile := filepath.Join(tmpDir, "app.sh")
+		content := []byte("#!/bin/bash\nexec $APPDIR/binary \"$@\"\n")
+		os.WriteFile(scriptFile, content, 0755)
+
+		result := scorer.isInvalidWrapperScript(scriptFile)
+		assert.False(t, result, "Script with $APPDIR should be valid")
+	})
+}
+
+func TestFindExecutablesErrors(t *testing.T) {
+	t.Run("non-existent directory", func(t *testing.T) {
+		_, err := FindExecutables("/nonexistent/directory")
+		assert.Error(t, err, "Should return error for non-existent directory")
+	})
+
+	t.Run("directory with read error", func(t *testing.T) {
+		// This is hard to test without actually making a directory unreadable
+		// Skip for now as it requires specific permissions
+		t.Skip("Requires specific filesystem permissions")
+	})
 }

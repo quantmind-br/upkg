@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=TestApp
-Exec=env GDK_BACKEND=wayland,x11 QT_QPA_PLATFORM=wayland:xcb MOZ_ENABLE_WAYLAND=1 ELECTRON_OZONE_PLATFORM_HINT=auto /tmp/TestTarballBackend_CreateDesktopFilehandles_wayland_env_vars1500160478/001/install/app %U
+Exec=env GDK_BACKEND=wayland,x11 QT_QPA_PLATFORM=wayland:xcb MOZ_ENABLE_WAYLAND=1 ELECTRON_OZONE_PLATFORM_HINT=auto /tmp/TestTarballBackend_CreateDesktopFilehandles_wayland_env_vars4015732938/001/install/app %U
 Icon=test-app
 Comment=TestApp application
 Categories=Utility;

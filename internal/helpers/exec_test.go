@@ -3,6 +3,7 @@ package helpers
 import (
 	"bytes"
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -97,4 +98,36 @@ func TestOSCommandRunner(t *testing.T) {
 
 func TestCommandRunnerInterface(_ *testing.T) {
 	var _ CommandRunner = &OSCommandRunner{}
+}
+
+func TestValidateDesktopFile(t *testing.T) {
+	t.Run("non-existent desktop file", func(t *testing.T) {
+		output, valid, err := ValidateDesktopFile("/nonexistent/file.desktop")
+		assert.NoError(t, err)
+		// desktop-file-validate returns output but still reports as invalid
+		// The function returns valid=false for validation failures
+		assert.False(t, valid, "Non-existent file should be invalid")
+		// Output may contain error message from desktop-file-validate
+		assert.NotEmpty(t, output, "Should have validation output")
+	})
+
+	t.Run("tool not available", func(t *testing.T) {
+		// Create a mock runner where desktop-file-validate is not available
+		originalRunner := NewOSCommandRunner()
+		if originalRunner.CommandExists("desktop-file-validate") {
+			t.Skip("desktop-file-validate is available, cannot test absence")
+		}
+
+		tmpDir := t.TempDir()
+		desktopPath := tmpDir + "/test.desktop"
+		err := os.WriteFile(desktopPath, []byte("[Desktop Entry]\nType=Application\nName=Test"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		output, valid, err := ValidateDesktopFile(desktopPath)
+		assert.NoError(t, err)
+		assert.True(t, valid, "Should be valid when tool is not available")
+		assert.Empty(t, output)
+	})
 }

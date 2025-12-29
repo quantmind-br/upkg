@@ -148,3 +148,45 @@ func TestListCmd_Flags(t *testing.T) {
 	assert.NotNil(t, cmd.Flags().Lookup("sort"))
 	assert.NotNil(t, cmd.Flags().Lookup("details"))
 }
+
+func TestSortInstalls(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+
+	installs := []db.Install{
+		{InstallID: "1", Name: "Zebra", PackageType: "appimage", Version: "3.0", InstallDate: now},
+		{InstallID: "2", Name: "Apple", PackageType: "tarball", Version: "1.0", InstallDate: now.Add(-1 * time.Hour)},
+		{InstallID: "3", Name: "Beta", PackageType: "deb", Version: "2.0", InstallDate: now.Add(-2 * time.Hour)},
+	}
+
+	// Test sorting by name
+	sortedByType := make([]db.Install, len(installs))
+	copy(sortedByType, installs)
+	sortInstalls(sortedByType, "name")
+	assert.Equal(t, "Apple", sortedByType[0].Name)
+
+	// Test sorting by type
+	sortedByType = make([]db.Install, len(installs))
+	copy(sortedByType, installs)
+	sortInstalls(sortedByType, "type")
+	assert.Equal(t, "appimage", sortedByType[0].PackageType)
+
+	// Test sorting by date
+	sortedByType = make([]db.Install, len(installs))
+	copy(sortedByType, installs)
+	sortInstalls(sortedByType, "date")
+	assert.Equal(t, "Zebra", sortedByType[0].Name) // Most recent
+
+	// Test sorting by version
+	sortedByType = make([]db.Install, len(installs))
+	copy(sortedByType, installs)
+	sortInstalls(sortedByType, "version")
+	assert.Equal(t, "1.0", sortedByType[0].Version)
+
+	// Test invalid sort field (defaults to name)
+	sortedByType = make([]db.Install, len(installs))
+	copy(sortedByType, installs)
+	sortInstalls(sortedByType, "invalid")
+	assert.Equal(t, "Apple", sortedByType[0].Name)
+}

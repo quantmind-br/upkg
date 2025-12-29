@@ -57,6 +57,7 @@ Priority-ordered backend registry with **CRITICAL ordering**:
 internal/
 ├── backends/          # Package format handlers
 │   ├── appimage/      # AppImage backend
+│   ├── base/          # Base backend with shared functionality
 │   ├── binary/        # ELF binary backend
 │   ├── deb/           # DEB package backend
 │   ├── rpm/           # RPM package backend
@@ -68,9 +69,12 @@ internal/
 ├── core/              # Domain models & interfaces
 ├── db/                # SQLite database layer
 ├── desktop/           # .desktop file generation/modification
+├── helpers/           # Common utilities (exec, archive, naming, file operations)
 ├── heuristics/        # Executable detection and scoring
+├── hyprland/          # Hyprland compositor integration
 ├── icons/             # Icon extraction & installation
 ├── logging/           # Structured logging (zerolog)
+├── paths/             # Path resolution (Resolver for XDG directories)
 ├── security/          # Path validation, traversal prevention
 ├── syspkg/            # System package manager abstraction
 │   └── arch/          # Arch Linux (pacman) implementation
@@ -86,6 +90,26 @@ cmd/upkg/              # Entry point (main.go)
 - Paths: data_dir, db_file, log_file
 - Desktop: wayland_env_vars, custom_env_vars
 - Logging: level, color
+
+### Helpers (internal/helpers/)
+- Common utilities shared across backends
+- `NormalizeFilename()` - Clean filenames for safe filesystem use
+- `GenerateInstallID()` - Unique installation identifiers
+- `CopyFile()` - File copying with progress
+- `exec.go` - Command execution utilities
+- `archive.go` - Archive operations (tar, zip, squashfs)
+- `naming.go` - Package name parsing and normalization
+- `detection.go` - Package format detection helpers
+
+### Paths (internal/paths/)
+- `Resolver` - XDG directory path resolution
+- Methods: `HomeDir()`, `GetBinDir()`, `GetAppsDir()`, `GetIconsDir()`, `GetUpkgAppsDir()`, `GetIconSizeDir()`
+- Supports custom home directory for testing
+
+### Base Backend (internal/backends/base/)
+- `BaseBackend` struct with shared functionality
+- Reduces code duplication across format-specific backends
+- Common dependencies: file operations, desktop integration, icon extraction
 
 ### Database (internal/db/)
 - SQLite with WAL mode

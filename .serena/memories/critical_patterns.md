@@ -144,6 +144,30 @@ if err := tx.Commit(); err != nil {
 
 **Gotcha:** AppImages may have `.DirIcon` or embedded icons in .desktop files
 
+## Path Resolution (internal/paths/)
+
+**Always use the `Resolver` for XDG directory paths:**
+```go
+resolver := paths.NewResolver()
+binDir := resolver.GetBinDir()       // ~/.local/bin
+appsDir := resolver.GetAppsDir()     // ~/.local/share/applications
+iconsDir := resolver.GetIconsDir()   // ~/.local/share/icons
+upkgAppsDir := resolver.GetUpkgAppsDir() // ~/.local/share/upkg/apps
+```
+
+**Testing:** Use `NewResolverWithHome(homeDir)` for custom home directory
+
+## Common Helpers (internal/helpers/)
+
+**Use shared utilities instead of reimplementing:**
+- `helpers.NormalizeFilename()` - Sanitize filenames for filesystem
+- `helpers.GenerateInstallID()` - Create unique install IDs
+- `helpers.CopyFile()` - Copy files with proper error handling
+- `exec.CommandContext()` - Wrapped command execution helpers
+- `archive.ExtractTar()`, `archive.ExtractZip()` - Archive extraction
+
+**Pattern:** Check `internal/helpers/` before writing new utility functions
+
 ## Command Execution
 
 **Pattern:**

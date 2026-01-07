@@ -344,3 +344,83 @@ func TestCheckEnvironment(t *testing.T) {
 		// Function doesn't error, just prints
 	})
 }
+
+func TestCheckPackageIntegrity_IconFilesAsInterface(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	t.Run("icon files as interface array", func(t *testing.T) {
+		installs := []db.Install{
+			{
+				Name:        "interface-icon-pkg",
+				InstallID:   "icon-interface-123",
+				InstallPath: tmpDir,
+				Metadata: map[string]interface{}{
+					// Use interface array instead of string array
+					"icon_files": []interface{}{filepath.Join(tmpDir, "icon1.png"), filepath.Join(tmpDir, "icon2.png")},
+				},
+			},
+		}
+		broken := checkPackageIntegrity(installs)
+		assert.Len(t, broken, 1)
+		assert.Len(t, broken[0].missing, 2)
+	})
+
+	t.Run("empty icon path in array", func(t *testing.T) {
+		installs := []db.Install{
+			{
+				Name:        "empty-icon-pkg",
+				InstallID:   "icon-empty-123",
+				InstallPath: tmpDir,
+				Metadata: map[string]interface{}{
+					"icon_files": []string{"", filepath.Join(tmpDir, "missing.png")},
+				},
+			},
+		}
+		broken := checkPackageIntegrity(installs)
+		assert.Len(t, broken, 1)
+		// Should only report the missing icon, not the empty path
+		assert.Len(t, broken[0].missing, 1)
+	})
+
+	t.Run("mixed interface types in icon files", func(t *testing.T) {
+		installs := []db.Install{
+			{
+				Name:        "mixed-icon-pkg",
+				InstallID:   "icon-mixed-123",
+				InstallPath: tmpDir,
+				Metadata: map[string]interface{}{
+					"icon_files": []interface{}{filepath.Join(tmpDir, "icon1.png"), 123, "string-not-path"},
+				},
+			},
+		}
+		broken := checkPackageIntegrity(installs)
+		assert.Len(t, broken, 1)
+		// Non-string items are skipped, but string-not-path is a valid string so it's checked
+		// So we get 2 missing files: icon1.png and string-not-path
+		assert.Len(t, broken[0].missing, 2)
+	})
+}
+
+func TestGetDesktopFilesFromDB_EmptyDesktopFiles(t *testing.T) {
+	t.Run("empty string in desktop_files array", func(t *testing.T) {
+		install := db.Install{
+			Metadata: map[string]interface{}{
+				"desktop_files": []string{"", "/path/to/file.desktop"},
+			},
+		}
+		files := getDesktopFilesFromDB(install)
+		// getDesktopFilesFromDB does NOT filter out empty strings
+		assert.Equal(t, []string{"", "/path/to/file.desktop"}, files)
+	})
+
+	t.Run("empty string in interface array", func(t *testing.T) {
+		install := db.Install{
+			Metadata: map[string]interface{}{
+				"desktop_files": []interface{}{"", "/path/to/file.desktop"},
+			},
+		}
+		files := getDesktopFilesFromDB(install)
+		// getDesktopFilesFromDB does NOT filter out empty strings
+		assert.Equal(t, []string{"", "/path/to/file.desktop"}, files)
+	})
+}

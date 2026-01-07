@@ -145,6 +145,27 @@ func TestPacmanProvider_GetInfo(t *testing.T) {
 	})
 }
 
+func TestNewPacmanProvider(t *testing.T) {
+	t.Run("creates provider with OS runner", func(t *testing.T) {
+		provider := NewPacmanProvider()
+		assert.NotNil(t, provider)
+		assert.NotNil(t, provider.runner)
+	})
+}
+
+func TestPacmanProvider_Name(t *testing.T) {
+	t.Run("returns correct name", func(t *testing.T) {
+		provider := NewPacmanProvider()
+		assert.Equal(t, "pacman", provider.Name())
+	})
+
+	t.Run("returns correct name with custom runner", func(t *testing.T) {
+		mockRunner := &helpers.MockCommandRunner{}
+		provider := NewPacmanProviderWithRunner(mockRunner)
+		assert.Equal(t, "pacman", provider.Name())
+	})
+}
+
 func TestPacmanProvider_ListFiles(t *testing.T) {
 	// Setup
 	mockRunner := &helpers.MockCommandRunner{}

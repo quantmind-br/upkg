@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=/opt/testapp/bin/testapp %U
+Icon=testapp
+Comment=TestApp application
+Categories=Utility;

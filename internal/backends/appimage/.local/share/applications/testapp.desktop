@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TestApp
+Exec=/opt/testapp.TestImage %U
+Icon=testapp
+Categories=Utility;
+_ENABLE_WAYLAND=1 ELECTRON_OZONE_PLATFORM_HINT=auto CUSTOM_VAR=value /opt/testapp.AppImage %U
+Icon=testapp
+Categories=Utility;

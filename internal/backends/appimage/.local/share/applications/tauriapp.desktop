@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=TauriApp
+Exec=/opt/tauriapp.AppImage %U
+Icon=tauriapp
+Categories=Utility;
+StartupWMClass=tauri-app

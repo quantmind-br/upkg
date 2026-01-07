@@ -3,6 +3,7 @@ package helpers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -132,7 +133,8 @@ func (r *OSCommandRunner) GetExitCode(err error) int {
 		return 0
 	}
 
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		return exitErr.ExitCode()
 	}
 

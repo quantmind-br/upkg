@@ -784,3 +784,291 @@ func contains(s, substr string) bool {
 	}
 	return false
 }
+
+// Additional tests for improved coverage
+func TestValidateFilePath_AdditionalCases(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:      "absolute path to /etc/passwd",
+			path:      "/etc/passwd",
+			wantErr:   true,
+			errSubstr: "sensitive system path",
+		},
+		{
+			name:      "absolute path to /bin/sh",
+			path:      "/bin/sh",
+			wantErr:   true,
+			errSubstr: "sensitive system path",
+		},
+		{
+			name:    "absolute path to /home/user/app",
+			path:    "/home/user/app",
+			wantErr: false,
+		},
+		{
+			name:    "absolute path to /usr/local/bin/app",
+			path:    "/usr/local/bin/app",
+			wantErr: false,
+		},
+		{
+			name:    "absolute path to /opt/app",
+			path:    "/opt/app",
+			wantErr: false,
+		},
+		{
+			name:    "absolute path to /tmp/app",
+			path:    "/tmp/app",
+			wantErr: false,
+		},
+		{
+			name:      "suspicious absolute path not in safe list",
+			path:      "/usr/share/app",
+			wantErr:   true,
+			errSubstr: "suspicious absolute path",
+		},
+		{
+			name:      "path with tilde",
+			path:      "~/app/file.txt",
+			wantErr:   true,
+			errSubstr: "dangerous pattern",
+		},
+		{
+			name:      "path with dollar sign",
+			path:      "app/$HOME/file.txt",
+			wantErr:   true,
+			errSubstr: "dangerous pattern",
+		},
+		{
+			name:      "path with backtick",
+			path:      "app/`command`/file.txt",
+			wantErr:   true,
+			errSubstr: "dangerous pattern",
+		},
+		{
+			name:      "path with pipe",
+			path:      "app/|/file.txt",
+			wantErr:   true,
+			errSubstr: "dangerous pattern",
+		},
+		{
+			name:      "path with ampersand",
+			path:      "app/&/file.txt",
+			wantErr:   true,
+			errSubstr: "dangerous pattern",
+		},
+		{
+			name:      "path with semicolon",
+			path:      "app/;/file.txt",
+			wantErr:   true,
+			errSubstr: "dangerous pattern",
+		},
+		{
+			name:      "hidden file (dot prefix)",
+			path:      ".hidden",
+			wantErr:   true,
+			errSubstr: "hidden file or directory",
+		},
+		{
+			name:      "hidden directory",
+			path:      "app/.config/file.txt",
+			wantErr:   true,
+			errSubstr: "hidden file or directory",
+		},
+		{
+			name:      "hidden directory with double dot",
+			path:      "app/..config/file.txt",
+			wantErr:   true,
+			errSubstr: "hidden file or directory",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateFilePath(tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateFilePath() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err != nil && tt.errSubstr != "" {
+				if !contains(err.Error(), tt.errSubstr) {
+					t.Errorf("ValidateFilePath() error = %v, expected to contain %v", err.Error(), tt.errSubstr)
+				}
+			}
+		})
+	}
+}
+
+func TestSanitizeString_AdditionalCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "string with newlines",
+			input:    "app\nname\n",
+			expected: "app-name",
+		},
+		{
+			name:     "string with tabs",
+			input:    "app\tname\t",
+			expected: "app-name",
+		},
+		{
+			name:     "string with carriage returns",
+			input:    "app\rname\r",
+			expected: "app-name",
+		},
+		{
+			name:     "string with mixed whitespace",
+			input:    "app \t\nname",
+			expected: "app-name",
+		},
+		{
+			name:     "string with special characters",
+			input:    "app@#$%name",
+			expected: "app-name",
+		},
+		{
+			name:     "string with control characters",
+			input:    "app\x01\x02name",
+			expected: "appname",
+		},
+		{
+			name:     "string with multiple dots",
+			input:    "app..name",
+			expected: "app..name",
+		},
+		{
+			name:     "string with leading hyphens after cleanup",
+			input:    "  -app-name-  ",
+			expected: "app-name",
+		},
+		{
+			name:     "string with multiple consecutive hyphens",
+			input:    "app---name",
+			expected: "app-name",
+		},
+		{
+			name:     "string with underscores preserved",
+			input:    "app_name_test",
+			expected: "app_name_test",
+		},
+		{
+			name:     "string with dots preserved",
+			input:    "app.name.test",
+			expected: "app.name.test",
+		},
+		{
+			name:     "string with uppercase letters preserved",
+			input:    "AppName",
+			expected: "AppName",
+		},
+		{
+			name:     "string with numbers preserved",
+			input:    "app123name",
+			expected: "app123name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizeString(tt.input)
+			if result != tt.expected {
+				t.Errorf("SanitizeString() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsPathWithinDirectory_AdditionalCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		targetPath string
+		basePath   string
+		wantResult bool
+		wantErr    bool
+	}{
+		{
+			name:       "target exactly at base",
+			targetPath: "/home/user/app",
+			basePath:   "/home/user/app",
+			wantResult: true,
+			wantErr:    false,
+		},
+		{
+			name:       "target one level deeper",
+			targetPath: "/home/user/app/file.txt",
+			basePath:   "/home/user/app",
+			wantResult: true,
+			wantErr:    false,
+		},
+		{
+			name:       "target multiple levels deeper",
+			targetPath: "/home/user/app/sub1/sub2/file.txt",
+			basePath:   "/home/user/app",
+			wantResult: true,
+			wantErr:    false,
+		},
+		{
+			name:       "target one level up (escape)",
+			targetPath: "/home/user/file.txt",
+			basePath:   "/home/user/app",
+			wantResult: false,
+			wantErr:    false,
+		},
+		{
+			name:       "target multiple levels up",
+			targetPath: "/home/file.txt",
+			basePath:   "/home/user/app",
+			wantResult: false,
+			wantErr:    false,
+		},
+		{
+			name:       "relative target path",
+			targetPath: "app/file.txt",
+			basePath:   "/home/user",
+			wantResult: false,
+			wantErr:    true,
+		},
+		{
+			name:       "relative base path",
+			targetPath: "/home/user/app/file.txt",
+			basePath:   "user/app",
+			wantResult: false,
+			wantErr:    true,
+		},
+		{
+			name:       "unrelated paths",
+			targetPath: "/opt/app/file.txt",
+			basePath:   "/home/user/app",
+			wantResult: false,
+			wantErr:    false,
+		},
+		{
+			name:       "target is sibling directory",
+			targetPath: "/home/user/other/file.txt",
+			basePath:   "/home/user/app",
+			wantResult: false,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := IsPathWithinDirectory(tt.targetPath, tt.basePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("IsPathWithinDirectory() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && result != tt.wantResult {
+				t.Errorf("IsPathWithinDirectory() = %v, want %v", result, tt.wantResult)
+			}
+		})
+	}
+}

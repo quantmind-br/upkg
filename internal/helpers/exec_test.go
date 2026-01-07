@@ -130,4 +130,81 @@ func TestValidateDesktopFile(t *testing.T) {
 		assert.True(t, valid, "Should be valid when tool is not available")
 		assert.Empty(t, output)
 	})
+
+	t.Run("valid desktop file with tool available", func(t *testing.T) {
+		runner := NewOSCommandRunner()
+		if !runner.CommandExists("desktop-file-validate") {
+			t.Skip("desktop-file-validate not available")
+		}
+
+		tmpDir := t.TempDir()
+		desktopPath := tmpDir + "/test.desktop"
+		content := `[Desktop Entry]
+Type=Application
+Name=Test Application
+Exec=test
+Icon=test
+Categories=Utility;`
+		err := os.WriteFile(desktopPath, []byte(content), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, valid, err := ValidateDesktopFile(desktopPath)
+		assert.NoError(t, err)
+		assert.True(t, valid, "Valid desktop file should pass validation")
+	})
+
+	t.Run("invalid desktop file", func(t *testing.T) {
+		runner := NewOSCommandRunner()
+		if !runner.CommandExists("desktop-file-validate") {
+			t.Skip("desktop-file-validate not available")
+		}
+
+		tmpDir := t.TempDir()
+		desktopPath := tmpDir + "/invalid.desktop"
+		// Missing required keys
+		err := os.WriteFile(desktopPath, []byte("Not a desktop file"), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		output, valid, err := ValidateDesktopFile(desktopPath)
+		assert.NoError(t, err)
+		assert.False(t, valid, "Invalid desktop file should fail validation")
+		assert.NotEmpty(t, output, "Should have validation output for invalid file")
+	})
+}
+
+func TestGetExitCode(t *testing.T) {
+	runner := NewOSCommandRunner()
+
+	t.Run("exit code 0", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := runner.RunCommand(ctx, "true")
+		assert.NoError(t, err)
+		code := runner.GetExitCode(err)
+		assert.Equal(t, 0, code)
+	})
+
+	t.Run("exit code 1", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := runner.RunCommand(ctx, "false")
+		assert.Error(t, err)
+		code := runner.GetExitCode(err)
+		assert.Equal(t, 1, code)
+	})
+
+	t.Run("exit code from command", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := runner.RunCommand(ctx, "sh", "-c", "exit 42")
+		assert.Error(t, err)
+		code := runner.GetExitCode(err)
+		assert.Equal(t, 42, code)
+	})
+
+	t.Run("nil error returns 0", func(t *testing.T) {
+		code := runner.GetExitCode(nil)
+		assert.Equal(t, 0, code)
+	})
 }

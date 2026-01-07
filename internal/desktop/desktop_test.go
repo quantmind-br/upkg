@@ -465,6 +465,36 @@ func TestEscapeExecToken(t *testing.T) {
 			input:    `VAR=value\with\backslash`,
 			expected: `VAR=value\\with\\backslash`,
 		},
+		{
+			name:     "token with single quote",
+			input:    "VAR=it's",
+			expected: `VAR="it\'s"`,
+		},
+		{
+			name:     "token with semicolon",
+			input:    "VAR=val;ue",
+			expected: `VAR="val;ue"`,
+		},
+		{
+			name:     "token with all special chars",
+			input:    `VAR=val\ue;"with'quotes`,
+			expected: `VAR="val\\ue;\"with\'quotes"`,
+		},
+		{
+			name:     "value without equals sign",
+			input:    "simplecommand",
+			expected: "simplecommand",
+		},
+		{
+			name:     "value without equals with spaces",
+			input:    "command with spaces",
+			expected: `"command with spaces"`,
+		},
+		{
+			name:     "value without equals with quotes",
+			input:    `say "hello"`,
+			expected: `"say \"hello\""`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -472,6 +502,73 @@ func TestEscapeExecToken(t *testing.T) {
 			got := escapeExecToken(tt.input)
 			if got != tt.expected {
 				t.Errorf("escapeExecToken() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestEscapeGenericToken(t *testing.T) {
+	tests := []struct {
+		name     string
+		token    string
+		quote    bool
+		expected string
+	}{
+		{
+			name:     "simple token without quote",
+			token:    "simple",
+			quote:    false,
+			expected: "simple",
+		},
+		{
+			name:     "token with backslash",
+			token:    `path\to\file`,
+			quote:    false,
+			expected: `path\\to\\file`,
+		},
+		{
+			name:     "token with double quote",
+			token:    `say "hello"`,
+			quote:    false,
+			expected: `say \"hello\"`,
+		},
+		{
+			name:     "token with single quote",
+			token:    "it's",
+			quote:    false,
+			expected: `it\'s`,
+		},
+		{
+			name:     "token with all escape chars",
+			token:    `path\file"with'quotes`,
+			quote:    false,
+			expected: `path\\file\"with\'quotes`,
+		},
+		{
+			name:     "token with quote enabled",
+			token:    "token with spaces",
+			quote:    true,
+			expected: `"token with spaces"`,
+		},
+		{
+			name:     "token with escapes and quote",
+			token:    `path\file`,
+			quote:    true,
+			expected: `"path\\file"`,
+		},
+		{
+			name:     "token with quotes and quote enabled",
+			token:    `say "hello"`,
+			quote:    true,
+			expected: `"say \"hello\""`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeGenericToken(tt.token, tt.quote)
+			if got != tt.expected {
+				t.Errorf("escapeGenericToken() = %v, want %v", got, tt.expected)
 			}
 		})
 	}

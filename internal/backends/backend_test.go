@@ -232,3 +232,96 @@ func TestListBackends(t *testing.T) {
 	require.Contains(t, backends, "binary")
 	require.Contains(t, backends, "tarball")
 }
+
+func TestDetectFileType_AdditionalTypes(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	logger := zerolog.New(io.Discard)
+	registry := NewRegistry(cfg, &logger)
+
+	t.Run("detects ELF binary", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		elfPath := filepath.Join(tmpDir, "test-binary")
+		// ELF magic number: 0x7F 'E' 'L' 'F'
+		require.NoError(t, os.WriteFile(elfPath, []byte{0x7F, 'E', 'L', 'F', 0x01, 0x00, 0x00}, 0755))
+
+		fileType, err := registry.detectFileType(elfPath)
+		require.NoError(t, err)
+		require.Equal(t, "ELF binary", fileType)
+	})
+
+	t.Run("detects shell script", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptPath := filepath.Join(tmpDir, "test.sh")
+		require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/bash\necho test"), 0755))
+
+		fileType, err := registry.detectFileType(scriptPath)
+		require.NoError(t, err)
+		require.Equal(t, "shell script", fileType)
+	})
+
+	t.Run("detects ZIP archive", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		zipPath := filepath.Join(tmpDir, "test.zip")
+		// ZIP magic: 'P' 'K'
+		require.NoError(t, os.WriteFile(zipPath, []byte{'P', 'K', 0x03, 0x04}, 0644))
+
+		fileType, err := registry.detectFileType(zipPath)
+		require.NoError(t, err)
+		require.Equal(t, "ZIP archive", fileType)
+	})
+
+	t.Run("detects tar.bz2", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		tarPath := filepath.Join(tmpDir, "test.tar.bz2")
+		// BZ magic: 'B' 'Z' 'h'
+		require.NoError(t, os.WriteFile(tarPath, []byte{'B', 'Z', 'h', '9'}, 0644))
+
+		fileType, err := registry.detectFileType(tarPath)
+		require.NoError(t, err)
+		require.Equal(t, "tarball", fileType)
+	})
+
+	t.Run("detects tar.xz", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		tarPath := filepath.Join(tmpDir, "test.tar.xz")
+		// XZ magic: 0xFD '7' 'z' 'X' 'Z' 0x00
+		require.NoError(t, os.WriteFile(tarPath, []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}, 0644))
+
+		fileType, err := registry.detectFileType(tarPath)
+		require.NoError(t, err)
+		require.Equal(t, "tarball", fileType)
+	})
+}
+
+func TestCreateDetectionError_SpecialFormats(t *testing.T) {
+	t.Parallel()
+	cfg := &config.Config{}
+	logger := zerolog.New(io.Discard)
+	registry := NewRegistry(cfg, &logger)
+
+	t.Run("detects flatpak extension", func(t *testing.T) {
+		err := registry.createDetectionError("test-file.flatpak")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Flatpak package")
+		require.Contains(t, err.Error(), "flatpak install")
+	})
+
+	t.Run("detects snap extension", func(t *testing.T) {
+		err := registry.createDetectionError("test-file.snap")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Snap package")
+		require.Contains(t, err.Error(), "snap install")
+	})
+
+	t.Run("includes shell script hint for script files", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptPath := filepath.Join(tmpDir, "test.sh")
+		require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/bash\necho test"), 0755))
+
+		err := registry.createDetectionError(scriptPath)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Shell scripts and text files are not supported")
+		require.Contains(t, err.Error(), "tarball")
+	})
+}

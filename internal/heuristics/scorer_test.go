@@ -124,41 +124,139 @@ func TestScoreExecutable(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	scorer := NewScorer(&logger)
 
-	tests := []struct {
-		name     string
-		path     string
-		baseName string
-		expected int
-	}{
-		{"exact match", "/app/myapp", "myapp", 100},
-		{"partial match", "/app/myapp-bin", "myapp", 50},
-		{"bonus - run", "/app/run.sh", "myapp", 80},
-		{"bonus - start", "/app/start.sh", "myapp", 80},
-		{"bonus - launch", "/app/launch.sh", "myapp", 80},
-		{"bonus - main", "/app/main", "myapp", 90},
-		{"bonus - app", "/app/app", "myapp", 85},
-		{"penalty - chrome-sandbox", "/app/chrome-sandbox", "myapp", -100},
-		{"penalty - update", "/app/update", "myapp", -50},
-		{"penalty - uninstall", "/app/uninstall", "myapp", -50},
-		{"penalty - lib", "/app/libmyapp.so", "myapp", -20},
-		{"depth - shallow", "/myapp", "myapp", 110},
-		{"depth - deep", "/a/b/c/d/e/myapp", "myapp", 80},
-		{"bin directory", "/bin/myapp", "myapp", 120},
-	}
+	t.Run("exact name match gets high score", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		myapp := filepath.Join(tmpDir, "myapp")
+		os.WriteFile(myapp, []byte{}, 0755)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create temp file to make it real
-			tmpDir := t.TempDir()
-			testPath := filepath.Join(tmpDir, "test")
-			os.WriteFile(testPath, []byte{}, 0755)
+		score := scorer.ScoreExecutable(myapp, "myapp", tmpDir)
+		assert.Greater(t, score, 100, "Exact name match should get high score")
+	})
 
-			// Use the actual path pattern
-			score := scorer.ScoreExecutable(testPath, tt.baseName, tmpDir)
-			// We can't test exact scores without the full path, but we can test relative scoring
-			_ = score
-		})
-	}
+	t.Run("exact .exe match also gets high score", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		myapp := filepath.Join(tmpDir, "myapp.exe")
+		os.WriteFile(myapp, []byte{}, 0755)
+
+		score := scorer.ScoreExecutable(myapp, "myapp", tmpDir)
+		assert.Greater(t, score, 100, "Exact .exe match should get high score")
+	})
+
+	t.Run("partial name match gets moderate score", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		myappBin := filepath.Join(tmpDir, "myapp-bin")
+		os.WriteFile(myappBin, []byte{}, 0755)
+
+		score := scorer.ScoreExecutable(myappBin, "myapp", tmpDir)
+		assert.Greater(t, score, 0, "Partial match should get positive score")
+		assert.Less(t, score, 120, "Partial match should score less than exact match")
+	})
+
+	t.Run("known launcher patterns get bonus", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		for _, launcher := range []string{"run", "start", "launch", "main", "app", "game", "application"} {
+			launcherPath := filepath.Join(tmpDir, launcher)
+			os.WriteFile(launcherPath, []byte{}, 0755)
+
+			score := scorer.ScoreExecutable(launcherPath, "myapp", tmpDir)
+			assert.Greater(t, score, 50, "Known launcher patterns should get bonus score")
+		}
+	})
+
+	t.Run("wine patterns get bonus", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		for _, wine := range []string{"wine", "wine64"} {
+			winePath := filepath.Join(tmpDir, wine)
+			os.WriteFile(winePath, []byte{}, 0755)
+
+			score := scorer.ScoreExecutable(winePath, "myapp", tmpDir)
+			assert.Greater(t, score, 50, "Wine patterns should get bonus score")
+		}
+	})
+
+	t.Run("utility patterns get heavy penalty", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		penaltyPatterns := []string{
+			"chrome-sandbox", "crashpad", "minidump",
+			"update", "uninstall", "helper", "crash",
+			"debugger", "sandbox", "nacl", "xdg-mime",
+			"installer", "setup", "config", "daemon",
+		}
+
+		for _, pattern := range penaltyPatterns {
+			path := filepath.Join(tmpDir, pattern)
+			os.WriteFile(path, []byte{}, 0755)
+
+			score := scorer.ScoreExecutable(path, "myapp", tmpDir)
+			assert.Less(t, score, 0, "Utility patterns should get penalty")
+		}
+	})
+
+	t.Run("lib-prefixed files get penalty", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		for _, lib := range []string{"libmyapp.so", "libfoo.so", "libbar.so.0"} {
+			libPath := filepath.Join(tmpDir, lib)
+			os.WriteFile(libPath, []byte{}, 0755)
+
+			score := scorer.ScoreExecutable(libPath, "myapp", tmpDir)
+			assert.Less(t, score, 0, "Lib-prefixed files should get penalty")
+		}
+	})
+
+	t.Run("depth affects score", func(t *testing.T) {
+		tmpDir := filepath.Join(t.TempDir(), "install")
+		os.MkdirAll(tmpDir, 0755)
+
+		shallowPath := filepath.Join(tmpDir, "myapp")
+		deepPath := filepath.Join(tmpDir, "a", "b", "c", "d", "e", "myapp")
+		os.WriteFile(shallowPath, []byte{}, 0755)
+		os.MkdirAll(filepath.Dir(deepPath), 0755)
+		os.WriteFile(deepPath, []byte{}, 0755)
+
+		shallowScore := scorer.ScoreExecutable(shallowPath, "myapp", tmpDir)
+		deepScore := scorer.ScoreExecutable(deepPath, "myapp", tmpDir)
+
+		assert.Greater(t, shallowScore, deepScore, "Shallow paths should score higher than deep paths")
+	})
+
+	t.Run("very deep paths get heavy penalty", func(t *testing.T) {
+		tmpDir := filepath.Join(t.TempDir(), "install")
+		os.MkdirAll(tmpDir, 0755)
+
+		// Create a very deep path (more than 10 levels)
+		deepPath := tmpDir
+		for i := 0; i < 12; i++ {
+			deepPath = filepath.Join(deepPath, "level")
+		}
+		// Use a non-matching name to avoid the exact match bonus
+		deepPath = filepath.Join(deepPath, "otherapp")
+		os.MkdirAll(filepath.Dir(deepPath), 0755)
+		os.WriteFile(deepPath, []byte{}, 0755)
+
+		shallowPath := filepath.Join(tmpDir, "otherapp")
+		os.WriteFile(shallowPath, []byte{}, 0755)
+
+		shallowScore := scorer.ScoreExecutable(shallowPath, "myapp", tmpDir)
+		deepScore := scorer.ScoreExecutable(deepPath, "myapp", tmpDir)
+
+		assert.Greater(t, shallowScore, deepScore, "Very deep paths should score much lower")
+		assert.Less(t, deepScore, 0, "Very deep paths should get penalty")
+	})
+
+	t.Run("bin directory bonus", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		binDir := filepath.Join(tmpDir, "bin")
+		os.MkdirAll(binDir, 0755)
+
+		binPath := filepath.Join(binDir, "myapp")
+		os.WriteFile(binPath, []byte{}, 0755)
+
+		score := scorer.ScoreExecutable(binPath, "myapp", tmpDir)
+		assert.Greater(t, score, 100, "Files in bin directory should get bonus")
+	})
 }
 
 func TestChooseBestWithMultipleCandidates(t *testing.T) {

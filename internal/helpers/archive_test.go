@@ -5,12 +5,12 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/ulikunitz/xz"
 )
 
 func TestExtractTarGz(t *testing.T) {
@@ -79,30 +79,60 @@ func TestExtractTarXz(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	t.Run("valid tar.xz", func(t *testing.T) {
-		_, err := exec.LookPath("xz")
-		if err != nil {
-			t.Skip("xz not available")
-			return
-		}
-
 		tarXzPath := filepath.Join(tmpDir, "test.tar.xz")
-		err = ExtractTarXz(tarXzPath, tmpDir)
+		createTestTarXz(t, tarXzPath, map[string]string{
+			"test.txt": "hello world",
+		})
+
+		destDir := filepath.Join(tmpDir, "extract")
+		require.NoError(t, os.MkdirAll(destDir, 0755))
+
+		err := ExtractTarXz(tarXzPath, destDir)
+		assert.NoError(t, err)
+
+		content, err := os.ReadFile(filepath.Join(destDir, "test.txt"))
+		assert.NoError(t, err)
+		assert.Equal(t, "hello world", string(content))
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		tarXzPath := filepath.Join(tmpDir, "nonexistent.tar.xz")
+		err := ExtractTarXz(tarXzPath, tmpDir)
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to stat")
+	})
+
+	t.Run("invalid xz format", func(t *testing.T) {
+		invalidPath := filepath.Join(tmpDir, "invalid.tar.xz")
+		err := os.WriteFile(invalidPath, []byte("not a valid xz file"), 0644)
+		require.NoError(t, err)
+
+		destDir := filepath.Join(tmpDir, "extract2")
+		err = ExtractTarXz(invalidPath, destDir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create xz reader")
 	})
 }
 
 func TestExtractTarBz2(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	t.Run("valid tar.bz2", func(t *testing.T) {
-		_, err := exec.LookPath("bzip2")
-		if err != nil {
-			t.Skip("bzip2 not available")
-			return
-		}
+	t.Run("non-existent file", func(t *testing.T) {
+		tarBz2Path := filepath.Join(tmpDir, "nonexistent.tar.bz2")
+		err := ExtractTarBz2(tarBz2Path, tmpDir)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to stat")
+	})
 
-		tarBz2Path := filepath.Join(tmpDir, "test.tar.bz2")
-		err = ExtractTarBz2(tarBz2Path, tmpDir)
+	t.Run("invalid bzip2 format", func(t *testing.T) {
+		invalidPath := filepath.Join(tmpDir, "invalid.tar.bz2")
+		err := os.WriteFile(invalidPath, []byte("not a valid bzip2 file"), 0644)
+		require.NoError(t, err)
+
+		destDir := filepath.Join(tmpDir, "extract")
+		err = ExtractTarBz2(invalidPath, destDir)
+		// bzip2.NewReader doesn't return an error for invalid input
+		// Instead, the tar extraction will fail
 		assert.Error(t, err)
 	})
 }
@@ -305,6 +335,34 @@ func createTestZip(t *testing.T, path string, files map[string]string) {
 		fw, err := zw.Create(name)
 		require.NoError(t, err)
 		_, err = fw.Write([]byte(content))
+		require.NoError(t, err)
+	}
+}
+
+func createTestTarXz(t *testing.T, path string, files map[string]string) {
+	t.Helper()
+
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+
+	// Create xz writer
+	xzw, err := xz.NewWriter(f)
+	require.NoError(t, err)
+	defer xzw.Close()
+
+	// Create tar writer on top of xz
+	tw := tar.NewWriter(xzw)
+	defer tw.Close()
+
+	for name, content := range files {
+		header := &tar.Header{
+			Name: name,
+			Mode: 0600,
+			Size: int64(len(content)),
+		}
+		require.NoError(t, tw.WriteHeader(header))
+		_, err := tw.Write([]byte(content))
 		require.NoError(t, err)
 	}
 }

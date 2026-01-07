@@ -1,6 +1,7 @@
 package icons
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -730,5 +731,476 @@ func createTestPNG(t *testing.T, path string, width, height int) {
 	err = png.Encode(file, img)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCreateIconThemeSection(t *testing.T) {
+	tests := []struct {
+		name     string
+		lines    []string
+		dirName  string
+		expected []string
+	}{
+		{
+			name:    "create section with empty lines",
+			lines:   []string{},
+			dirName: "48x48/apps",
+			expected: []string{
+				"[Icon Theme]",
+				"Name=Hicolor",
+				"Comment=Fallback icon theme",
+				"Hidden=true",
+				"Directories=48x48/apps",
+			},
+		},
+		{
+			name:    "create section with existing line (no blank added)",
+			lines:   []string{"[Existing]"},
+			dirName: "64x64/apps",
+			expected: []string{
+				"[Existing]",
+				"",
+				"[Icon Theme]",
+				"Name=Hicolor",
+				"Comment=Fallback icon theme",
+				"Hidden=true",
+				"Directories=64x64/apps",
+			},
+		},
+		{
+			name: "create section with line without newline",
+			lines: []string{
+				"[Existing]",
+				"Key=Value",
+			},
+			dirName: "128x128/apps",
+			expected: []string{
+				"[Existing]",
+				"Key=Value",
+				"",
+				"[Icon Theme]",
+				"Name=Hicolor",
+				"Comment=Fallback icon theme",
+				"Hidden=true",
+				"Directories=128x128/apps",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			manager := NewManager(fs, testIconsDir)
+
+			result := manager.createIconThemeSection(tt.lines, tt.dirName)
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("createIconThemeSection() returned %d lines, want %d", len(result), len(tt.expected))
+			}
+
+			for i, line := range result {
+				if i < len(tt.expected) && line != tt.expected[i] {
+					t.Errorf("createIconThemeSection() line %d = %q, want %q", i, line, tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestParseSquareSize(t *testing.T) {
+	tests := []struct {
+		name     string
+		size     string
+		expected int
+	}{
+		{"valid square size", "48x48", 48},
+		{"valid square size with larger first", "128x64", 128},
+		{"valid square size with larger second", "64x128", 128},
+		{"large size", "512x512", 512},
+		{"small size", "16x16", 16},
+		{"invalid format (no x)", "48-48", 0},
+		{"invalid format (one part)", "48x", 0},
+		{"invalid format (three parts)", "48x48x48", 0},
+		{"non-numeric first part", "abcx48", 0},
+		{"non-numeric second part", "48xabc", 0},
+		{"empty string", "", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseSquareSize(tt.size)
+			if result != tt.expected {
+				t.Errorf("parseSquareSize(%q) = %v, want %v", tt.size, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCopyIcon(t *testing.T) {
+	tests := []struct {
+		name       string
+		setupFunc  func(afero.Fs) (string, string)
+		wantErr    bool
+		errSubstr  string
+		verifyFunc func(afero.Fs, string, string) error
+	}{
+		{
+			name: "successful copy",
+			setupFunc: func(fs afero.Fs) (string, string) {
+				src := "/source/icon.png"
+				dst := "/dest/icon.png"
+				content := []byte("png content")
+				afero.WriteFile(fs, src, content, 0644)
+				fs.MkdirAll("/dest", 0755)
+				return src, dst
+			},
+			wantErr: false,
+			verifyFunc: func(fs afero.Fs, src, dst string) error {
+				srcContent, _ := afero.ReadFile(fs, src)
+				dstContent, _ := afero.ReadFile(fs, dst)
+				if string(srcContent) != string(dstContent) {
+					return fmt.Errorf("content mismatch")
+				}
+				return nil
+			},
+		},
+		{
+			name: "source file not found",
+			setupFunc: func(fs afero.Fs) (string, string) {
+				return "/nonexistent/src.png", "/dest/dst.png"
+			},
+			wantErr:   true,
+			errSubstr: "read source icon",
+		},
+		{
+			name: "copy creates destination directory automatically",
+			setupFunc: func(fs afero.Fs) (string, string) {
+				src := "/source/icon.png"
+				afero.WriteFile(fs, src, []byte("content"), 0644)
+				return src, "/nonexistent/dest/icon.png"
+			},
+			wantErr: false, // afero.WriteFile creates directories automatically
+			verifyFunc: func(fs afero.Fs, src, dst string) error {
+				// Verify file was created
+				exists, _ := afero.Exists(fs, dst)
+				if !exists {
+					return fmt.Errorf("destination file not created")
+				}
+				return nil
+			},
+		},
+		{
+			name: "copy with symlink source (should work)",
+			setupFunc: func(fs afero.Fs) (string, string) {
+				src := "/source/icon.png"
+				dst := "/dest/icon.png"
+				content := []byte("png content")
+				afero.WriteFile(fs, src, content, 0644)
+				fs.MkdirAll("/dest", 0755)
+				return src, dst
+			},
+			wantErr: false,
+		},
+		{
+			name: "copy large file",
+			setupFunc: func(fs afero.Fs) (string, string) {
+				src := "/source/large.png"
+				dst := "/dest/large.png"
+				// Create a 10KB content
+				content := make([]byte, 10240)
+				for i := range content {
+					content[i] = byte(i % 256)
+				}
+				afero.WriteFile(fs, src, content, 0644)
+				fs.MkdirAll("/dest", 0755)
+				return src, dst
+			},
+			wantErr: false,
+			verifyFunc: func(fs afero.Fs, src, dst string) error {
+				srcContent, _ := afero.ReadFile(fs, src)
+				dstContent, _ := afero.ReadFile(fs, dst)
+				if len(srcContent) != len(dstContent) {
+					return fmt.Errorf("size mismatch: %d vs %d", len(srcContent), len(dstContent))
+				}
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			manager := NewManager(fs, testIconsDir)
+
+			src, dst := tt.setupFunc(fs)
+
+			result, err := manager.copyIcon(src, dst)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("copyIcon() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err != nil && tt.errSubstr != "" {
+				if !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("copyIcon() error = %v, expected to contain %q", err.Error(), tt.errSubstr)
+				}
+				return
+			}
+			if !tt.wantErr {
+				if result != dst {
+					t.Errorf("copyIcon() returned path = %q, want %q", result, dst)
+				}
+				if tt.verifyFunc != nil {
+					if err := tt.verifyFunc(fs, src, dst); err != nil {
+						t.Errorf("copyIcon() verification failed: %v", err)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestBuildDirectorySection(t *testing.T) {
+	tests := []struct {
+		name     string
+		dirName  string
+		size     string
+		wantNil  bool
+		validate func(*testing.T, []string)
+	}{
+		{
+			name:    "scalable icon section",
+			dirName: "scalable/apps",
+			size:    "scalable",
+			wantNil: false,
+			validate: func(t *testing.T, section []string) {
+				if section[0] != "[scalable/apps]" {
+					t.Errorf("section header = %q, want [scalable/apps]", section[0])
+				}
+				hasMinSize := false
+				hasSize := false
+				hasMaxSize := false
+				hasContext := false
+				hasType := false
+				for _, line := range section {
+					if line == "MinSize=1" {
+						hasMinSize = true
+					}
+					if line == "Size=128" {
+						hasSize = true
+					}
+					if line == "MaxSize=256" {
+						hasMaxSize = true
+					}
+					if line == "Context=Applications" {
+						hasContext = true
+					}
+					if line == "Type=Scalable" {
+						hasType = true
+					}
+				}
+				if !hasMinSize || !hasSize || !hasMaxSize || !hasContext || !hasType {
+					t.Errorf("scalable section missing expected fields")
+				}
+			},
+		},
+		{
+			name:    "standard size section",
+			dirName: "48x48/apps",
+			size:    "48x48",
+			wantNil: false,
+			validate: func(t *testing.T, section []string) {
+				if section[0] != "[48x48/apps]" {
+					t.Errorf("section header = %q, want [48x48/apps]", section[0])
+				}
+				hasSize := false
+				hasContext := false
+				hasType := false
+				for _, line := range section {
+					if line == "Size=48" {
+						hasSize = true
+					}
+					if line == "Context=Applications" {
+						hasContext = true
+					}
+					if line == "Type=Threshold" {
+						hasType = true
+					}
+				}
+				if !hasSize || !hasContext || !hasType {
+					t.Errorf("standard section missing expected fields")
+				}
+			},
+		},
+		{
+			name:    "large size section",
+			dirName: "256x256/apps",
+			size:    "256x256",
+			wantNil: false,
+			validate: func(t *testing.T, section []string) {
+				if section[0] != "[256x256/apps]" {
+					t.Errorf("section header = %q, want [256x256/apps]", section[0])
+				}
+			},
+		},
+		{
+			name:    "invalid size format (returns nil)",
+			dirName: "invalid/apps",
+			size:    "invalid",
+			wantNil: true,
+		},
+		{
+			name:    "size with unequal dimensions",
+			dirName: "128x64/apps",
+			size:    "128x64",
+			wantNil: false,
+			validate: func(t *testing.T, section []string) {
+				// Should use larger dimension (128)
+				hasSize := false
+				for _, line := range section {
+					if line == "Size=128" {
+						hasSize = true
+					}
+				}
+				if !hasSize {
+					t.Errorf("section should use larger dimension 128")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			section := buildDirectorySection(tt.dirName, tt.size)
+			if tt.wantNil {
+				if section != nil {
+					t.Errorf("buildDirectorySection() = %v, want nil", section)
+				}
+			} else {
+				if section == nil {
+					t.Fatal("buildDirectorySection() returned nil, expected section")
+				}
+				if tt.validate != nil {
+					tt.validate(t, section)
+				}
+			}
+		})
+	}
+}
+
+func TestUpdateDirectoriesLine(t *testing.T) {
+	tests := []struct {
+		name        string
+		lines       []string
+		start       int
+		end         int
+		dirName     string
+		wantModified bool
+		expectedDir string
+	}{
+		{
+			name:        "add to existing Directories line",
+			lines:       []string{"[Icon Theme]", "Directories=48x48/apps", "Name=Hicolor"},
+			start:       0,
+			end:         3,
+			dirName:     "64x64/apps",
+			wantModified: true,
+			expectedDir: "Directories=48x48/apps,64x64/apps",
+		},
+		{
+			name:        "directory already exists",
+			lines:       []string{"[Icon Theme]", "Directories=48x48/apps", "Name=Hicolor"},
+			start:       0,
+			end:         3,
+			dirName:     "48x48/apps",
+			wantModified: false,
+			expectedDir: "Directories=48x48/apps",
+		},
+		{
+			name:        "add new Directories line",
+			lines:       []string{"[Icon Theme]", "Name=Hicolor"},
+			start:       0,
+			end:         2,
+			dirName:     "48x48/apps",
+			wantModified: true,
+			expectedDir: "Directories=48x48/apps",
+		},
+		{
+			name:        "directories with comma already present",
+			lines:       []string{"[Icon Theme]", "Directories=48x48/apps,64x64/apps", "Name=Hicolor"},
+			start:       0,
+			end:         3,
+			dirName:     "128x128/apps",
+			wantModified: true,
+			expectedDir: "Directories=48x48/apps,64x64/apps,128x128/apps",
+		},
+		{
+			name:        "directories with spaces",
+			lines:       []string{"[Icon Theme]", "Directories=48x48/apps, 64x64/apps", "Name=Hicolor"},
+			start:       0,
+			end:         3,
+			dirName:     "128x128/apps",
+			wantModified: true,
+			expectedDir: "Directories=48x48/apps,64x64/apps,128x128/apps",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
+			manager := NewManager(fs, testIconsDir)
+
+			result, modified := manager.updateDirectoriesLine(tt.lines, tt.start, tt.end, tt.dirName)
+
+			if modified != tt.wantModified {
+				t.Errorf("updateDirectoriesLine() modified = %v, want %v", modified, tt.wantModified)
+			}
+
+			if modified {
+				// Find the Directories line
+				var dirLine string
+				for _, line := range result {
+					if strings.HasPrefix(line, "Directories=") {
+						dirLine = line
+						break
+					}
+				}
+				if dirLine != tt.expectedDir {
+					t.Errorf("updateDirectoriesLine() Directories line = %q, want %q", dirLine, tt.expectedDir)
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeToStandardSize(t *testing.T) {
+	tests := []struct {
+		name     string
+		dimension int
+		expected int
+	}{
+		{"exact match", 48, 48},
+		{"exact match 256", 256, 256},
+		{"round up to next standard", 50, 64},
+		{"round up to next standard 100", 100, 128},
+		{"round up from small", 10, 16},
+		{"round up from very small", 1, 16},
+		{"exact standard 32", 32, 32},
+		{"exact standard 64", 64, 64},
+		{"exact standard 128", 128, 128},
+		{"exact standard 512", 512, 512},
+		{"above 512 caps at 512", 600, 512},
+		{"above 512 caps at 512 large", 4096, 512},
+		{"between standards", 90, 128},
+		{"just below standard", 63, 64},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeToStandardSize(tt.dimension)
+			if result != tt.expected {
+				t.Errorf("normalizeToStandardSize(%d) = %d, want %d", tt.dimension, result, tt.expected)
+			}
+		})
 	}
 }

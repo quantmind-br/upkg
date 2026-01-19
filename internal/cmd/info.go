@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
@@ -66,12 +67,15 @@ func NewInfoCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				}
 			}
 
+			// Convert to core.InstallRecord
+			record := db.ToInstallRecord(dbRecord)
+
 			// Display package information
-			printPackageInfo(dbRecord)
+			printPackageInfo(record)
 
 			log.Info().
-				Str("install_id", dbRecord.InstallID).
-				Str("name", dbRecord.Name).
+				Str("install_id", record.InstallID).
+				Str("name", record.Name).
 				Msg("displayed package info")
 
 			return nil
@@ -82,99 +86,70 @@ func NewInfoCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 }
 
 // printPackageInfo displays detailed package information
-func printPackageInfo(install *db.Install) {
-	ui.PrintHeader(fmt.Sprintf("Package Information: %s", install.Name))
+func printPackageInfo(record *core.InstallRecord) {
+	ui.PrintHeader(fmt.Sprintf("Package Information: %s", record.Name))
 	fmt.Println()
 
 	// Basic information
-	ui.PrintKeyValue("Name", install.Name)
-	ui.PrintKeyValue("Type", ui.ColorizePackageType(install.PackageType))
+	ui.PrintKeyValue("Name", record.Name)
+	ui.PrintKeyValue("Type", ui.ColorizePackageType(string(record.PackageType)))
 
-	version := install.Version
+	version := record.Version
 	if version == "" {
 		version = "(not specified)"
 	}
 	ui.PrintKeyValue("Version", version)
 
-	ui.PrintKeyValue("Install ID", install.InstallID)
-	ui.PrintKeyValue("Install Date", install.InstallDate.Format("2006-01-02 15:04:05"))
+	ui.PrintKeyValue("Install ID", record.InstallID)
+	ui.PrintKeyValue("Install Date", record.InstallDate.Format("2006-01-02 15:04:05"))
 
 	fmt.Println()
 	ui.PrintSubheader("Paths")
 
-	ui.PrintKeyValue("Install Path", install.InstallPath)
-	ui.PrintKeyValue("Original File", install.OriginalFile)
+	ui.PrintKeyValue("Install Path", record.InstallPath)
+	ui.PrintKeyValue("Original File", record.OriginalFile)
 
-	if install.DesktopFile != "" {
-		ui.PrintKeyValue("Desktop File", install.DesktopFile)
+	if record.DesktopFile != "" {
+		ui.PrintKeyValue("Desktop File", record.DesktopFile)
 	} else {
 		ui.PrintKeyValue("Desktop File", "(none)")
 	}
 
 	// Metadata section
-	if len(install.Metadata) > 0 {
-		fmt.Println()
-		ui.PrintSubheader("Metadata")
+	fmt.Println()
+	ui.PrintSubheader("Metadata")
 
-		// Icon files
-		if iconFiles, ok := install.Metadata["icon_files"].([]string); ok && len(iconFiles) > 0 {
-			ui.PrintKeyValue("Icon Files", "")
-			ui.PrintList(iconFiles)
-		} else if iconFilesInterface, ok := install.Metadata["icon_files"].([]interface{}); ok && len(iconFilesInterface) > 0 {
-			// Handle []interface{} case
-			iconStrs := make([]string, 0)
-			for _, item := range iconFilesInterface {
-				if str, ok := item.(string); ok {
-					iconStrs = append(iconStrs, str)
-				}
-			}
-			if len(iconStrs) > 0 {
-				ui.PrintKeyValue("Icon Files", "")
-				ui.PrintList(iconStrs)
-			}
-		}
+	// Icon files
+	if len(record.Metadata.IconFiles) > 0 {
+		ui.PrintKeyValue("Icon Files", "")
+		ui.PrintList(record.Metadata.IconFiles)
+	}
 
-		// Wrapper script
-		if wrapperScript, ok := install.Metadata["wrapper_script"].(string); ok && wrapperScript != "" {
-			ui.PrintKeyValue("Wrapper Script", wrapperScript)
-		}
+	// Wrapper script
+	if record.Metadata.WrapperScript != "" {
+		ui.PrintKeyValue("Wrapper Script", record.Metadata.WrapperScript)
+	}
 
-		// Wayland support
-		if waylandSupport, ok := install.Metadata["wayland_support"].(string); ok && waylandSupport != "" {
-			ui.PrintKeyValue("Wayland Support", waylandSupport)
-		}
+	// Wayland support
+	if record.Metadata.WaylandSupport != "" {
+		ui.PrintKeyValue("Wayland Support", record.Metadata.WaylandSupport)
+	}
 
-		// Display any other metadata
-		printOtherMetadata(install.Metadata)
+	// Desktop files
+	if len(record.Metadata.DesktopFiles) > 0 {
+		ui.PrintKeyValue("Desktop Files", "")
+		ui.PrintList(record.Metadata.DesktopFiles)
+	}
+
+	// Original desktop file
+	if record.Metadata.OriginalDesktopFile != "" {
+		ui.PrintKeyValue("Original Desktop File", record.Metadata.OriginalDesktopFile)
+	}
+
+	// Install method
+	if record.Metadata.InstallMethod != "" {
+		ui.PrintKeyValue("Install Method", string(record.Metadata.InstallMethod))
 	}
 
 	fmt.Println()
-}
-
-// printOtherMetadata displays metadata that isn't handled by specific cases
-func printOtherMetadata(metadata map[string]interface{}) {
-	// Skip known keys
-	knownKeys := map[string]bool{
-		"icon_files":      true,
-		"wrapper_script":  true,
-		"wayland_support": true,
-	}
-
-	hasOther := false
-	for key := range metadata {
-		if !knownKeys[key] {
-			hasOther = true
-			break
-		}
-	}
-
-	if hasOther {
-		fmt.Println()
-		ui.PrintKeyValue("Other Metadata", "")
-		for key, value := range metadata {
-			if !knownKeys[key] {
-				ui.PrintKeyValue("  "+key, fmt.Sprintf("%v", value))
-			}
-		}
-	}
 }

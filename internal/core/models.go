@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // PackageType represents the type of package being installed
 type PackageType string
@@ -49,6 +52,48 @@ type Metadata struct {
 	ExtractedMeta       ExtractedMetadata `json:"extracted_metadata,omitempty"`
 	OriginalDesktopFile string            `json:"original_desktop_file,omitempty"` // Original .desktop path before rename for dock compatibility
 	DesktopFiles        []string          `json:"desktop_files,omitempty"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling to handle legacy formats
+func (m *Metadata) UnmarshalJSON(data []byte) error {
+	type Alias Metadata
+	aux := &struct {
+		IconFiles    interface{} `json:"icon_files,omitempty"`
+		DesktopFiles interface{} `json:"desktop_files,omitempty"`
+		*Alias
+	}{
+		Alias: (*Alias)(m),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	m.IconFiles = convertToStringSlice(aux.IconFiles)
+	m.DesktopFiles = convertToStringSlice(aux.DesktopFiles)
+
+	return nil
+}
+
+func convertToStringSlice(val interface{}) []string {
+	if val == nil {
+		return nil
+	}
+
+	switch v := val.(type) {
+	case []string:
+		return v
+	case []interface{}:
+		result := make([]string, 0, len(v))
+		for _, item := range v {
+			if str, ok := item.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
 }
 
 // Install method constants

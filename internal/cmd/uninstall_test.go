@@ -369,7 +369,7 @@ func TestDbInstallToCore(t *testing.T) {
 		},
 	}
 
-	record := dbInstallToCore(dbRecord)
+	record := db.ToInstallRecord(dbRecord)
 
 	assert.Equal(t, "test-id", record.InstallID)
 	assert.Equal(t, core.PackageType("AppImage"), record.PackageType)
@@ -401,7 +401,7 @@ func TestDbInstallToCore_EmptyMetadata(t *testing.T) {
 		Metadata:     nil,
 	}
 
-	record := dbInstallToCore(dbRecord)
+	record := db.ToInstallRecord(dbRecord)
 
 	assert.Equal(t, core.InstallMethodLocal, record.Metadata.InstallMethod)
 	assert.Empty(t, record.Metadata.IconFiles)
@@ -425,7 +425,7 @@ func TestDbInstallToCore_StringArrayMetadata(t *testing.T) {
 		},
 	}
 
-	record := dbInstallToCore(dbRecord)
+	record := db.ToInstallRecord(dbRecord)
 
 	assert.Len(t, record.Metadata.IconFiles, 1)
 	assert.Equal(t, "/path/to/icon.png", record.Metadata.IconFiles[0])
@@ -1006,22 +1006,22 @@ func TestExecuteUninstall_DryRunMode(t *testing.T) {
 	// Create multiple packages
 	installs := []*db.Install{
 		{
-			InstallID:    "test-id-1",
-			PackageType:  "appimage",
-			Name:         "TestApp1",
-			Version:      "1.0.0",
-			InstallDate:  time.Now(),
-			InstallPath:  filepath.Join(tmpDir, "app1"),
-			Metadata:     map[string]interface{}{},
+			InstallID:   "test-id-1",
+			PackageType: "appimage",
+			Name:        "TestApp1",
+			Version:     "1.0.0",
+			InstallDate: time.Now(),
+			InstallPath: filepath.Join(tmpDir, "app1"),
+			Metadata:    map[string]interface{}{},
 		},
 		{
-			InstallID:    "test-id-2",
-			PackageType:  "tarball",
-			Name:         "TestApp2",
-			Version:      "2.0.0",
-			InstallDate:  time.Now(),
-			InstallPath:  filepath.Join(tmpDir, "app2"),
-			Metadata:     map[string]interface{}{},
+			InstallID:   "test-id-2",
+			PackageType: "tarball",
+			Name:        "TestApp2",
+			Version:     "2.0.0",
+			InstallDate: time.Now(),
+			InstallPath: filepath.Join(tmpDir, "app2"),
+			Metadata:    map[string]interface{}{},
 		},
 	}
 
@@ -1074,31 +1074,31 @@ func TestExecuteUninstall_WithMultiplePackages(t *testing.T) {
 	// Create packages with install paths
 	installs := []*db.Install{
 		{
-			InstallID:    "multi-1",
-			PackageType:  "appimage",
-			Name:         "MultiApp1",
-			Version:      "1.0",
-			InstallDate:  time.Now(),
-			InstallPath:  filepath.Join(tmpDir, "multi1"),
-			Metadata:     map[string]interface{}{},
+			InstallID:   "multi-1",
+			PackageType: "appimage",
+			Name:        "MultiApp1",
+			Version:     "1.0",
+			InstallDate: time.Now(),
+			InstallPath: filepath.Join(tmpDir, "multi1"),
+			Metadata:    map[string]interface{}{},
 		},
 		{
-			InstallID:    "multi-2",
-			PackageType:  "tarball",
-			Name:         "MultiApp2",
-			Version:      "2.0",
-			InstallDate:  time.Now(),
-			InstallPath:  filepath.Join(tmpDir, "multi2"),
-			Metadata:     map[string]interface{}{},
+			InstallID:   "multi-2",
+			PackageType: "tarball",
+			Name:        "MultiApp2",
+			Version:     "2.0",
+			InstallDate: time.Now(),
+			InstallPath: filepath.Join(tmpDir, "multi2"),
+			Metadata:    map[string]interface{}{},
 		},
 		{
-			InstallID:    "multi-3",
-			PackageType:  "binary",
-			Name:         "MultiApp3",
-			Version:      "3.0",
-			InstallDate:  time.Now(),
-			InstallPath:  filepath.Join(tmpDir, "multi3"),
-			Metadata:     map[string]interface{}{},
+			InstallID:   "multi-3",
+			PackageType: "binary",
+			Name:        "MultiApp3",
+			Version:     "3.0",
+			InstallDate: time.Now(),
+			InstallPath: filepath.Join(tmpDir, "multi3"),
+			Metadata:    map[string]interface{}{},
 		},
 	}
 
@@ -1144,13 +1144,13 @@ func TestExecuteUninstall_WithMetadata(t *testing.T) {
 	require.NoError(t, os.MkdirAll(appDir, 0755))
 
 	testInstall := &db.Install{
-		InstallID:    "meta-test",
-		PackageType:  "tarball",
-		Name:         "MetaApp",
-		Version:      "1.0.0",
-		InstallDate:  time.Now(),
-		InstallPath:  appDir,
-		DesktopFile:  filepath.Join(tmpDir, "metaapp.desktop"),
+		InstallID:   "meta-test",
+		PackageType: "tarball",
+		Name:        "MetaApp",
+		Version:     "1.0.0",
+		InstallDate: time.Now(),
+		InstallPath: appDir,
+		DesktopFile: filepath.Join(tmpDir, "metaapp.desktop"),
 		Metadata: map[string]interface{}{
 			"icon_files":     []string{"/path/to/icon1.png", "/path/to/icon2.svg"},
 			"wrapper_script": "/home/user/.local/bin/metaapp",
@@ -1240,11 +1240,11 @@ func TestPerformUninstall_BackendNotFound(t *testing.T) {
 
 	// Create a record with an invalid package type that won't have a backend
 	record := &core.InstallRecord{
-		InstallID:    "test-id",
-		PackageType:  "InvalidPackageType",
-		Name:         "TestApp",
-		InstallPath:  tmpDir,
-		InstallDate:  time.Now(),
+		InstallID:   "test-id",
+		PackageType: "InvalidPackageType",
+		Name:        "TestApp",
+		InstallPath: tmpDir,
+		InstallDate: time.Now(),
 	}
 
 	err = performUninstall(ctx, registry, database, &log, record)
@@ -1275,11 +1275,11 @@ func TestPerformUninstall_DatabaseDeleteError(t *testing.T) {
 
 	// Create a valid appimage record (but database is closed so delete will fail)
 	record := &core.InstallRecord{
-		InstallID:    "test-id",
-		PackageType:  core.PackageTypeAppImage,
-		Name:         "TestApp",
-		InstallPath:  tmpDir,
-		InstallDate:  time.Now(),
+		InstallID:   "test-id",
+		PackageType: core.PackageTypeAppImage,
+		Name:        "TestApp",
+		InstallPath: tmpDir,
+		InstallDate: time.Now(),
 	}
 
 	// This should fail during database delete

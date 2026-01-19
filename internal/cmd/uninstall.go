@@ -127,7 +127,7 @@ func runUninstallAll(ctx context.Context, database *db.DB, registry *backends.Re
 	// Convert to records
 	records := make([]*core.InstallRecord, 0, len(installs))
 	for i := range installs {
-		records = append(records, dbInstallToCore(&installs[i]))
+		records = append(records, db.ToInstallRecord(&installs[i]))
 	}
 
 	color.Yellow("⚠️  WARNING: This will uninstall ALL %d packages!", len(records))
@@ -194,7 +194,7 @@ func runInteractiveUninstall(ctx context.Context, database *db.DB, registry *bac
 	records := make([]*core.InstallRecord, 0, len(selectedLabels))
 	for _, label := range selectedLabels {
 		install := optionMap[label]
-		records = append(records, dbInstallToCore(&install))
+		records = append(records, db.ToInstallRecord(&install))
 	}
 
 	return executeUninstall(ctx, registry, database, log, opts, records)
@@ -271,7 +271,7 @@ func lookupPackage(ctx context.Context, database *db.DB, log *zerolog.Logger, id
 	// Try by install ID first
 	dbInstall, err := database.Get(ctx, identifier)
 	if err == nil {
-		return dbInstallToCore(dbInstall), nil
+		return db.ToInstallRecord(dbInstall), nil
 	}
 
 	log.Debug().
@@ -288,7 +288,7 @@ func lookupPackage(ctx context.Context, database *db.DB, log *zerolog.Logger, id
 	lowerIdentifier := strings.ToLower(identifier)
 	for _, install := range allInstalls {
 		if strings.ToLower(install.Name) == lowerIdentifier {
-			return dbInstallToCore(&install), nil
+			return db.ToInstallRecord(&install), nil
 		}
 	}
 
@@ -480,67 +480,6 @@ func performUninstall(ctx context.Context, registry *backends.Registry, database
 		Msg("uninstallation completed successfully")
 
 	return nil
-}
-
-// dbInstallToCore converts db.Install to core.InstallRecord
-//
-//nolint:gocyclo // metadata decoding handles several legacy shapes.
-func dbInstallToCore(dbRecord *db.Install) *core.InstallRecord {
-	record := &core.InstallRecord{
-		InstallID:    dbRecord.InstallID,
-		PackageType:  core.PackageType(dbRecord.PackageType),
-		Name:         dbRecord.Name,
-		Version:      dbRecord.Version,
-		InstallDate:  dbRecord.InstallDate,
-		OriginalFile: dbRecord.OriginalFile,
-		InstallPath:  dbRecord.InstallPath,
-		DesktopFile:  dbRecord.DesktopFile,
-		Metadata:     core.Metadata{},
-	}
-
-	if dbRecord.Metadata != nil {
-		if iconFiles, ok := dbRecord.Metadata["icon_files"].([]string); ok {
-			record.Metadata.IconFiles = iconFiles
-		} else if iconFilesInterface, ok := dbRecord.Metadata["icon_files"].([]interface{}); ok {
-			for _, item := range iconFilesInterface {
-				if str, ok := item.(string); ok {
-					record.Metadata.IconFiles = append(record.Metadata.IconFiles, str)
-				}
-			}
-		}
-
-		if wrapperScript, ok := dbRecord.Metadata["wrapper_script"].(string); ok {
-			record.Metadata.WrapperScript = wrapperScript
-		}
-
-		if waylandSupport, ok := dbRecord.Metadata["wayland_support"].(string); ok {
-			record.Metadata.WaylandSupport = waylandSupport
-		}
-
-		if originalDesktopFile, ok := dbRecord.Metadata["original_desktop_file"].(string); ok {
-			record.Metadata.OriginalDesktopFile = originalDesktopFile
-		}
-
-		if installMethod, ok := dbRecord.Metadata["install_method"].(string); ok && installMethod != "" {
-			record.Metadata.InstallMethod = installMethod
-		}
-
-		if desktopFiles, ok := dbRecord.Metadata["desktop_files"].([]string); ok {
-			record.Metadata.DesktopFiles = desktopFiles
-		} else if desktopFilesInterface, ok := dbRecord.Metadata["desktop_files"].([]interface{}); ok {
-			for _, item := range desktopFilesInterface {
-				if str, ok := item.(string); ok {
-					record.Metadata.DesktopFiles = append(record.Metadata.DesktopFiles, str)
-				}
-			}
-		}
-	}
-
-	if record.Metadata.InstallMethod == "" {
-		record.Metadata.InstallMethod = core.InstallMethodLocal
-	}
-
-	return record
 }
 
 // formatBytes formats a byte size in human readable format

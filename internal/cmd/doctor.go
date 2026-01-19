@@ -144,7 +144,14 @@ func NewDoctorCmd(cfg *config.Config, _ *zerolog.Logger) *cobra.Command {
 
 			fmt.Println()
 
-			// 5. Check environment
+			// 5. Check Flatpak
+			ui.PrintSubheader("Flatpak")
+			flatpakWarnings := checkFlatpak()
+			warnings = append(warnings, flatpakWarnings...)
+
+			fmt.Println()
+
+			// 6. Check environment
 			ui.PrintSubheader("Environment")
 			checkEnvironment()
 
@@ -332,6 +339,76 @@ func isSystemManagedInstall(install db.Install) bool {
 
 	// Backward compatibility: older records used a descriptive InstallPath.
 	return strings.Contains(install.InstallPath, "pacman")
+}
+
+// checkFlatpak checks flatpak installation and configuration
+func checkFlatpak() []string {
+	var warnings []string
+
+	if _, err := exec.LookPath("flatpak"); err != nil {
+		ui.PrintInfo("Flatpak: not installed")
+		return warnings
+	}
+
+	ui.PrintSuccess("Flatpak: installed")
+
+	output, err := exec.Command("flatpak", "remotes", "--user").Output()
+	if err != nil {
+		ui.PrintWarning("Flatpak remotes: unable to check (%v)", err)
+		warnings = append(warnings, "Unable to check Flatpak remotes")
+		return warnings
+	}
+
+	remotes := parseRemotes(string(output))
+	if len(remotes) == 0 {
+		ui.PrintWarning("Flatpak remotes: none configured")
+		ui.PrintInfo("  Suggestion: flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo")
+		warnings = append(warnings, "No Flatpak remotes configured")
+	} else {
+		ui.PrintSuccess("Flatpak remotes: %s", strings.Join(remotes, ", "))
+	}
+
+	unusedOutput, err := exec.Command("flatpak", "list", "--unused").Output()
+	if err != nil {
+		ui.PrintWarning("Flatpak unused runtimes: unable to check (%v)", err)
+		warnings = append(warnings, "Unable to check Flatpak unused runtimes")
+		return warnings
+	}
+
+	unusedCount := countNonEmptyLines(string(unusedOutput))
+	if unusedCount > 0 {
+		ui.PrintWarning("Flatpak unused runtimes: %d found", unusedCount)
+		ui.PrintInfo("  Suggestion: flatpak uninstall --unused")
+		warnings = append(warnings, fmt.Sprintf("%d unused Flatpak runtimes", unusedCount))
+	}
+
+	return warnings
+}
+
+func parseRemotes(output string) []string {
+	var remotes []string
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) > 0 {
+			remotes = append(remotes, parts[0])
+		}
+	}
+	return remotes
+}
+
+func countNonEmptyLines(output string) int {
+	count := 0
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			count++
+		}
+	}
+	return count
 }
 
 // checkEnvironment checks environment variables

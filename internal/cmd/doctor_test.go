@@ -309,7 +309,7 @@ func TestCheckEnvironment(t *testing.T) {
 
 	// Save and restore original env vars
 	origVars := map[string]string{
-		"XDG_DATA_HOME":              os.Getenv("XDG_DATA_HOME"),
+		"XDG_DATA_HOME":               os.Getenv("XDG_DATA_HOME"),
 		"XDG_CONFIG_HOME":             os.Getenv("XDG_CONFIG_HOME"),
 		"XDG_CACHE_HOME":              os.Getenv("XDG_CACHE_HOME"),
 		"WAYLAND_DISPLAY":             os.Getenv("WAYLAND_DISPLAY"),
@@ -422,5 +422,57 @@ func TestGetDesktopFilesFromDB_EmptyDesktopFiles(t *testing.T) {
 		files := getDesktopFilesFromDB(install)
 		// getDesktopFilesFromDB does NOT filter out empty strings
 		assert.Equal(t, []string{"", "/path/to/file.desktop"}, files)
+	})
+}
+
+func TestParseRemotes(t *testing.T) {
+	t.Run("multiple remotes", func(t *testing.T) {
+		output := "flathub\thttps://dl.flathub.org/repo/\nfedora\toci+https://registry.fedoraproject.org\n"
+		remotes := parseRemotes(output)
+		assert.Equal(t, []string{"flathub", "fedora"}, remotes)
+	})
+
+	t.Run("single remote", func(t *testing.T) {
+		output := "flathub\thttps://dl.flathub.org/repo/\n"
+		remotes := parseRemotes(output)
+		assert.Equal(t, []string{"flathub"}, remotes)
+	})
+
+	t.Run("no remotes", func(t *testing.T) {
+		output := ""
+		remotes := parseRemotes(output)
+		assert.Empty(t, remotes)
+	})
+
+	t.Run("empty lines", func(t *testing.T) {
+		output := "\n\nflathub\thttps://dl.flathub.org/repo/\n\n"
+		remotes := parseRemotes(output)
+		assert.Equal(t, []string{"flathub"}, remotes)
+	})
+}
+
+func TestCountNonEmptyLines(t *testing.T) {
+	t.Run("multiple lines", func(t *testing.T) {
+		output := "line1\nline2\nline3\n"
+		count := countNonEmptyLines(output)
+		assert.Equal(t, 3, count)
+	})
+
+	t.Run("with empty lines", func(t *testing.T) {
+		output := "line1\n\nline2\n\n"
+		count := countNonEmptyLines(output)
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("empty output", func(t *testing.T) {
+		output := ""
+		count := countNonEmptyLines(output)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("only whitespace", func(t *testing.T) {
+		output := "   \n\t\n  \n"
+		count := countNonEmptyLines(output)
+		assert.Equal(t, 0, count)
 	})
 }

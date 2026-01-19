@@ -6,15 +6,56 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/db"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
+
+// flatpakApp represents a flatpak application
+type flatpakApp struct {
+	Name    string
+	Version string
+}
+
+// getFlatpakApps retrieves installed flatpak applications
+func getFlatpakApps(ctx context.Context, runner helpers.CommandRunner) []flatpakApp {
+	// Check if flatpak is available
+	if !runner.CommandExists("flatpak") {
+		return nil
+	}
+
+	// Run flatpak list command
+	output, err := runner.RunCommand(ctx, "flatpak", "list", "--user", "--app", "--columns=application,version")
+	if err != nil {
+		// Silently fail if flatpak command fails
+		return nil
+	}
+
+	// Parse output
+	var apps []flatpakApp
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) >= 2 {
+			apps = append(apps, flatpakApp{
+				Name:    parts[0],
+				Version: parts[1],
+			})
+		}
+	}
+
+	return apps
+}
 
 // NewListCmd creates the list command
 func NewListCmd(cfg *config.Config, _ *zerolog.Logger) *cobra.Command {
@@ -46,6 +87,18 @@ func NewListCmd(cfg *config.Config, _ *zerolog.Logger) *cobra.Command {
 			if err != nil {
 				ui.PrintError("failed to list packages: %v", err)
 				return fmt.Errorf("list installs: %w", err)
+			}
+
+			// Get flatpak apps and merge with SQLite records
+			runner := helpers.NewOSCommandRunner()
+			flatpakApps := getFlatpakApps(ctx, runner)
+			for _, app := range flatpakApps {
+				installs = append(installs, db.Install{
+					Name:        app.Name,
+					PackageType: "flatpak",
+					Version:     app.Version,
+					InstallDate: time.Time{}, // No install date for flatpak
+				})
 			}
 
 			// Apply filters
@@ -219,11 +272,16 @@ func printCompactTable(cmd *cobra.Command, installs []db.Install) error {
 			version = "-"
 		}
 
+		installDate := install.InstallDate.Format("2006-01-02 15:04")
+		if install.PackageType == "flatpak" {
+			installDate = "(flatpak)"
+		}
+
 		if err := table.Append(
 			install.Name,
 			ui.ColorizePackageType(install.PackageType),
 			version,
-			install.InstallDate.Format("2006-01-02 15:04"),
+			installDate,
 		); err != nil {
 			return fmt.Errorf("append table row: %w", err)
 		}
@@ -261,11 +319,18 @@ func printDetailedTable(cmd *cobra.Command, installs []db.Install) error {
 			installID = installID[:20] + "..."
 		}
 
+		installDate := install.InstallDate.Format("2006-01-02")
+		if install.PackageType == "flatpak" {
+			installDate = "(flatpak)"
+			installID = "-"
+			path = "-"
+		}
+
 		if err := table.Append(
 			install.Name,
 			ui.ColorizePackageType(install.PackageType),
 			version,
-			install.InstallDate.Format("2006-01-02"),
+			installDate,
 			installID,
 			path,
 		); err != nil {

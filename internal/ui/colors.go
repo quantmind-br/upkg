@@ -32,6 +32,7 @@ var (
 	TypeTarball  = color.New(color.FgYellow)
 	TypeDEB      = color.New(color.FgCyan)
 	TypeRPM      = color.New(color.FgRed)
+	TypeFlatpak  = color.New(color.FgGreen)
 )
 
 // InitColors initializes color settings based on environment
@@ -120,6 +121,8 @@ func ColorizePackageType(pkgType string) string {
 		return TypeDEB.Sprintf("%s", pkgType)
 	case "rpm":
 		return TypeRPM.Sprintf("%s", pkgType)
+	case "flatpak":
+		return TypeFlatpak.Sprintf("%s", pkgType)
 	default:
 		return pkgType
 	}

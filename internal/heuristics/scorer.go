@@ -71,9 +71,9 @@ func (s *DefaultScorer) ScoreExecutable(execPath, baseName, installDir string) i
 
 	// Prefer shallow depth (executables in root or first level)
 	// Depth 1: +50, Depth 2: +40, Depth 3: +30, etc.
-	score += (11 - depth) * 10
+	score += (11 - depth) * ScoreDepthBase
 	if depth > 10 {
-		score -= 50 // Very deep, probably not the main executable
+		score += PenaltyDeepPath
 	}
 
 	// Strong match: filename exactly matches any base variant
@@ -83,7 +83,7 @@ exactMatchLoop:
 			continue
 		}
 		if filename == variant || filename == variant+".exe" {
-			score += 120
+			score += ScoreExactMatch
 			break exactMatchLoop
 		}
 	}
@@ -95,80 +95,63 @@ partialMatchLoop:
 			continue
 		}
 		if strings.Contains(filename, variant) {
-			score += 60
+			score += ScorePartialMatch
 			break partialMatchLoop
 		}
 	}
 
 	// Bonus for known main executable patterns
-	bonusPatterns := []string{
-		"^wine$", "^wine64$", "^run$", "^start$", "^launch$",
-		"^main$", "^app$", "^game$", "^application$",
-	}
 	for _, pattern := range bonusPatterns {
 		matched, matchErr := regexp.MatchString(pattern, filename)
 		if matchErr != nil {
 			continue
 		}
 		if matched {
-			score += 80
+			score += ScoreBonusPattern
 		}
 	}
 
 	// Penalize known helper/utility executables
-	penaltyPatterns := []string{
-		"chrome-sandbox", "crashpad", "minidump",
-		"update", "uninstall", "helper", "crash",
-		"debugger", "sandbox", "nacl", "xdg",
-		"installer", "setup", "config", "daemon",
-		"service", "agent", "monitor", "reporter",
-		"dump", "winedump", "windump", "objdump",
-		"winedbg", "wineboot", "winecfg", "wineconsole",
-		"wineserver", "widl", "wmc", "wrc", "winebuild",
-		"winegcc", "wineg++", "winecpp", "winemaker",
-		"winefile", "winemine", "winepath",
-	}
 	for _, pattern := range penaltyPatterns {
 		if strings.Contains(filename, pattern) {
-			score -= 200 // Heavy penalty for utility executables
+			score += PenaltyHelper
 		}
 	}
 
 	// Strongly penalize shared libraries and lib-prefixed files that slip through
 	if strings.HasPrefix(filename, "lib") {
-		score -= 80
+		score += PenaltyLibPrefix
 	}
 	if strings.HasSuffix(filename, ".so") || strings.Contains(filename, ".so.") ||
 		strings.HasSuffix(filename, ".dylib") || strings.HasSuffix(filename, ".dll") {
-		score -= 400
+		score += PenaltyLibrary
 	}
 
 	// Check file size (main executables are usually larger)
 	if info, err := os.Stat(execPath); err == nil {
 		fileSize := info.Size()
 
-		if fileSize > 10*1024*1024 { // > 10MB
-			score += 30 // Likely a main application
-		} else if fileSize > 1*1024*1024 { // 1-10MB
-			score += 10 // Reasonable size
-		} else if fileSize < 100*1024 { // < 100KB
-			score -= 20 // Too small, probably a helper
+		if fileSize > 10*1024*1024 {
+			score += ScoreLargeFile
+		} else if fileSize > 1*1024*1024 {
+			score += ScoreMediumFile
+		} else if fileSize < 100*1024 {
+			score += PenaltySmallFile
 
-			// Extra penalty for tiny executables (< 1KB) - likely wrapper scripts
 			if fileSize < 1024 {
-				score -= 50 // Very small, probably a wrapper script
+				score += PenaltyTinyFile
 			}
 		}
 	}
 
 	// Bonus for executables in "bin" directory
 	if strings.Contains(strings.ToLower(relPath), "/bin/") {
-		score += 20
+		score += ScoreBinDirectory
 	}
 
 	// Additional check: penalize if executable is a shell script with invalid references
 	if s.isInvalidWrapperScript(execPath) {
-		score -= 300 // Heavy penalty for wrapper scripts pointing to invalid paths
+		score += PenaltyInvalidScript
 	}
 
 	return score
@@ -205,18 +188,7 @@ func (s *DefaultScorer) isInvalidWrapperScript(execPath string) bool {
 		return false // Not a shell script
 	}
 
-	// Check for absolute paths that don't exist or point outside installDir
-	// Common patterns: /home/runner/, /tmp/build/, /opt/build/, etc.
-	invalidPatterns := []string{
-		"/home/runner/",
-		"/home/builder/",
-		"/tmp/build/",
-		"/opt/build/",
-		"/workspace/",
-		"/build/",
-	}
-
-	for _, pattern := range invalidPatterns {
+	for _, pattern := range invalidBuildPatterns {
 		if strings.Contains(content, pattern) {
 			if s.Logger != nil {
 				s.Logger.Debug().

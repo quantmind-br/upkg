@@ -29,6 +29,17 @@ func TestDetect(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			name:  "detects flatpak bundle with OSTree/GVariant magic",
+			input: "/tmp/app-ostree.flatpak",
+			setup: func(fs afero.Fs) {
+				content := append([]byte("flatpak\x00"), []byte{0x01, 0x00, 0x89, 0xe5}...)
+				err := afero.WriteFile(fs, "/tmp/app-ostree.flatpak", content, 0644)
+				require.NoError(t, err)
+			},
+			expected: true,
+			wantErr:  false,
+		},
+		{
 			name:  "detects flatpakref with INI header",
 			input: "/tmp/firefox.flatpakref",
 			setup: func(fs afero.Fs) {

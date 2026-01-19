@@ -45,7 +45,9 @@ func detectFile(fs afero.Fs, path string) (bool, error) {
 	return false, nil
 }
 
-// detectFlatpakBundle checks for ZIP magic (PK\x03\x04)
+// detectFlatpakBundle checks for flatpak bundle formats:
+// - OSTree/GVariant: starts with "flatpak\x00" (8 bytes)
+// - OCI bundle: ZIP magic (PK\x03\x04)
 func detectFlatpakBundle(fs afero.Fs, path string) (bool, error) {
 	file, err := fs.Open(path)
 	if err != nil {
@@ -53,13 +55,18 @@ func detectFlatpakBundle(fs afero.Fs, path string) (bool, error) {
 	}
 	defer file.Close()
 
-	magic := make([]byte, 4)
+	magic := make([]byte, 8)
 	n, err := file.Read(magic)
 	if err != nil || n < 4 {
 		return false, nil
 	}
 
-	// Check for ZIP magic: 0x50 0x4B 0x03 0x04
+	// Check for OSTree/GVariant flatpak bundle: "flatpak\x00"
+	if n >= 8 && string(magic[:7]) == "flatpak" && magic[7] == 0x00 {
+		return true, nil
+	}
+
+	// Check for OCI bundle (ZIP magic): 0x50 0x4B 0x03 0x04
 	if magic[0] == 0x50 && magic[1] == 0x4B && magic[2] == 0x03 && magic[3] == 0x04 {
 		return true, nil
 	}

@@ -260,7 +260,7 @@ func TestFlatpakBackend_Uninstall(t *testing.T) {
 					if name != "flatpak" {
 						return "", fmt.Errorf("unexpected command: %s", name)
 					}
-					expectedArgs := []string{"uninstall", "--user", "--noninteractive", "org.mozilla.firefox"}
+					expectedArgs := []string{"uninstall", "--user", "--noninteractive", "-y", "org.mozilla.firefox"}
 					if !reflect.DeepEqual(args, expectedArgs) {
 						return "", fmt.Errorf("unexpected args: got %v, want %v", args, expectedArgs)
 					}
@@ -286,7 +286,7 @@ func TestFlatpakBackend_Uninstall(t *testing.T) {
 					if name != "flatpak" {
 						return "", fmt.Errorf("unexpected command: %s", name)
 					}
-					expectedArgs := []string{"uninstall", "--user", "--noninteractive", "--delete-data", "org.gnome.Builder"}
+					expectedArgs := []string{"uninstall", "--user", "--noninteractive", "-y", "--delete-data", "org.gnome.Builder"}
 					if !reflect.DeepEqual(args, expectedArgs) {
 						return "", fmt.Errorf("unexpected args: got %v, want %v", args, expectedArgs)
 					}

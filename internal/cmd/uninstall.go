@@ -13,6 +13,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -291,6 +292,22 @@ func lookupPackage(ctx context.Context, database *db.DB, log *zerolog.Logger, id
 		}
 	}
 
+	runner := helpers.NewOSCommandRunner()
+	if runner.CommandExists("flatpak") {
+		output, err := runner.RunCommand(ctx, "flatpak", "list", "--user", "--app", "--columns=application")
+		if err == nil {
+			for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+				if strings.TrimSpace(line) == identifier {
+					return &core.InstallRecord{
+						InstallID:   identifier,
+						PackageType: core.PackageTypeFlatpak,
+						Name:        identifier,
+					}, nil
+				}
+			}
+		}
+	}
+
 	color.Red("Error: package not found: %s", identifier)
 	color.Yellow("  Use 'upkg list' to see installed packages")
 	return nil, fmt.Errorf("package not found: %s", identifier)
@@ -449,7 +466,9 @@ func performUninstall(ctx context.Context, registry *backends.Registry, database
 		return fmt.Errorf("uninstallation failed: %w", err)
 	}
 
-	if err := database.Delete(ctx, record.InstallID); err != nil {
+	if record.PackageType == core.PackageTypeFlatpak {
+		color.Green("✓ Package uninstalled: %s", record.Name)
+	} else if err := database.Delete(ctx, record.InstallID); err != nil {
 		color.Yellow("Warning: failed to remove %s from database: %v", record.Name, err)
 	} else {
 		color.Green("✓ Package uninstalled: %s", record.Name)

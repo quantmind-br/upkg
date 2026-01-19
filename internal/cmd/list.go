@@ -26,19 +26,15 @@ type flatpakApp struct {
 
 // getFlatpakApps retrieves installed flatpak applications
 func getFlatpakApps(ctx context.Context, runner helpers.CommandRunner) []flatpakApp {
-	// Check if flatpak is available
 	if !runner.CommandExists("flatpak") {
 		return nil
 	}
 
-	// Run flatpak list command
 	output, err := runner.RunCommand(ctx, "flatpak", "list", "--user", "--app", "--columns=application,version")
 	if err != nil {
-		// Silently fail if flatpak command fails
 		return nil
 	}
 
-	// Parse output
 	var apps []flatpakApp
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	for _, line := range lines {
@@ -46,10 +42,14 @@ func getFlatpakApps(ctx context.Context, runner helpers.CommandRunner) []flatpak
 			continue
 		}
 		parts := strings.Split(line, "\t")
-		if len(parts) >= 2 {
+		if len(parts) >= 1 && parts[0] != "" {
+			version := ""
+			if len(parts) >= 2 {
+				version = parts[1]
+			}
 			apps = append(apps, flatpakApp{
 				Name:    parts[0],
-				Version: parts[1],
+				Version: version,
 			})
 		}
 	}

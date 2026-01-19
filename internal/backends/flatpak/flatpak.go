@@ -62,7 +62,7 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 		appID = input
 		remote = "flathub"
 	} else {
-		appID = input
+		appID = ""
 	}
 
 	args = []string{"install", "--user", "--noninteractive"}
@@ -85,6 +85,13 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 
 	f.Log.Debug().Str("output", output).Msg("Flatpak install output")
 
+	if appID == "" {
+		appID = extractAppIDFromOutput(output)
+		if appID == "" {
+			appID = input
+		}
+	}
+
 	record := &core.InstallRecord{
 		InstallID:    helpers.GenerateInstallID(appID),
 		PackageType:  core.PackageTypeFlatpak,
@@ -98,12 +105,28 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 	return record, nil
 }
 
+func extractAppIDFromOutput(output string) string {
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if appIDRegex.MatchString(line) {
+			return line
+		}
+		for _, word := range strings.Fields(line) {
+			if appIDRegex.MatchString(word) {
+				return word
+			}
+		}
+	}
+	return ""
+}
+
 func (f *FlatpakBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
 	if err := f.Runner.RequireCommand("flatpak"); err != nil {
 		return err
 	}
 
-	args := []string{"uninstall", "--user", "--noninteractive"}
+	args := []string{"uninstall", "--user", "--noninteractive", "-y"}
 
 	if record.Metadata.InstallMethod == "delete-data" {
 		args = append(args, "--delete-data")

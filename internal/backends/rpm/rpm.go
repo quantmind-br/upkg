@@ -252,7 +252,12 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	}
 
 	wrapperPath := filepath.Join(binDir, normalizedName)
-	if wrapperErr := r.createWrapper(wrapperPath, primaryExec); wrapperErr != nil {
+	wrapperCfg := helpers.WrapperConfig{
+		WrapperPath:    wrapperPath,
+		ExecPath:       primaryExec,
+		DisableSandbox: r.Cfg.Desktop.ElectronDisableSandbox,
+	}
+	if wrapperErr := helpers.CreateWrapper(r.Fs, wrapperCfg); wrapperErr != nil {
 		if removeErr := r.Fs.RemoveAll(installDir); removeErr != nil {
 			r.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after wrapper error")
 		}
@@ -559,15 +564,6 @@ func (r *RpmBackend) uninstallExtracted(_ context.Context, record *core.InstallR
 }
 
 // Helper functions
-
-func (r *RpmBackend) createWrapper(wrapperPath, execPath string) error {
-	content := fmt.Sprintf(`#!/bin/bash
-# upkg wrapper script
-exec "%s" "$@"
-`, execPath)
-
-	return afero.WriteFile(r.Fs, wrapperPath, []byte(content), 0755)
-}
 
 func (r *RpmBackend) installIcons(installDir, normalizedName string) ([]string, error) {
 	homeDir := r.Paths.HomeDir()

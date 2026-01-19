@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/quantmind-br/upkg/internal/config"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -225,7 +226,12 @@ func TestTarballBackend_CreateWrapper_Electron(t *testing.T) {
 	require.NoError(t, os.WriteFile(asarPath, []byte("fake asar"), 0644))
 
 	wrapperPath := filepath.Join(tmpDir, "wrapper")
-	err := backend.createWrapper(wrapperPath, execPath)
+	wrapperCfg := helpers.WrapperConfig{
+		WrapperPath:    wrapperPath,
+		ExecPath:       execPath,
+		DisableSandbox: false,
+	}
+	err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, wrapperPath)
@@ -254,7 +260,7 @@ func TestTarballBackend_IsElectronApp_AsarFound(t *testing.T) {
 	execPath := filepath.Join(tmpDir, "app")
 	require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh"), 0755))
 
-	isElectron := backend.isElectronApp(execPath)
+	isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 
 	assert.True(t, isElectron)
 }
@@ -274,7 +280,7 @@ func TestTarballBackend_IsElectronApp_NoAsar(t *testing.T) {
 	execPath := filepath.Join(tmpDir, "app")
 	require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh"), 0755))
 
-	isElectron := backend.isElectronApp(execPath)
+	isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 
 	assert.False(t, isElectron)
 }

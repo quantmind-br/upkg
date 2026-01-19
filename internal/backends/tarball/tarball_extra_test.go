@@ -291,7 +291,12 @@ func TestTarballBackend_CreateWrapper(t *testing.T) {
 		wrapperPath := filepath.Join(tmpDir, "test-wrapper")
 		execPath := "/path/to/executable"
 
-		err := backend.createWrapper(wrapperPath, execPath)
+		wrapperCfg := helpers.WrapperConfig{
+			WrapperPath:    wrapperPath,
+			ExecPath:       execPath,
+			DisableSandbox: false,
+		}
+		err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 		assert.NoError(t, err)
 
 		// Verify wrapper was created
@@ -323,36 +328,12 @@ func TestTarballBackend_CreateWrapper(t *testing.T) {
 		execPath := filepath.Join(execDir, "app")
 		wrapperPath := filepath.Join(tmpDir, "wrapper")
 
-		err := backend.createWrapper(wrapperPath, execPath)
-		assert.NoError(t, err)
-
-		content, err := os.ReadFile(wrapperPath)
-		assert.NoError(t, err)
-		assert.Contains(t, string(content), "cd")
-		assert.Contains(t, string(content), "exec \"./app\"")
-	})
-
-	t.Run("electron wrapper with sandbox flag", func(t *testing.T) {
-		logger := zerolog.New(io.Discard)
-		cfg := &config.Config{
-			Desktop: config.DesktopConfig{
-				ElectronDisableSandbox: true,
-			},
+		wrapperCfg := helpers.WrapperConfig{
+			WrapperPath:    wrapperPath,
+			ExecPath:       execPath,
+			DisableSandbox: true,
 		}
-		backend := New(cfg, &logger)
-
-		tmpDir := t.TempDir()
-		execDir := filepath.Join(tmpDir, "app")
-		require.NoError(t, os.MkdirAll(execDir, 0755))
-
-		resourcesDir := filepath.Join(execDir, "resources")
-		require.NoError(t, os.MkdirAll(resourcesDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(resourcesDir, "app.asar"), []byte("asar"), 0644))
-
-		execPath := filepath.Join(execDir, "app")
-		wrapperPath := filepath.Join(tmpDir, "wrapper")
-
-		err := backend.createWrapper(wrapperPath, execPath)
+		err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 		assert.NoError(t, err)
 
 		content, err := os.ReadFile(wrapperPath)
@@ -379,7 +360,7 @@ func TestTarballBackend_IsElectronApp(t *testing.T) {
 
 		execPath := filepath.Join(execDir, "app")
 
-		isElectron := backend.isElectronApp(execPath)
+		isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 		assert.True(t, isElectron)
 	})
 
@@ -392,7 +373,7 @@ func TestTarballBackend_IsElectronApp(t *testing.T) {
 		execPath := filepath.Join(tmpDir, "app")
 		require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/bash"), 0755))
 
-		isElectron := backend.isElectronApp(execPath)
+		isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 		assert.False(t, isElectron)
 	})
 
@@ -411,7 +392,7 @@ func TestTarballBackend_IsElectronApp(t *testing.T) {
 
 		execPath := filepath.Join(execDir, "app")
 
-		isElectron := backend.isElectronApp(execPath)
+		isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 		assert.True(t, isElectron)
 	})
 }
@@ -743,7 +724,12 @@ func TestTarballBackend_CreateDesktopFile_Additional(t *testing.T) {
 
 		// First create wrapper to check it has --no-sandbox
 		wrapperPath := filepath.Join(tmpDir, "wrapper")
-		err := backend.createWrapper(wrapperPath, execPath)
+		wrapperCfg := helpers.WrapperConfig{
+			WrapperPath:    wrapperPath,
+			ExecPath:       execPath,
+			DisableSandbox: true,
+		}
+		err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 		assert.NoError(t, err)
 
 		content, err := os.ReadFile(wrapperPath)
@@ -1641,7 +1627,12 @@ func TestTarballBackend_createWrapper(t *testing.T) {
 	wrapperPath := filepath.Join(binDir, "testapp")
 	execPath := "/opt/testapp/bin/testapp"
 
-	err := backend.createWrapper(wrapperPath, execPath)
+	wrapperCfg := helpers.WrapperConfig{
+		WrapperPath:    wrapperPath,
+		ExecPath:       execPath,
+		DisableSandbox: false,
+	}
+	err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 	assert.NoError(t, err)
 }
 
@@ -1657,7 +1648,7 @@ func TestTarballBackend_isElectronApp(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(installDir, "..", "resources"), 0755))
 		require.NoError(t, os.WriteFile(filepath.Join(installDir, "..", "resources", "app.asar"), []byte("fake"), 0644))
 
-		isElectron := backend.isElectronApp(installDir)
+		isElectron := helpers.IsElectronApp(backend.Fs, installDir)
 		assert.True(t, isElectron)
 	})
 
@@ -1671,7 +1662,7 @@ func TestTarballBackend_isElectronApp(t *testing.T) {
 		installDir := filepath.Join(tmpDir, "app", "bin")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
 
-		isElectron := backend.isElectronApp(installDir)
+		isElectron := helpers.IsElectronApp(backend.Fs, installDir)
 		assert.False(t, isElectron)
 	})
 
@@ -1686,7 +1677,7 @@ func TestTarballBackend_isElectronApp(t *testing.T) {
 		installDir := filepath.Join(tmpDir, "app", "bin")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
 
-		isElectron := backend.isElectronApp(installDir)
+		isElectron := helpers.IsElectronApp(backend.Fs, installDir)
 		assert.False(t, isElectron)
 	})
 }
@@ -1713,4 +1704,3 @@ func TestTarballBackend_copyFile(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
-

@@ -230,7 +230,12 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 	}
 
 	wrapperPath := filepath.Join(binDir, normalizedName)
-	if wrapperErr := t.createWrapper(wrapperPath, primaryExec); wrapperErr != nil {
+	wrapperCfg := helpers.WrapperConfig{
+		WrapperPath:    wrapperPath,
+		ExecPath:       primaryExec,
+		DisableSandbox: t.Cfg.Desktop.ElectronDisableSandbox,
+	}
+	if wrapperErr := helpers.CreateWrapper(t.Fs, wrapperCfg); wrapperErr != nil {
 		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
 			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after wrapper error")
 		}
@@ -400,67 +405,6 @@ func (t *TarballBackend) extractArchive(archivePath, destDir, archiveType string
 
 // generateNameVariants produces different normalized variants for matching executable names
 // MOVED TO INTERNAL/HELPERS
-
-// createWrapper creates a wrapper shell script
-func (t *TarballBackend) createWrapper(wrapperPath, execPath string) error {
-	// Check if this is an Electron app (has .asar file nearby)
-	isElectron := t.isElectronApp(execPath)
-
-	var content string
-	if isElectron {
-		// Electron apps need to run from their own directory
-		execDir := filepath.Dir(execPath)
-		execName := filepath.Base(execPath)
-
-		// Only add --no-sandbox if explicitly configured (security risk)
-		sandboxFlag := ""
-		if t.Cfg.Desktop.ElectronDisableSandbox {
-			sandboxFlag = " --no-sandbox"
-		}
-
-		content = fmt.Sprintf(`#!/bin/bash
-# upkg wrapper script for Electron app
-cd "%s"
-exec "./%s"%s "$@"
-`, execDir, execName, sandboxFlag)
-	} else {
-		// Standard wrapper
-		content = fmt.Sprintf(`#!/bin/bash
-# upkg wrapper script
-exec "%s" "$@"
-`, execPath)
-	}
-
-	return afero.WriteFile(t.Fs, wrapperPath, []byte(content), 0755)
-}
-
-// isElectronApp checks if the executable is part of an Electron app
-func (t *TarballBackend) isElectronApp(execPath string) bool {
-	execDir := filepath.Dir(execPath)
-
-	// Check for resources/app.asar (typical Electron structure)
-	asarPath := filepath.Join(execDir, "resources", "app.asar")
-	if _, err := t.Fs.Stat(asarPath); err == nil {
-		return true
-	}
-
-	// Check for *.asar in parent directory and subdirectories
-	parentDir := filepath.Dir(execDir)
-	var asarFound bool
-	if walkErr := filepath.Walk(parentDir, func(path string, info fs.FileInfo, entryErr error) error {
-		if entryErr != nil {
-			return nil // Continue on errors
-		}
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".asar") {
-			asarFound = true
-			return filepath.SkipAll // Found one, stop walking
-		}
-		return nil
-	}); walkErr != nil {
-		t.Log.Debug().Err(walkErr).Str("dir", parentDir).Msg("failed walking for asar detection")
-	}
-	return asarFound
-}
 
 // installIcons installs icons from the extracted directory
 func (t *TarballBackend) installIcons(installDir, normalizedName string) ([]string, error) {

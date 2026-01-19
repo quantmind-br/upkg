@@ -316,7 +316,12 @@ func TestCreateWrapper(t *testing.T) {
 		wrapperPath := filepath.Join(tmpDir, "wrapper")
 		execPath := "/path/to/executable"
 
-		err := backend.createWrapper(wrapperPath, execPath)
+		wrapperCfg := helpers.WrapperConfig{
+			WrapperPath:    wrapperPath,
+			ExecPath:       execPath,
+			DisableSandbox: false,
+		}
+		err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(wrapperPath)

@@ -344,7 +344,12 @@ func TestCreateWrapper(t *testing.T) {
 		wrapperPath := filepath.Join(tmpDir, "test-wrapper")
 		execPath := "/path/to/executable"
 
-		err := backend.createWrapper(wrapperPath, execPath)
+		wrapperCfg := helpers.WrapperConfig{
+			WrapperPath:    wrapperPath,
+			ExecPath:       execPath,
+			DisableSandbox: false,
+		}
+		err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 		require.NoError(t, err)
 
 		// Verify wrapper was created
@@ -373,7 +378,12 @@ func TestCreateWrapper(t *testing.T) {
 		require.NoError(t, os.WriteFile(execPath, []byte("fake exec"), 0755))
 
 		wrapperPath := filepath.Join(tmpDir, "wrapper")
-		err := backend.createWrapper(wrapperPath, execPath)
+		wrapperCfg := helpers.WrapperConfig{
+			WrapperPath:    wrapperPath,
+			ExecPath:       execPath,
+			DisableSandbox: false,
+		}
+		err := helpers.CreateWrapper(backend.Fs, wrapperCfg)
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(wrapperPath)
@@ -403,7 +413,12 @@ func TestCreateWrapper(t *testing.T) {
 		backendWithSandbox := New(cfgWithSandbox, &logger)
 
 		wrapperPath := filepath.Join(tmpDir, "wrapper")
-		err := backendWithSandbox.createWrapper(wrapperPath, execPath)
+		wrapperCfg := helpers.WrapperConfig{
+			WrapperPath:    wrapperPath,
+			ExecPath:       execPath,
+			DisableSandbox: true,
+		}
+		err := helpers.CreateWrapper(backendWithSandbox.Fs, wrapperCfg)
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(wrapperPath)
@@ -423,7 +438,7 @@ func TestIsElectronApp(t *testing.T) {
 		execPath := filepath.Join(tmpDir, "standard-binary")
 		require.NoError(t, os.WriteFile(execPath, []byte("fake exec"), 0755))
 
-		isElectron := backend.isElectronApp(execPath)
+		isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 		assert.False(t, isElectron)
 	})
 
@@ -438,7 +453,7 @@ func TestIsElectronApp(t *testing.T) {
 		execPath := filepath.Join(tmpDir, "electron-app")
 		require.NoError(t, os.WriteFile(execPath, []byte("fake exec"), 0755))
 
-		isElectron := backend.isElectronApp(execPath)
+		isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 		assert.True(t, isElectron)
 	})
 
@@ -453,7 +468,7 @@ func TestIsElectronApp(t *testing.T) {
 		execPath := filepath.Join(binDir, "electron-app")
 		require.NoError(t, os.WriteFile(execPath, []byte("fake exec"), 0755))
 
-		isElectron := backend.isElectronApp(execPath)
+		isElectron := helpers.IsElectronApp(backend.Fs, execPath)
 		assert.True(t, isElectron)
 	})
 }

@@ -510,9 +510,9 @@ func TestIsValidRatio(t *testing.T) {
 
 func TestExtractSVGDimensions(t *testing.T) {
 	tests := []struct {
-		name     string
-		content  string
-		hasWidth bool
+		name      string
+		content   string
+		hasWidth  bool
 		hasHeight bool
 	}{
 		{
@@ -520,7 +520,7 @@ func TestExtractSVGDimensions(t *testing.T) {
 			content: `<svg width="48" height="48" xmlns="http://www.w3.org/2000/svg">
 				<rect width="48" height="48"/>
 			</svg>`,
-			hasWidth: true,
+			hasWidth:  true,
 			hasHeight: true,
 		},
 		{
@@ -528,7 +528,7 @@ func TestExtractSVGDimensions(t *testing.T) {
 			content: `<svg xmlns="http://www.w3.org/2000/svg">
 				<rect width="48" height="48"/>
 			</svg>`,
-			hasWidth: true,
+			hasWidth:  true,
 			hasHeight: true,
 		},
 		{
@@ -536,13 +536,13 @@ func TestExtractSVGDimensions(t *testing.T) {
 			content: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 				<rect width="24" height="24"/>
 			</svg>`,
-			hasWidth: true,
+			hasWidth:  true,
 			hasHeight: true,
 		},
 		{
-			name: "Invalid SVG",
-			content: `not an svg`,
-			hasWidth: false,
+			name:      "Invalid SVG",
+			content:   `not an svg`,
+			hasWidth:  false,
 			hasHeight: false,
 		},
 		{
@@ -550,7 +550,7 @@ func TestExtractSVGDimensions(t *testing.T) {
 			content: `<svg width="48.5" height="48.5" xmlns="http://www.w3.org/2000/svg">
 				<rect width="48.5" height="48.5"/>
 			</svg>`,
-			hasWidth: true,
+			hasWidth:  true,
 			hasHeight: true,
 		},
 	}
@@ -1090,58 +1090,58 @@ func TestBuildDirectorySection(t *testing.T) {
 
 func TestUpdateDirectoriesLine(t *testing.T) {
 	tests := []struct {
-		name        string
-		lines       []string
-		start       int
-		end         int
-		dirName     string
+		name         string
+		lines        []string
+		start        int
+		end          int
+		dirName      string
 		wantModified bool
-		expectedDir string
+		expectedDir  string
 	}{
 		{
-			name:        "add to existing Directories line",
-			lines:       []string{"[Icon Theme]", "Directories=48x48/apps", "Name=Hicolor"},
-			start:       0,
-			end:         3,
-			dirName:     "64x64/apps",
+			name:         "add to existing Directories line",
+			lines:        []string{"[Icon Theme]", "Directories=48x48/apps", "Name=Hicolor"},
+			start:        0,
+			end:          3,
+			dirName:      "64x64/apps",
 			wantModified: true,
-			expectedDir: "Directories=48x48/apps,64x64/apps",
+			expectedDir:  "Directories=48x48/apps,64x64/apps",
 		},
 		{
-			name:        "directory already exists",
-			lines:       []string{"[Icon Theme]", "Directories=48x48/apps", "Name=Hicolor"},
-			start:       0,
-			end:         3,
-			dirName:     "48x48/apps",
+			name:         "directory already exists",
+			lines:        []string{"[Icon Theme]", "Directories=48x48/apps", "Name=Hicolor"},
+			start:        0,
+			end:          3,
+			dirName:      "48x48/apps",
 			wantModified: false,
-			expectedDir: "Directories=48x48/apps",
+			expectedDir:  "Directories=48x48/apps",
 		},
 		{
-			name:        "add new Directories line",
-			lines:       []string{"[Icon Theme]", "Name=Hicolor"},
-			start:       0,
-			end:         2,
-			dirName:     "48x48/apps",
+			name:         "add new Directories line",
+			lines:        []string{"[Icon Theme]", "Name=Hicolor"},
+			start:        0,
+			end:          2,
+			dirName:      "48x48/apps",
 			wantModified: true,
-			expectedDir: "Directories=48x48/apps",
+			expectedDir:  "Directories=48x48/apps",
 		},
 		{
-			name:        "directories with comma already present",
-			lines:       []string{"[Icon Theme]", "Directories=48x48/apps,64x64/apps", "Name=Hicolor"},
-			start:       0,
-			end:         3,
-			dirName:     "128x128/apps",
+			name:         "directories with comma already present",
+			lines:        []string{"[Icon Theme]", "Directories=48x48/apps,64x64/apps", "Name=Hicolor"},
+			start:        0,
+			end:          3,
+			dirName:      "128x128/apps",
 			wantModified: true,
-			expectedDir: "Directories=48x48/apps,64x64/apps,128x128/apps",
+			expectedDir:  "Directories=48x48/apps,64x64/apps,128x128/apps",
 		},
 		{
-			name:        "directories with spaces",
-			lines:       []string{"[Icon Theme]", "Directories=48x48/apps, 64x64/apps", "Name=Hicolor"},
-			start:       0,
-			end:         3,
-			dirName:     "128x128/apps",
+			name:         "directories with spaces",
+			lines:        []string{"[Icon Theme]", "Directories=48x48/apps, 64x64/apps", "Name=Hicolor"},
+			start:        0,
+			end:          3,
+			dirName:      "128x128/apps",
 			wantModified: true,
-			expectedDir: "Directories=48x48/apps,64x64/apps,128x128/apps",
+			expectedDir:  "Directories=48x48/apps,64x64/apps,128x128/apps",
 		},
 	}
 
@@ -1175,9 +1175,9 @@ func TestUpdateDirectoriesLine(t *testing.T) {
 
 func TestNormalizeToStandardSize(t *testing.T) {
 	tests := []struct {
-		name     string
+		name      string
 		dimension int
-		expected int
+		expected  int
 	}{
 		{"exact match", 48, 48},
 		{"exact match 256", 256, 256},

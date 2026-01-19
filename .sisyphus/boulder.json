@@ -1,0 +1,12 @@
+{
+  "active_plan": null,
+  "completed_plan": "/home/diogo/dev/upkg/.sisyphus/plans/code-quality-improvements.md",
+  "started_at": "2026-01-19T20:10:42.754Z",
+  "completed_at": "2026-01-19T20:35:00.000Z",
+  "session_ids": [
+    "ses_42845f7a5ffe6bJ52CqTsDQ5q6",
+    "ses_4281bd3c2ffefCwXfCt5wElwi5"
+  ],
+  "plan_name": "code-quality-improvements",
+  "status": "completed"
+}

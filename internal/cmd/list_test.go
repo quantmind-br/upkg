@@ -295,12 +295,12 @@ func TestListCmd_FilterByName(t *testing.T) {
 	require.NoError(t, err)
 
 	testInstall := &db.Install{
-		InstallID:    "test-id-name",
-		PackageType:  "tarball",
-		Name:         "SpecificApp",
-		Version:      "1.0.0",
-		InstallDate:  time.Now(),
-		Metadata:     map[string]interface{}{},
+		InstallID:   "test-id-name",
+		PackageType: "tarball",
+		Name:        "SpecificApp",
+		Version:     "1.0.0",
+		InstallDate: time.Now(),
+		Metadata:    map[string]interface{}{},
 	}
 
 	err = database.Create(ctx, testInstall)
@@ -493,12 +493,12 @@ func TestListCmd_SortInvalid(t *testing.T) {
 	require.NoError(t, err)
 
 	testInstall := &db.Install{
-		InstallID:    "test-id-sort",
-		PackageType:  "tarball",
-		Name:         "TestApp",
-		Version:      "1.0.0",
-		InstallDate:  time.Now(),
-		Metadata:     map[string]interface{}{},
+		InstallID:   "test-id-sort",
+		PackageType: "tarball",
+		Name:        "TestApp",
+		Version:     "1.0.0",
+		InstallDate: time.Now(),
+		Metadata:    map[string]interface{}{},
 	}
 
 	err = database.Create(ctx, testInstall)
@@ -523,24 +523,24 @@ func TestPrintCompactTable_EmptyVersion(t *testing.T) {
 
 	installs := []db.Install{
 		{
-			InstallID:    "test-1",
-			PackageType:  "tarball",
-			Name:         "TestApp1",
-			Version:      "", // Empty version
-			InstallDate:  time.Now(),
-			InstallPath:  "/opt/testapp1",
-			DesktopFile:  "/usr/share/applications/testapp1.desktop",
-			Metadata:     map[string]interface{}{},
+			InstallID:   "test-1",
+			PackageType: "tarball",
+			Name:        "TestApp1",
+			Version:     "", // Empty version
+			InstallDate: time.Now(),
+			InstallPath: "/opt/testapp1",
+			DesktopFile: "/usr/share/applications/testapp1.desktop",
+			Metadata:    map[string]interface{}{},
 		},
 		{
-			InstallID:    "test-2",
-			PackageType:  "appimage",
-			Name:         "TestApp2",
-			Version:      "1.0.0",
-			InstallDate:  time.Now(),
-			InstallPath:  "/opt/testapp2",
-			DesktopFile:  "/usr/share/applications/testapp2.desktop",
-			Metadata:     map[string]interface{}{},
+			InstallID:   "test-2",
+			PackageType: "appimage",
+			Name:        "TestApp2",
+			Version:     "1.0.0",
+			InstallDate: time.Now(),
+			InstallPath: "/opt/testapp2",
+			DesktopFile: "/usr/share/applications/testapp2.desktop",
+			Metadata:    map[string]interface{}{},
 		},
 	}
 
@@ -559,24 +559,24 @@ func TestPrintDetailedTable_Truncations(t *testing.T) {
 
 	installs := []db.Install{
 		{
-			InstallID:    "very-long-install-id-that-needs-truncation-because-it-exceeds-twenty-chars",
-			PackageType:  "tarball",
-			Name:         "TestApp",
-			Version:      "", // Empty version
-			InstallDate:  time.Now(),
-			InstallPath:  "/very/long/path/that/needs/truncation/because/it/exceeds/forty/characters/and/then/some",
-			DesktopFile:  "/usr/share/applications/testapp.desktop",
-			Metadata:     map[string]interface{}{},
+			InstallID:   "very-long-install-id-that-needs-truncation-because-it-exceeds-twenty-chars",
+			PackageType: "tarball",
+			Name:        "TestApp",
+			Version:     "", // Empty version
+			InstallDate: time.Now(),
+			InstallPath: "/very/long/path/that/needs/truncation/because/it/exceeds/forty/characters/and/then/some",
+			DesktopFile: "/usr/share/applications/testapp.desktop",
+			Metadata:    map[string]interface{}{},
 		},
 		{
-			InstallID:    "test-2",
-			PackageType:  "appimage",
-			Name:         "TestApp2",
-			Version:      "1.0.0",
-			InstallDate:  time.Now(),
-			InstallPath:  "/opt/testapp2",
-			DesktopFile:  "/usr/share/applications/testapp2.desktop",
-			Metadata:     map[string]interface{}{},
+			InstallID:   "test-2",
+			PackageType: "appimage",
+			Name:        "TestApp2",
+			Version:     "1.0.0",
+			InstallDate: time.Now(),
+			InstallPath: "/opt/testapp2",
+			DesktopFile: "/usr/share/applications/testapp2.desktop",
+			Metadata:    map[string]interface{}{},
 		},
 	}
 
@@ -623,24 +623,24 @@ func TestListCmd_MultiplePackagesWithEmptyVersions(t *testing.T) {
 
 	installs := []*db.Install{
 		{
-			InstallID:    "empty-1",
-			PackageType:  "tarball",
-			Name:         "EmptyVersion1",
-			Version:      "",
-			InstallDate:  time.Now(),
-			InstallPath:  "/opt/empty1",
-			DesktopFile:  "/usr/share/applications/empty1.desktop",
-			Metadata:     map[string]interface{}{},
+			InstallID:   "empty-1",
+			PackageType: "tarball",
+			Name:        "EmptyVersion1",
+			Version:     "",
+			InstallDate: time.Now(),
+			InstallPath: "/opt/empty1",
+			DesktopFile: "/usr/share/applications/empty1.desktop",
+			Metadata:    map[string]interface{}{},
 		},
 		{
-			InstallID:    "empty-2",
-			PackageType:  "appimage",
-			Name:         "EmptyVersion2",
-			Version:      "",
-			InstallDate:  time.Now(),
-			InstallPath:  "/opt/empty2",
-			DesktopFile:  "/usr/share/applications/empty2.desktop",
-			Metadata:     map[string]interface{}{},
+			InstallID:   "empty-2",
+			PackageType: "appimage",
+			Name:        "EmptyVersion2",
+			Version:     "",
+			InstallDate: time.Now(),
+			InstallPath: "/opt/empty2",
+			DesktopFile: "/usr/share/applications/empty2.desktop",
+			Metadata:    map[string]interface{}{},
 		},
 	}
 
@@ -661,5 +661,3 @@ func TestListCmd_MultiplePackagesWithEmptyVersions(t *testing.T) {
 	err = cmd.Execute()
 	assert.NoError(t, err)
 }
-
-

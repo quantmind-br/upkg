@@ -19,6 +19,16 @@ const (
 	PenaltyTinyFile      = -50  // File size < 1KB (wrapper scripts)
 	PenaltyDeepPath      = -50  // Depth > 10 levels
 	PenaltyLibPrefix     = -80  // Files with "lib" prefix
+
+	// Thresholds
+	MaxShallowDepth      = 10       // Maximum depth before penalty applies
+	DepthScoreOffset     = 11       // Offset for depth score calculation (MaxShallowDepth + 1)
+	LargeFileSizeBytes   = 10485760 // 10MB in bytes (10 * 1024 * 1024)
+	MediumFileSizeBytes  = 1048576  // 1MB in bytes (1 * 1024 * 1024)
+	SmallFileSizeBytes   = 102400   // 100KB in bytes (100 * 1024)
+	TinyFileSizeBytes    = 1024     // 1KB in bytes
+	MaxScriptSizeBytes   = 10240    // 10KB in bytes (10 * 1024)
+	MinNameVariantLength = 3        // Minimum length for name variant matching
 )
 
 // bonusPatterns are regex patterns for known main executable names

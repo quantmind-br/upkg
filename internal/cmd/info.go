@@ -148,7 +148,7 @@ func printPackageInfo(record *core.InstallRecord) {
 
 	// Install method
 	if record.Metadata.InstallMethod != "" {
-		ui.PrintKeyValue("Install Method", string(record.Metadata.InstallMethod))
+		ui.PrintKeyValue("Install Method", record.Metadata.InstallMethod)
 	}
 
 	fmt.Println()

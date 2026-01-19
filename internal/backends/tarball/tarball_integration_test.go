@@ -256,7 +256,7 @@ func TestTarballBackend_createDesktopFile_MissingAppsDir(t *testing.T) {
 // errorFs is a mock filesystem that can fail specific operations
 type errorFs struct {
 	afero.Fs
-	failMkdirAll bool
+	failMkdirAll  bool
 	failRemoveAll bool
 	failCreate    bool
 	failStat      bool
@@ -342,7 +342,7 @@ func TestTarballBackend_copyFile_DestCreationFailure(t *testing.T) {
 	cfg := &config.Config{}
 
 	errorFs := &errorFs{
-		Fs:        afero.NewMemMapFs(),
+		Fs:         afero.NewMemMapFs(),
 		failCreate: true,
 	}
 	backend := NewWithDeps(cfg, &logger, errorFs, helpers.NewOSCommandRunner())

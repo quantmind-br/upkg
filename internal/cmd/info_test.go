@@ -244,11 +244,11 @@ func TestInfoCmd_WithOtherMetadata(t *testing.T) {
 		InstallPath:  "/opt/otherapp",
 		DesktopFile:  "/usr/share/applications/otherapp.desktop",
 		Metadata: map[string]interface{}{
-			"custom_field":     "custom_value",
-			"install_method":   "user",
-			"wrapper_script":   "/home/user/.local/bin/otherapp",
-			"icon_files":       []string{"/path/to/icon.png"},
-			"wayland_support":  "electron",
+			"custom_field":    "custom_value",
+			"install_method":  "user",
+			"wrapper_script":  "/home/user/.local/bin/otherapp",
+			"icon_files":      []string{"/path/to/icon.png"},
+			"wayland_support": "electron",
 		},
 	}
 
@@ -293,15 +293,15 @@ func TestInfoCmd_WithComplexMetadata(t *testing.T) {
 		InstallPath:  "/opt/complexapp",
 		DesktopFile:  "/usr/share/applications/complexapp.desktop",
 		Metadata: map[string]interface{}{
-			"wrapper_script":       "/home/user/.local/bin/complexapp",
-			"icon_files":           []string{"/path/to/icon1.png", "/path/to/icon2.svg"},
-			"wayland_support":      "native",
-			"architecture":         "x86_64",
-			"license":              "MIT",
-			"homepage":             "https://example.com",
-			"repository":           "https://github.com/example/app",
+			"wrapper_script":        "/home/user/.local/bin/complexapp",
+			"icon_files":            []string{"/path/to/icon1.png", "/path/to/icon2.svg"},
+			"wayland_support":       "native",
+			"architecture":          "x86_64",
+			"license":               "MIT",
+			"homepage":              "https://example.com",
+			"repository":            "https://github.com/example/app",
 			"original_desktop_file": "/tmp/original.desktop",
-			"desktop_files":        []string{"/path/to/extra.desktop"},
+			"desktop_files":         []string{"/path/to/extra.desktop"},
 		},
 	}
 
@@ -345,7 +345,7 @@ func TestInfoCmd_AllMetadataTypes(t *testing.T) {
 		OriginalFile: "/usr/local/bin/alltypes",
 		InstallPath:  "/opt/alltypes",
 		Metadata: map[string]interface{}{
-			"string_field":  "string_value",
+			"string_field":   "string_value",
 			"number_field":   42,
 			"bool_field":     true,
 			"slice_field":    []string{"a", "b", "c"},
@@ -588,4 +588,3 @@ func TestInfoCmd_SearchByNameCaseInsensitive(t *testing.T) {
 	err = cmd.Execute()
 	assert.NoError(t, err)
 }
-

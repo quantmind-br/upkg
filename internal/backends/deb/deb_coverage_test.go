@@ -52,10 +52,10 @@ func TestIconSizeFromPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		path        string
-		expectedSz  string
-		expectedOk  bool
+		name       string
+		path       string
+		expectedSz string
+		expectedOk bool
 	}{
 		{"scalable icon", "/usr/share/icons/hicolor/scalable/apps/app.svg", "scalable", true},
 		{"256x256", "/usr/share/icons/hicolor/256x256/apps/app.png", "256x256", true},

@@ -135,5 +135,3 @@ func TestVersionCmd_VariedFormats(t *testing.T) {
 		})
 	}
 }
-
-

@@ -369,10 +369,10 @@ func TestAppImageBackend_Uninstall(t *testing.T) {
 	backend := New(cfg, &logger)
 
 	record := &core.InstallRecord{
-		InstallID:    "test-123",
-		Name:         "testapp",
-		PackageType:  "appimage",
-		InstallPath:  "",
+		InstallID:   "test-123",
+		Name:        "testapp",
+		PackageType: "appimage",
+		InstallPath: "",
 		Metadata: core.Metadata{
 			IconFiles: []string{},
 		},

@@ -308,10 +308,10 @@ func TestRPMBackend_uninstallExtracted_FullRemoval(t *testing.T) {
 	require.NoError(t, os.WriteFile(desktopPath, []byte("[Desktop Entry]\nName=Test"), 0644))
 
 	record := &core.InstallRecord{
-		InstallID:    "test-123",
-		Name:         "testapp",
-		PackageType:  "rpm",
-		InstallPath:  installDir,
+		InstallID:   "test-123",
+		Name:        "testapp",
+		PackageType: "rpm",
+		InstallPath: installDir,
 		Metadata: core.Metadata{
 			WrapperScript: wrapperPath,
 			IconFiles:     []string{},
@@ -338,10 +338,10 @@ func TestRPMBackend_uninstallExtracted_EmptyPaths(t *testing.T) {
 
 	// Test with empty paths - should not error
 	record := &core.InstallRecord{
-		InstallID:    "test-456",
-		Name:         "testapp",
-		PackageType:  "rpm",
-		InstallPath:  "", // Empty
+		InstallID:   "test-456",
+		Name:        "testapp",
+		PackageType: "rpm",
+		InstallPath: "", // Empty
 		Metadata: core.Metadata{
 			WrapperScript: "", // Empty
 			IconFiles:     []string{},
@@ -373,10 +373,10 @@ func TestRPMBackend_uninstallExtracted_WithIcons(t *testing.T) {
 	require.NoError(t, os.WriteFile(iconPath, []byte("fake icon"), 0644))
 
 	record := &core.InstallRecord{
-		InstallID:    "test-789",
-		Name:         "testapp",
-		PackageType:  "rpm",
-		InstallPath:  "",
+		InstallID:   "test-789",
+		Name:        "testapp",
+		PackageType: "rpm",
+		InstallPath: "",
 		Metadata: core.Metadata{
 			WrapperScript: "",
 			IconFiles:     []string{iconPath},

@@ -71,8 +71,8 @@ func (s *DefaultScorer) ScoreExecutable(execPath, baseName, installDir string) i
 
 	// Prefer shallow depth (executables in root or first level)
 	// Depth 1: +50, Depth 2: +40, Depth 3: +30, etc.
-	score += (11 - depth) * ScoreDepthBase
-	if depth > 10 {
+	score += (DepthScoreOffset - depth) * ScoreDepthBase
+	if depth > MaxShallowDepth {
 		score += PenaltyDeepPath
 	}
 
@@ -91,7 +91,7 @@ exactMatchLoop:
 	// Partial match: filename contains any of the variants
 partialMatchLoop:
 	for _, variant := range nameVariants {
-		if variant == "" || len(variant) < 3 {
+		if variant == "" || len(variant) < MinNameVariantLength {
 			continue
 		}
 		if strings.Contains(filename, variant) {
@@ -131,14 +131,14 @@ partialMatchLoop:
 	if info, err := os.Stat(execPath); err == nil {
 		fileSize := info.Size()
 
-		if fileSize > 10*1024*1024 {
+		if fileSize > LargeFileSizeBytes {
 			score += ScoreLargeFile
-		} else if fileSize > 1*1024*1024 {
+		} else if fileSize > MediumFileSizeBytes {
 			score += ScoreMediumFile
-		} else if fileSize < 100*1024 {
+		} else if fileSize < SmallFileSizeBytes {
 			score += PenaltySmallFile
 
-			if fileSize < 1024 {
+			if fileSize < TinyFileSizeBytes {
 				score += PenaltyTinyFile
 			}
 		}
@@ -161,7 +161,7 @@ partialMatchLoop:
 func (s *DefaultScorer) isInvalidWrapperScript(execPath string) bool {
 	// Only check small files (< 10KB) that might be scripts
 	info, err := os.Stat(execPath)
-	if err != nil || info.Size() > 10*1024 {
+	if err != nil || info.Size() > MaxScriptSizeBytes {
 		return false
 	}
 

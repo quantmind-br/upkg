@@ -12,6 +12,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/backends/appimage"
 	"github.com/quantmind-br/upkg/internal/backends/binary"
 	"github.com/quantmind-br/upkg/internal/backends/deb"
+	"github.com/quantmind-br/upkg/internal/backends/flatpak"
 	"github.com/quantmind-br/upkg/internal/backends/rpm"
 	"github.com/quantmind-br/upkg/internal/backends/tarball"
 	"github.com/quantmind-br/upkg/internal/config"
@@ -62,6 +63,9 @@ func NewRegistryWithDeps(cfg *config.Config, log *zerolog.Logger, fs afero.Fs, r
 	}
 
 	// Register backends in priority order
+	// 0. Flatpak (App IDs must be detected before file-based formats)
+	registry.backends = append(registry.backends, flatpak.NewWithDeps(cfg, log, fs, runner))
+
 	// 1. DEB and RPM (specific format detection)
 	registry.backends = append(registry.backends, deb.NewWithDeps(cfg, log, fs, runner))
 	registry.backends = append(registry.backends, rpm.NewWithDeps(cfg, log, fs, runner))

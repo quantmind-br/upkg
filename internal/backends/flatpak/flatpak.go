@@ -2,6 +2,9 @@ package flatpak
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"time"
 
 	backendbase "github.com/quantmind-br/upkg/internal/backends/base"
 	"github.com/quantmind-br/upkg/internal/config"
@@ -42,14 +45,83 @@ func (f *FlatpakBackend) Detect(ctx context.Context, input string) (bool, error)
 	return Detect(ctx, f.Fs, input)
 }
 
-// Install installs a Flatpak package
-// TODO: Implement installation logic
 func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
-	return nil, nil
+	if err := f.Runner.RequireCommand("flatpak"); err != nil {
+		return nil, err
+	}
+
+	var args []string
+	var appID string
+	var remote string
+
+	if strings.Contains(input, ":") && !strings.Contains(input, "/") {
+		parts := strings.SplitN(input, ":", 2)
+		remote = parts[0]
+		appID = parts[1]
+	} else if appIDRegex.MatchString(input) {
+		appID = input
+		remote = "flathub"
+	} else {
+		appID = input
+	}
+
+	args = []string{"install", "--user", "--noninteractive"}
+
+	if remote != "" {
+		args = append(args, remote, appID)
+	} else {
+		args = append(args, input)
+	}
+
+	f.Log.Info().
+		Str("input", input).
+		Strs("args", args).
+		Msg("Installing flatpak package")
+
+	output, err := f.Runner.RunCommand(ctx, "flatpak", args...)
+	if err != nil {
+		return nil, fmt.Errorf("flatpak install failed: %w", err)
+	}
+
+	f.Log.Debug().Str("output", output).Msg("Flatpak install output")
+
+	record := &core.InstallRecord{
+		InstallID:    helpers.GenerateInstallID(appID),
+		PackageType:  core.PackageTypeFlatpak,
+		Name:         appID,
+		InstallDate:  time.Now(),
+		OriginalFile: input,
+		InstallPath:  "",
+		Metadata:     core.Metadata{},
+	}
+
+	return record, nil
 }
 
-// Uninstall removes a Flatpak package
-// TODO: Implement uninstallation logic
 func (f *FlatpakBackend) Uninstall(ctx context.Context, record *core.InstallRecord) error {
+	if err := f.Runner.RequireCommand("flatpak"); err != nil {
+		return err
+	}
+
+	args := []string{"uninstall", "--user", "--noninteractive"}
+
+	if record.Metadata.InstallMethod == "delete-data" {
+		args = append(args, "--delete-data")
+	}
+
+	args = append(args, record.Name)
+
+	f.Log.Info().
+		Str("app_id", record.Name).
+		Strs("args", args).
+		Msg("Uninstalling flatpak package")
+
+	output, err := f.Runner.RunCommand(ctx, "flatpak", args...)
+	if err != nil {
+		return fmt.Errorf("flatpak uninstall failed: %w", err)
+	}
+
+	f.Log.Debug().Str("output", output).Msg("Flatpak uninstall output")
+
 	return nil
 }

@@ -12,6 +12,7 @@ const (
 	PackageTypeTarball  PackageType = "tarball"
 	PackageTypeZip      PackageType = "zip"
 	PackageTypeBinary   PackageType = "binary"
+	PackageTypeFlatpak  PackageType = "flatpak"
 )
 
 // InstallRecord represents a package installation in the database

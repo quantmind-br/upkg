@@ -374,7 +374,7 @@ func TestAppImageBackend_Install_ExtractFailure(t *testing.T) {
 // errorFs is a mock filesystem that can fail specific operations
 type errorFs struct {
 	afero.Fs
-	failMkdirAll bool
+	failMkdirAll  bool
 	failRemoveAll bool
 	failCreate    bool
 	failStat      bool
@@ -427,11 +427,11 @@ func TestAppImageBackend_Uninstall_WithDesktopFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(desktopPath, []byte("[Desktop Entry]"), 0644))
 
 	record := &core.InstallRecord{
-		InstallID:    "test-123",
-		Name:         "testapp",
-		PackageType:  "appimage",
-		InstallPath:  "",
-		DesktopFile:  desktopPath,
+		InstallID:   "test-123",
+		Name:        "testapp",
+		PackageType: "appimage",
+		InstallPath: "",
+		DesktopFile: desktopPath,
 		Metadata: core.Metadata{
 			IconFiles: []string{},
 		},
@@ -465,11 +465,11 @@ func TestAppImageBackend_Uninstall_WithIconFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(icon2, []byte("icon2"), 0644))
 
 	record := &core.InstallRecord{
-		InstallID:    "test-123",
-		Name:         "testapp",
-		PackageType:  "appimage",
-		InstallPath:  "",
-		DesktopFile:  "",
+		InstallID:   "test-123",
+		Name:        "testapp",
+		PackageType: "appimage",
+		InstallPath: "",
+		DesktopFile: "",
 		Metadata: core.Metadata{
 			IconFiles: []string{icon1, icon2},
 		},
@@ -518,8 +518,8 @@ func TestAppImageBackend_extractAppImage_UnsquashfsNotFound(t *testing.T) {
 			return "", fmt.Errorf("appimage extraction failed")
 		},
 	}
-	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
-	backend := NewWithCacheManager(cfg, &logger, cacheManager)
+	// Use NewWithDeps to inject the mock runner, ensuring extractAppImage uses our mock
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 	// Create fake AppImage
 	fakeAppImage := filepath.Join(tmpDir, "test.AppImage")

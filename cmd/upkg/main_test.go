@@ -17,18 +17,6 @@ import (
 
 const colorNever = "never"
 
-func captureStdout(f func()) string {
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	f()
-	w.Close()
-	os.Stdout = old
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	return buf.String()
-}
-
 func captureStderr(f func()) string {
 	old := os.Stderr
 	r, w, _ := os.Pipe()

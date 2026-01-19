@@ -27,8 +27,9 @@ func ToInstallRecord(dbRecord *Install) *core.InstallRecord {
 	if dbRecord.Metadata != nil {
 		metadataJSON, err := json.Marshal(dbRecord.Metadata)
 		if err == nil {
-			// Ignore unmarshal errors - we'll fall back to empty metadata
-			_ = json.Unmarshal(metadataJSON, &record.Metadata)
+			// Ignore unmarshal errors - fall back to empty metadata
+			//nolint:errcheck // intentional: fallback to empty on parse failure
+			json.Unmarshal(metadataJSON, &record.Metadata)
 		}
 	}
 

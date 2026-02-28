@@ -65,7 +65,7 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 		appID = ""
 	}
 
-	args = []string{"install", "--user", "--noninteractive"}
+	args = []string{"install", "--user", "--noninteractive", "--or-update"}
 
 	if remote != "" {
 		args = append(args, remote, appID)

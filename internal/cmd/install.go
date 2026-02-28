@@ -126,19 +126,6 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				return fmt.Errorf("installation failed: %w", err)
 			}
 
-			// Skip SQLite storage for flatpak - it manages its own database
-			if record.PackageType == core.PackageTypeFlatpak {
-				tx.Commit()
-				color.Green("✓ Package installed successfully")
-				color.Green("  Name: %s", record.Name)
-				color.Green("  Type: %s", record.PackageType)
-				log.Info().
-					Str("name", record.Name).
-					Str("type", string(record.PackageType)).
-					Msg("flatpak installation completed (not tracked in SQLite)")
-				return nil
-			}
-
 			// Convert to db.Install format
 			dbRecord := &db.Install{
 				InstallID:    record.InstallID,

@@ -65,6 +65,9 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 		appID = ""
 	}
 
+	// Get list of installed apps before installation
+	appsBeforeInstall := f.getInstalledAppIDs(ctx)
+
 	args = []string{"install", "--user", "--noninteractive", "--or-update"}
 
 	if remote != "" {
@@ -88,6 +91,10 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 	if appID == "" {
 		appID = extractAppIDFromOutput(output)
 		if appID == "" {
+			// Try to find newly installed app by comparing before/after
+			appID = f.findNewlyInstalledApp(ctx, appsBeforeInstall)
+		}
+		if appID == "" {
 			appID = input
 		}
 	}
@@ -103,6 +110,31 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 	}
 
 	return record, nil
+}
+
+func (f *FlatpakBackend) getInstalledAppIDs(ctx context.Context) map[string]bool {
+	apps := make(map[string]bool)
+	output, err := f.Runner.RunCommand(ctx, "flatpak", "list", "--user", "--app", "--columns=application")
+	if err != nil {
+		return apps
+	}
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && appIDRegex.MatchString(line) {
+			apps[line] = true
+		}
+	}
+	return apps
+}
+
+func (f *FlatpakBackend) findNewlyInstalledApp(ctx context.Context, before map[string]bool) string {
+	after := f.getInstalledAppIDs(ctx)
+	for appID := range after {
+		if !before[appID] {
+			return appID
+		}
+	}
+	return ""
 }
 
 func extractAppIDFromOutput(output string) string {

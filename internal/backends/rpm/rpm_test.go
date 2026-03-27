@@ -213,7 +213,7 @@ func TestInstall_NoInstallationMethod(t *testing.T) {
 	record, err := backend.Install(context.Background(), fakeRpm, core.InstallOptions{}, tx)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no suitable RPM installation method")
+	assert.Contains(t, err.Error(), "no suitable RPM extraction tool found")
 	assert.Nil(t, record)
 }
 
@@ -733,6 +733,7 @@ func TestInstallWithDebtap(t *testing.T) {
 
 		record, err := backend.installWithDebtap(context.Background(), rpmPath, "test-app", "test-id", core.InstallOptions{}, tx)
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "deprecated")
 		assert.Nil(t, record)
 	})
 
@@ -753,6 +754,7 @@ func TestInstallWithDebtap(t *testing.T) {
 
 		record, err := backend.installWithDebtap(context.Background(), rpmPath, "test-app", "test-id", core.InstallOptions{}, tx)
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "deprecated")
 		assert.Nil(t, record)
 	})
 }

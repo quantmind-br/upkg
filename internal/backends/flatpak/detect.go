@@ -12,6 +12,26 @@ import (
 // App ID regex: at least 3 segments, each starting with letter, containing only letters/numbers/underscores
 var appIDRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*){2,}$`)
 
+// IsFlatpakAppID checks if the input matches the flatpak app ID format (e.g., com.example.App)
+func IsFlatpakAppID(input string) bool {
+	if strings.Contains(input, "/") || strings.HasPrefix(input, ".") {
+		return false
+	}
+	return appIDRegex.MatchString(input)
+}
+
+// IsFlatpakRemoteRef checks if the input is a remote:app.id reference (e.g., flathub:com.example.App)
+func IsFlatpakRemoteRef(input string) bool {
+	if !strings.Contains(input, ":") || strings.Contains(input, "/") {
+		return false
+	}
+	parts := strings.SplitN(input, ":", 2)
+	if len(parts) != 2 {
+		return false
+	}
+	return appIDRegex.MatchString(parts[1])
+}
+
 // Detect checks if the input is a flatpak package, flatpakref, or App ID
 func Detect(ctx context.Context, fs afero.Fs, input string) (bool, error) {
 	// Check if input looks like a file path (contains / or starts with .)

@@ -95,12 +95,20 @@ Use Cobra built-ins:
 | `doctor.go` | Interactive prompts |
 | `list.go` | Table output |
 
+## Known Issues
+
+| File | Issue |
+|------|-------|
+| `uninstall.go` (531 lines) | Uses `fmt.Printf` instead of `ui` package |
+| `uninstall.go` | Contains ad-hoc Flatpak logic (should be in backend) |
+
 ## Anti-Patterns
 
 | Don't | Do Instead |
 |-------|------------|
 | Global services | Initialize in RunE |
-| `fmt.Printf` | Use `ui.*` helpers |
+| `fmt.Printf` for output | Use `ui.*` helpers |
 | Manual arg validation | Use `cobra.*Args` |
 | Ignore errors from RunE | Return all errors |
 | Skip `defer Close()` | Always close DB/files |
+| Business logic in cmd | Delegate to backends/core |

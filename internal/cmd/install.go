@@ -11,6 +11,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/quantmind-br/upkg/internal/backends"
+	"github.com/quantmind-br/upkg/internal/backends/flatpak"
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
@@ -44,12 +45,16 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		RunE: func(_ *cobra.Command, args []string) error {
 			packagePath := args[0]
 
-			absPath, err := filepath.Abs(packagePath)
-			if err != nil {
-				color.Red("Error: invalid package path: %v", err)
-				return fmt.Errorf("invalid package path: %w", err)
+			isFlatpakAppID := flatpak.IsFlatpakAppID(packagePath) || flatpak.IsFlatpakRemoteRef(packagePath)
+
+			if !isFlatpakAppID {
+				absPath, err := filepath.Abs(packagePath)
+				if err != nil {
+					color.Red("Error: invalid package path: %v", err)
+					return fmt.Errorf("invalid package path: %w", err)
+				}
+				packagePath = absPath
 			}
-			packagePath = absPath
 
 			log.Info().
 				Str("package", packagePath).
@@ -57,9 +62,11 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				Bool("skip_desktop", skipDesktop).
 				Msg("starting installation")
 
-			if validateErr := security.ValidatePath(packagePath); validateErr != nil {
-				color.Red("Error: invalid package path: %v", validateErr)
-				return fmt.Errorf("invalid package path: %w", validateErr)
+			if !isFlatpakAppID {
+				if validateErr := security.ValidatePath(packagePath); validateErr != nil {
+					color.Red("Error: invalid package path: %v", validateErr)
+					return fmt.Errorf("invalid package path: %w", validateErr)
+				}
 			}
 
 			if customName != "" {
@@ -70,10 +77,11 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				}
 			}
 
-			// Validate package exists
-			if _, statErr := os.Stat(packagePath); statErr != nil {
-				color.Red("Error: package file not found: %s", packagePath)
-				return fmt.Errorf("package not found: %w", statErr)
+			if !isFlatpakAppID {
+				if _, statErr := os.Stat(packagePath); statErr != nil {
+					color.Red("Error: package file not found: %s", packagePath)
+					return fmt.Errorf("package not found: %w", statErr)
+				}
 			}
 
 			// Create context with timeout

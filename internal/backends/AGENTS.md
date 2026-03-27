@@ -20,10 +20,11 @@ type Backend interface {
 In `backend.go` → `NewRegistryWithDeps()`:
 
 ```
-1. DEB, RPM      ← Specific archive formats (checked first)
-2. AppImage      ← Must precede Binary (AppImages are ELF)
-3. Binary        ← Generic ELF executables
-4. Tarball/ZIP   ← Generic fallback (checked last)
+1. Flatpak       ← System-managed, highest priority
+2. DEB, RPM      ← Specific archive formats
+3. AppImage      ← Must precede Binary (AppImages are ELF)
+4. Binary        ← Generic ELF executables
+5. Tarball/ZIP   ← Generic fallback (checked last)
 ```
 
 **Wrong order = incorrect detection.** AppImage before Binary is mandatory.
@@ -31,10 +32,10 @@ In `backend.go` → `NewRegistryWithDeps()`:
 ## Adding a New Backend
 
 1. Create `internal/backends/<format>/<format>.go`
-2. Embed `base.BaseBackend` for shared deps
+2. Embed `*backendbase.BaseBackend` for shared deps
 3. Implement `Backend` interface
 4. Register in `backend.go` at correct priority
-5. Add tests with `afero.MemMapFs`
+5. Add tests with `afero.MemMapFs` + `MockCommandRunner`
 
 ## BaseBackend (Shared Dependencies)
 
@@ -48,17 +49,19 @@ type BaseBackend struct {
 }
 ```
 
+All backends MUST embed this and use `b.Fs`, `b.Runner`, `b.Log` instead of direct calls.
+
 ## Transaction Pattern (MANDATORY)
 
 ```go
 func (b *Backend) Install(..., tx *transaction.Manager) (*core.InstallRecord, error) {
     // ALWAYS register rollback BEFORE the action
     tx.Add("remove_install_dir", func() error {
-        return os.RemoveAll(installPath)
+        return b.Fs.RemoveAll(installPath)
     })
     
     // Now safe to create
-    if err := os.MkdirAll(installPath, 0755); err != nil {
+    if err := b.Fs.MkdirAll(installPath, 0755); err != nil {
         return nil, fmt.Errorf("create dir: %w", err)
     }
     
@@ -83,8 +86,16 @@ func (b *Backend) Install(..., tx *transaction.Manager) (*core.InstallRecord, er
 | DEB: debtap+pacman | `deb/deb.go` |
 | RPM: rpmextract | `rpm/rpm.go` |
 | AppImage: squashfs | `appimage/appimage.go` |
+| Flatpak: system | `flatpak/flatpak.go` |
 | Archives: heuristics | `tarball/tarball.go` |
 | ELF binaries | `binary/binary.go` |
+
+## Complexity Hotspots
+
+| File | Issue | Refactoring Suggestion |
+|------|-------|------------------------|
+| `rpm/rpm.go` (900 lines) | God object: mixes strategy selection + shell | Extract `RpmExtractor` and `DebtapInstaller` |
+| `tarball/tarball.go` (875 lines) | Handles 5+ archive formats | Create `internal/archive` with `Extractor` interface |
 
 ## Anti-Patterns
 
@@ -92,5 +103,7 @@ func (b *Backend) Install(..., tx *transaction.Manager) (*core.InstallRecord, er
 |-------|------------|
 | Use file extensions for detection | Check magic numbers |
 | Skip `tx.Add()` | Always register rollback first |
-| Use `os.` directly | Use injected `Fs` |
+| Use `os.*` directly | Use `b.Fs` from BaseBackend |
+| Use `exec.Command` | Use `b.Runner.RunCommand()` |
 | Global logger | Use `b.Log` from BaseBackend |
+| Hardcode paths | Use `b.Paths` resolver |

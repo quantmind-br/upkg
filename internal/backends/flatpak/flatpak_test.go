@@ -65,7 +65,11 @@ func TestFlatpakBackend_Install(t *testing.T) {
 					if name != "flatpak" {
 						return "", fmt.Errorf("unexpected command: %s", name)
 					}
-					expectedArgs := []string{"install", "--user", "--noninteractive", "flathub", "org.mozilla.firefox"}
+					// Handle flatpak list for getInstalledAppIDs
+					if len(args) > 0 && args[0] == "list" {
+						return "", nil
+					}
+					expectedArgs := []string{"install", "--user", "--noninteractive", "--or-update", "flathub", "org.mozilla.firefox"}
 					if !reflect.DeepEqual(args, expectedArgs) {
 						return "", fmt.Errorf("unexpected args: got %v, want %v", args, expectedArgs)
 					}
@@ -91,7 +95,10 @@ func TestFlatpakBackend_Install(t *testing.T) {
 					if name != "flatpak" {
 						return "", fmt.Errorf("unexpected command: %s", name)
 					}
-					expectedArgs := []string{"install", "--user", "--noninteractive", "/tmp/app.flatpak"}
+					if len(args) > 0 && args[0] == "list" {
+						return "", nil
+					}
+					expectedArgs := []string{"install", "--user", "--noninteractive", "--or-update", "/tmp/app.flatpak"}
 					if !reflect.DeepEqual(args, expectedArgs) {
 						return "", fmt.Errorf("unexpected args: got %v, want %v", args, expectedArgs)
 					}
@@ -120,7 +127,10 @@ func TestFlatpakBackend_Install(t *testing.T) {
 					if name != "flatpak" {
 						return "", fmt.Errorf("unexpected command: %s", name)
 					}
-					expectedArgs := []string{"install", "--user", "--noninteractive", "/tmp/app.flatpakref"}
+					if len(args) > 0 && args[0] == "list" {
+						return "", nil
+					}
+					expectedArgs := []string{"install", "--user", "--noninteractive", "--or-update", "/tmp/app.flatpakref"}
 					if !reflect.DeepEqual(args, expectedArgs) {
 						return "", fmt.Errorf("unexpected args: got %v, want %v", args, expectedArgs)
 					}
@@ -149,7 +159,10 @@ func TestFlatpakBackend_Install(t *testing.T) {
 					if name != "flatpak" {
 						return "", fmt.Errorf("unexpected command: %s", name)
 					}
-					expectedArgs := []string{"install", "--user", "--noninteractive", "fedora", "org.gnome.Builder"}
+					if len(args) > 0 && args[0] == "list" {
+						return "", nil
+					}
+					expectedArgs := []string{"install", "--user", "--noninteractive", "--or-update", "fedora", "org.gnome.Builder"}
 					if !reflect.DeepEqual(args, expectedArgs) {
 						return "", fmt.Errorf("unexpected args: got %v, want %v", args, expectedArgs)
 					}

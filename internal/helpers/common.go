@@ -1,11 +1,14 @@
 package helpers
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-	"time"
+
+	"github.com/google/uuid"
+	"github.com/spf13/afero"
 )
 
 // NormalizeFilename normalizes a filename by converting to lowercase and replacing special characters
@@ -26,7 +29,7 @@ func NormalizeFilename(name string) string {
 
 // GenerateInstallID generates a unique installation ID from a name
 func GenerateInstallID(name string) string {
-	return fmt.Sprintf("%s-%d", name, time.Now().Unix())
+	return fmt.Sprintf("%s-%s", name, uuid.NewString())
 }
 
 // CopyFile copies a file from src to dst with proper error handling and sync
@@ -60,5 +63,25 @@ func CopyFile(src, dst string) (err error) {
 		return fmt.Errorf("failed to sync file to disk: %w", err)
 	}
 
+	return nil
+}
+
+// RemoveIfExists removes path from fs (recursively when requested), treating an
+// empty path and a missing path as success. Any other failure is wrapped with
+// the path for context. It centralizes the idempotent-removal policy shared by
+// the backends' install rollbacks and uninstall flows.
+func RemoveIfExists(fs afero.Fs, path string, recursive bool) error {
+	if path == "" {
+		return nil
+	}
+	var err error
+	if recursive {
+		err = fs.RemoveAll(path)
+	} else {
+		err = fs.Remove(path)
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to remove %q: %w", path, err)
+	}
 	return nil
 }

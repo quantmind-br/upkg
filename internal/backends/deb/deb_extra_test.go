@@ -12,6 +12,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/paths"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
@@ -166,7 +167,7 @@ func TestDebBackendDetect(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		debPath := filepath.Join(tmpDir, "test.deb")
-		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary"), 0644))
+		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary   "), 0644))
 
 		result, err := backend.Detect(context.Background(), debPath)
 
@@ -630,7 +631,7 @@ func TestDebBackend_DetectAdditional(t *testing.T) {
 		assert.False(t, result)
 	})
 
-	t.Run("empty file with deb extension is detected by extension", func(t *testing.T) {
+	t.Run("empty file with deb extension is not detected", func(t *testing.T) {
 		logger := zerolog.New(io.Discard)
 		cfg := &config.Config{}
 		backend := New(cfg, &logger)
@@ -642,11 +643,11 @@ func TestDebBackend_DetectAdditional(t *testing.T) {
 		result, err := backend.Detect(context.Background(), emptyFile)
 
 		assert.NoError(t, err)
-		// Detection is based on extension, not content
-		assert.True(t, result)
+		// Detection is by content signature: an empty file is never a DEB.
+		assert.False(t, result)
 	})
 
-	t.Run("file with partial magic bytes", func(t *testing.T) {
+	t.Run("file with partial magic bytes is not detected", func(t *testing.T) {
 		logger := zerolog.New(io.Discard)
 		cfg := &config.Config{}
 		backend := New(cfg, &logger)
@@ -658,7 +659,8 @@ func TestDebBackend_DetectAdditional(t *testing.T) {
 		result, err := backend.Detect(context.Background(), partialFile)
 
 		assert.NoError(t, err)
-		assert.True(t, result)
+		// The ar magic alone (without the debian-binary member) is not a DEB.
+		assert.False(t, result)
 	})
 }
 
@@ -719,9 +721,6 @@ func TestDebBackend_RemoveUserIcons(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -730,6 +729,7 @@ func TestDebBackend_RemoveUserIcons(t *testing.T) {
 	}
 	fs := afero.NewOsFs()
 	backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	t.Run("removes existing icons", func(t *testing.T) {
 		// Create icon directory
@@ -791,9 +791,6 @@ func TestDebBackend_UpdateDesktopFileWayland_Coverage(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{
 		Desktop: config.DesktopConfig{
@@ -801,6 +798,7 @@ func TestDebBackend_UpdateDesktopFileWayland_Coverage(t *testing.T) {
 		},
 	}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	t.Run("updates desktop file with wayland vars", func(t *testing.T) {
 		// Create a desktop file

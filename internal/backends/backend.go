@@ -1,11 +1,9 @@
 package backends
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -135,7 +133,7 @@ func (r *Registry) createDetectionError(packagePath string) error {
 	errorMsg += "\n  • Zip (.zip)"
 	errorMsg += "\n  • ELF Binary (executable files)"
 
-	if fileType == "shell script" || fileType == "text" {
+	if fileType == fileTypeDisplayName(helpers.FileTypeScript) {
 		errorMsg += "\n\nNote: Shell scripts and text files are not supported as standalone packages."
 		errorMsg += "\nWorkaround: Package your script in a tarball (.tar.gz) with any required assets."
 	}
@@ -153,65 +151,41 @@ func (r *Registry) createDetectionError(packagePath string) error {
 	return errors.New(errorMsg)
 }
 
-// detectFileType attempts to detect the file type
-//
-//nolint:gocyclo // file type detection is a set of signature checks.
+// detectFileType reports a human-readable file-type label for diagnostics,
+// derived from the single content-signature detector so classification matches
+// what the backends themselves use. No extension or looser fallback.
 func (r *Registry) detectFileType(packagePath string) (string, error) {
-	// Use the file command to detect type
-	// This is a simplified version - could be more sophisticated
-	file, err := os.Open(packagePath)
+	fileType, err := helpers.DetectFileType(packagePath)
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = file.Close() }()
-
-	// Read first 512 bytes for magic number detection
-	buf := make([]byte, 512)
-	n, err := file.Read(buf)
-	if err != nil {
-		return "", err
+	if fileType == helpers.FileTypeUnknown {
+		return "", fmt.Errorf("unknown file type")
 	}
+	return fileTypeDisplayName(fileType), nil
+}
 
-	// Check for common file signatures
-	if n >= 4 {
-		// DEB magic: "!<arch>\ndebian"
-		if n >= 16 && bytes.Contains(buf[:60], []byte("debian")) {
-			return "deb", nil
-		}
-		// RPM magic: 0xED 0xAB 0xEE 0xDB
-		if buf[0] == 0xED && buf[1] == 0xAB && buf[2] == 0xEE && buf[3] == 0xDB {
-			return "rpm", nil
-		}
-		// ELF binary
-		if buf[0] == 0x7f && buf[1] == 0x45 && buf[2] == 0x4c && buf[3] == 0x46 {
-			return "ELF binary", nil
-		}
-		// Shell script
-		if buf[0] == '#' && buf[1] == '!' {
-			return "shell script", nil
-		}
-		// Zip/JAR
-		if buf[0] == 'P' && buf[1] == 'K' {
-			return "ZIP archive", nil
-		}
+// fileTypeDisplayName maps a detected FileType to the human-readable label used
+// in user-facing diagnostics.
+func fileTypeDisplayName(fileType helpers.FileType) string {
+	switch fileType {
+	case helpers.FileTypeDEB:
+		return "deb"
+	case helpers.FileTypeRPM:
+		return "rpm"
+	case helpers.FileTypeAppImage:
+		return "AppImage"
+	case helpers.FileTypeELF:
+		return "ELF binary"
+	case helpers.FileTypeScript:
+		return "shell script"
+	case helpers.FileTypeZip:
+		return "ZIP archive"
+	case helpers.FileTypeTarGz, helpers.FileTypeTarXz, helpers.FileTypeTarBz2, helpers.FileTypeTar:
+		return packageTypeTarball
+	default:
+		return string(fileType)
 	}
-
-	// Check for gzip (tar.gz)
-	if n >= 2 && buf[0] == 0x1f && buf[1] == 0x8b {
-		return packageTypeTarball, nil
-	}
-
-	// Check for bzip2 (tar.bz2)
-	if n >= 3 && buf[0] == 'B' && buf[1] == 'Z' && buf[2] == 'h' {
-		return packageTypeTarball, nil
-	}
-
-	// Check for XZ (tar.xz)
-	if n >= 6 && buf[0] == 0xfd && buf[1] == '7' && buf[2] == 'z' && buf[3] == 'X' && buf[4] == 'Z' && buf[5] == 0x00 {
-		return packageTypeTarball, nil
-	}
-
-	return "", fmt.Errorf("unknown file type")
 }
 
 // GetBackend retrieves a backend by name

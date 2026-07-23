@@ -502,7 +502,9 @@ func TestInstallCmd_InvalidTimeout(t *testing.T) {
 	require.NoError(t, os.WriteFile(testFile, []byte("fake"), 0644))
 
 	cmd.SetArgs([]string{"--timeout", "-1", testFile})
-	_ = cmd.Execute()
+	err := cmd.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout must be greater than zero seconds")
 }
 
 func TestInstallCmd_WithInvalidSanitizedName(t *testing.T) {

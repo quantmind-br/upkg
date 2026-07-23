@@ -273,7 +273,7 @@ func checkPackageIntegrity(installs []db.Install) []brokenInstall {
 
 		// Check wrapper script
 		if install.Metadata != nil {
-			if wrapper, ok := install.Metadata["wrapper_script"].(string); ok && wrapper != "" {
+			if wrapper, ok := install.Metadata[metaKeyWrapperScript].(string); ok && wrapper != "" {
 				if _, err := os.Stat(wrapper); os.IsNotExist(err) {
 					missing = append(missing, wrapper)
 				}
@@ -281,9 +281,9 @@ func checkPackageIntegrity(installs []db.Install) []brokenInstall {
 
 			// Check icon files
 			var iconFiles []string
-			if iconsSlice, ok := install.Metadata["icon_files"].([]string); ok {
+			if iconsSlice, ok := install.Metadata[metaKeyIconFiles].([]string); ok {
 				iconFiles = iconsSlice
-			} else if iconsInterface, ok := install.Metadata["icon_files"].([]interface{}); ok {
+			} else if iconsInterface, ok := install.Metadata[metaKeyIconFiles].([]interface{}); ok {
 				for _, item := range iconsInterface {
 					if str, ok := item.(string); ok {
 						iconFiles = append(iconFiles, str)
@@ -312,9 +312,9 @@ func getDesktopFilesFromDB(install db.Install) []string {
 	var desktopFiles []string
 
 	if install.Metadata != nil {
-		if files, ok := install.Metadata["desktop_files"].([]string); ok {
+		if files, ok := install.Metadata[metaKeyDesktopFiles].([]string); ok {
 			desktopFiles = append(desktopFiles, files...)
-		} else if filesInterface, ok := install.Metadata["desktop_files"].([]interface{}); ok {
+		} else if filesInterface, ok := install.Metadata[metaKeyDesktopFiles].([]interface{}); ok {
 			for _, item := range filesInterface {
 				if str, ok := item.(string); ok {
 					desktopFiles = append(desktopFiles, str)
@@ -332,7 +332,7 @@ func getDesktopFilesFromDB(install db.Install) []string {
 
 func isSystemManagedInstall(install db.Install) bool {
 	if install.Metadata != nil {
-		if method, ok := install.Metadata["install_method"].(string); ok && method != "" {
+		if method, ok := install.Metadata[metaKeyInstallMethod].(string); ok && method != "" {
 			return method == core.InstallMethodPacman
 		}
 	}

@@ -3,8 +3,8 @@ package helpers
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,23 +34,22 @@ func TestNormalizeFilename(t *testing.T) {
 }
 
 func TestGenerateInstallID(t *testing.T) {
-	t.Run("generates unique IDs", func(t *testing.T) {
+	t.Run("generates unique IDs immediately", func(t *testing.T) {
 		id1 := GenerateInstallID("test")
-		time.Sleep(1 * time.Second)
 		id2 := GenerateInstallID("test")
 
-		// IDs should be different due to timestamp
+		// IDs must differ even within the same second (UUID suffix).
 		assert.NotEqual(t, id1, id2)
 	})
 
-	t.Run("includes name", func(t *testing.T) {
+	t.Run("includes name prefix", func(t *testing.T) {
 		id := GenerateInstallID("myapp")
-		assert.Contains(t, id, "myapp")
+		assert.True(t, strings.HasPrefix(id, "myapp-"))
 	})
 
 	t.Run("format consistency", func(t *testing.T) {
 		id := GenerateInstallID("test")
-		// Should be in format: name-timestamp
+		// Should be in format: name-uuid
 		assert.Contains(t, id, "-")
 	})
 }

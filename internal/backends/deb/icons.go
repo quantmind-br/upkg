@@ -12,19 +12,21 @@ import (
 	"github.com/quantmind-br/upkg/internal/security"
 )
 
+const scalableSize = "scalable"
+
 var (
 	iconSizePattern = regexp.MustCompile(`(?i)(\d+)x(\d+)`)
 	standardSizes   = map[string]struct{}{
-		"16x16":    {},
-		"22x22":    {},
-		"24x24":    {},
-		"32x32":    {},
-		"48x48":    {},
-		"64x64":    {},
-		"128x128":  {},
-		"256x256":  {},
-		"512x512":  {},
-		"scalable": {},
+		"16x16":      {},
+		"22x22":      {},
+		"24x24":      {},
+		"32x32":      {},
+		"48x48":      {},
+		"64x64":      {},
+		"128x128":    {},
+		"256x256":    {},
+		"512x512":    {},
+		scalableSize: {},
 	}
 )
 
@@ -38,8 +40,8 @@ func iconNameMatches(iconPath, iconName string) bool {
 
 func iconSizeFromPath(path string) (string, bool) {
 	lower := strings.ToLower(path)
-	if strings.Contains(lower, "scalable") {
-		return "scalable", true
+	if strings.Contains(lower, scalableSize) {
+		return scalableSize, true
 	}
 	matches := iconSizePattern.FindStringSubmatch(lower)
 	if len(matches) >= 3 {
@@ -99,7 +101,7 @@ func iconPathSizeScore(path string) int {
 	if !ok {
 		return 0
 	}
-	if size == "scalable" {
+	if size == scalableSize {
 		return 100000
 	}
 	parts := strings.Split(size, "x")

@@ -14,7 +14,9 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/rs/zerolog"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1267,24 +1269,88 @@ func TestPerformUninstall_DatabaseDeleteError(t *testing.T) {
 	ctx := context.Background()
 	database, err := db.New(ctx, dbPath)
 	require.NoError(t, err)
-	// Close database immediately to simulate delete failure
+	// Close the database so the delete after a successful backend uninstall fails.
 	database.Close()
 
 	log := zerolog.Nop()
 	registry := backends.NewRegistry(cfg, &log)
 
-	// Create a valid appimage record (but database is closed so delete will fail)
+	// A binary record with no on-disk artifacts: Backend.Uninstall succeeds, so
+	// the only failure is the database delete, which must propagate.
 	record := &core.InstallRecord{
 		InstallID:   "test-id",
-		PackageType: core.PackageTypeAppImage,
+		PackageType: core.PackageTypeBinary,
 		Name:        "TestApp",
-		InstallPath: tmpDir,
+		InstallPath: filepath.Join(tmpDir, "nonexistent"),
 		InstallDate: time.Now(),
 	}
 
-	// This should fail during database delete
 	err = performUninstall(ctx, registry, database, &log, record)
-	// Backend uninstall will succeed (no files to remove), but database delete may fail
-	// Just verify the function completes without panicking
-	_ = err
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to remove install record")
+}
+
+func TestPerformUninstall_FlatpakDeletesRecord(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile:  dbPath,
+			DataDir: tmpDir,
+		},
+	}
+
+	ctx := context.Background()
+	database, err := db.New(ctx, dbPath)
+	require.NoError(t, err)
+	defer func() { _ = database.Close() }()
+
+	// Insert a Flatpak install record so we can prove it is removed afterwards.
+	install := &db.Install{
+		InstallID:   "flatpak-app-id",
+		PackageType: string(core.PackageTypeFlatpak),
+		Name:        "com.example.App",
+		Version:     "1.0",
+		InstallDate: time.Now(),
+		InstallPath: "",
+	}
+	require.NoError(t, database.Create(ctx, install))
+
+	// A mock runner where `flatpak` exists and uninstall succeeds.
+	mockRunner := &helpers.MockCommandRunner{
+		RequireCommandFunc: func(_ string) error { return nil },
+		CommandExistsFunc:  func(_ string) bool { return true },
+		RunCommandFunc:     func(_ context.Context, _ string, _ ...string) (string, error) { return "", nil },
+	}
+	log := zerolog.Nop()
+	registry := backends.NewRegistryWithDeps(cfg, &log, afero.NewMemMapFs(), mockRunner)
+
+	record := db.ToInstallRecord(install)
+	require.NoError(t, performUninstall(ctx, registry, database, &log, record))
+
+	got, getErr := database.Get(ctx, "flatpak-app-id")
+	require.Error(t, getErr)
+	assert.Contains(t, getErr.Error(), "install not found: flatpak-app-id")
+	assert.Nil(t, got)
+}
+
+func TestRunUninstallCmd_InvalidTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Paths: config.PathsConfig{
+			DBFile:  filepath.Join(t.TempDir(), "test.db"),
+			DataDir: t.TempDir(),
+		},
+	}
+	log := zerolog.Nop()
+
+	for _, timeout := range []int{0, -5} {
+		opts := &uninstallOptions{timeoutSec: timeout, yes: true}
+		err := runUninstallCmd(cfg, &log, opts, []string{"somepkg"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeout must be greater than zero seconds")
+	}
 }

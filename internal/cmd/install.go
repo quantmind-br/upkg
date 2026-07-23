@@ -23,6 +23,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Metadata keys persisted in the install record's JSON metadata column.
+const (
+	metaKeyIconFiles      = "icon_files"
+	metaKeyWrapperScript  = "wrapper_script"
+	metaKeyWaylandSupport = "wayland_support"
+	metaKeyInstallMethod  = "install_method"
+	metaKeyDesktopFiles   = "desktop_files"
+)
+
 // NewInstallCmd creates the install command
 //
 //nolint:gocyclo // command wiring includes validation and multiple optional flows.
@@ -43,6 +52,13 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		Long:  `Install a package from the specified file (AppImage, DEB, RPM, Tarball, or Binary).`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
+			// Validate the timeout flag first: it is independent of the package
+			// path, and a non-positive value yields an already-expired context.
+			if timeoutSecs <= 0 {
+				color.Red("Error: timeout must be greater than zero seconds")
+				return fmt.Errorf("timeout must be greater than zero seconds")
+			}
+
 			packagePath := args[0]
 
 			isFlatpakAppID := flatpak.IsFlatpakAppID(packagePath) || flatpak.IsFlatpakRemoteRef(packagePath)
@@ -145,33 +161,42 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				InstallPath:  record.InstallPath,
 				DesktopFile:  record.DesktopFile,
 				Metadata: map[string]interface{}{
-					"icon_files":      record.Metadata.IconFiles,
-					"wrapper_script":  record.Metadata.WrapperScript,
-					"wayland_support": record.Metadata.WaylandSupport,
-					"install_method":  record.Metadata.InstallMethod,
-					"desktop_files":   record.Metadata.DesktopFiles,
+					metaKeyIconFiles:      record.Metadata.IconFiles,
+					metaKeyWrapperScript:  record.Metadata.WrapperScript,
+					metaKeyWaylandSupport: record.Metadata.WaylandSupport,
+					metaKeyInstallMethod:  record.Metadata.InstallMethod,
+					metaKeyDesktopFiles:   record.Metadata.DesktopFiles,
 				},
 			}
 
-			// Save to database
-			if err := database.Create(ctx, dbRecord); err != nil {
-				color.Red("Error: failed to save installation record: %v", err)
-				// Manual cleanup is handled by transaction rollback (deferred)
-				// For legacy/unsupported cleanup, we might still want to try Uninstall
-				// but ideally we trust the transaction.
-				// Since we haven't fully migrated all cleanup to transaction yet,
-				// keeping backend.Uninstall is safer for now as a fallback.
-				if cleanupErr := backend.Uninstall(ctx, record); cleanupErr != nil {
-					log.Warn().
-						Err(cleanupErr).
-						Str("install_path", record.InstallPath).
-						Msg("failed to cleanup after database save failure")
+			// Persist the record. A forced local reinstall replaces any prior row
+			// for the same (package_type, install_path) atomically, preserving the
+			// canonical ID/date; all other cases insert a fresh row.
+			if force && isLocalPackageType(record.PackageType) {
+				canonical, replaceErr := database.ReplaceByPath(ctx, dbRecord)
+				if replaceErr != nil {
+					color.Red("Error: failed to save installation record: %v", replaceErr)
+					// Filesystem rollback (deferred) restores any backed-up install.
+					return fmt.Errorf("failed to save installation record: %w", replaceErr)
 				}
-				return fmt.Errorf("failed to save installation record: %w", err)
+				dbRecord.InstallID = canonical.InstallID
+				dbRecord.InstallDate = canonical.InstallDate
+				record.InstallID = canonical.InstallID
+				record.InstallDate = canonical.InstallDate
+			} else {
+				if createErr := database.Create(ctx, dbRecord); createErr != nil {
+					color.Red("Error: failed to save installation record: %v", createErr)
+					// Filesystem rollback (deferred) restores any backed-up install.
+					return fmt.Errorf("failed to save installation record: %w", createErr)
+				}
 			}
 
-			// Commit transaction
-			tx.Commit()
+			// Commit transaction. A finalizer failure (e.g. leftover backup) does
+			// not undo the persisted install; report it as a warning.
+			if commitErr := tx.Commit(); commitErr != nil {
+				log.Warn().Err(commitErr).Msg("transaction commit cleanup failed")
+				color.Yellow("Warning: post-install cleanup failed: %v", commitErr)
+			}
 
 			// Try to fix dock icon if we have a desktop file and Hyprland is running
 			if record.DesktopFile != "" &&
@@ -216,6 +241,18 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "overwrite conflicting files from other packages (DEB/RPM only)")
 
 	return cmd
+}
+
+// isLocalPackageType reports whether a package type installs into the user's
+// managed local directories and therefore supports atomic force replacement by
+// install path.
+func isLocalPackageType(pt core.PackageType) bool {
+	switch pt {
+	case core.PackageTypeAppImage, core.PackageTypeBinary, core.PackageTypeTarball, core.PackageTypeRpm:
+		return true
+	default:
+		return false
+	}
 }
 
 // fixDockIcon prompts user to open app, captures initialClass, and renames .desktop file for dock compatibility.

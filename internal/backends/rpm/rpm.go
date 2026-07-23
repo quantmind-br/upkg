@@ -2,6 +2,7 @@ package rpm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -85,22 +86,39 @@ func (r *RpmBackend) Detect(_ context.Context, packagePath string) (bool, error)
 }
 
 // Install installs the RPM package
-func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (record *core.InstallRecord, err error) {
 	r.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
 		Msg("installing RPM package")
 
+	// Ensure a non-nil transaction before any filesystem mutation.
+	if tx == nil {
+		localTx := transaction.NewManager(r.Log)
+		tx = localTx
+		defer func() {
+			if err != nil {
+				if rbErr := localTx.Rollback(); rbErr != nil {
+					r.Log.Error().Err(rbErr).Msg("rollback failed")
+				}
+				return
+			}
+			if cErr := localTx.Commit(); cErr != nil {
+				r.Log.Warn().Err(cErr).Msg("transaction commit cleanup failed")
+			}
+		}()
+	}
+
 	// Validate package exists
-	if _, err := r.Fs.Stat(packagePath); err != nil {
-		return nil, fmt.Errorf("package not found: %w", err)
+	if _, statErr := r.Fs.Stat(packagePath); statErr != nil {
+		return nil, fmt.Errorf("package not found: %w", statErr)
 	}
 
 	// Determine package name
 	pkgName := opts.CustomName
 	if pkgName == "" {
 		// Try to get official package name from RPM metadata (best practice)
-		if name, err := r.queryRpmName(ctx, packagePath); err == nil && name != "" {
+		if name, nameErr := r.queryRpmName(ctx, packagePath); nameErr == nil && name != "" {
 			pkgName = name
 			r.Log.Debug().
 				Str("name", name).
@@ -115,8 +133,8 @@ func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.
 	}
 
 	normalizedName := helpers.NormalizeFilename(pkgName)
-	if err := security.ValidatePackageName(normalizedName); err != nil {
-		return nil, fmt.Errorf("invalid normalized name %q: %w", normalizedName, err)
+	if validateErr := security.ValidatePackageName(normalizedName); validateErr != nil {
+		return nil, fmt.Errorf("invalid normalized name %q: %w", normalizedName, validateErr)
 	}
 	installID := helpers.GenerateInstallID(normalizedName)
 
@@ -131,7 +149,7 @@ func (r *RpmBackend) Install(ctx context.Context, packagePath string, opts core.
 // installWithExtract installs RPM by extracting and manually placing files
 //
 //nolint:gocyclo // extraction install handles multiple fallbacks and integrations.
-func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normalizedName, installID string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normalizedName, installID string, opts core.InstallOptions, tx *transaction.Manager) (record *core.InstallRecord, err error) {
 	r.Log.Info().Msg("extracting RPM package...")
 
 	homeDir := r.Paths.HomeDir()
@@ -178,35 +196,35 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	// Create installation directory
 	appsDir := r.Paths.GetUpkgAppsDir()
 	installDir := filepath.Join(appsDir, normalizedName)
+	binDir := r.Paths.GetBinDir()
+	wrapperPath := filepath.Join(binDir, normalizedName)
+	appsDbDir := r.Paths.GetAppsDir()
+	desktopTarget := filepath.Join(appsDbDir, normalizedName+".desktop")
 
-	if _, statErr := r.Fs.Stat(installDir); statErr == nil {
-		if !opts.Force {
-			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", installDir)
+	// Reject an existing installation unless forced.
+	if _, statErr := r.Fs.Stat(installDir); statErr == nil && !opts.Force {
+		return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", installDir)
+	}
+
+	// With --force, back up the replaced artifacts BEFORE creating new ones.
+	if opts.Force {
+		if bErr := tx.BackupForReplace(r.Fs, installDir); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing installation: %w", bErr)
 		}
-		if removeErr := r.Fs.RemoveAll(installDir); removeErr != nil {
-			return nil, fmt.Errorf("remove existing installation directory: %w", removeErr)
+		if bErr := tx.BackupForReplace(r.Fs, wrapperPath); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing wrapper: %w", bErr)
 		}
-		// Best-effort cleanup of expected wrapper/desktop paths
-		binDir := r.Paths.GetBinDir()
-		oldWrapper := filepath.Join(binDir, normalizedName)
-		if removeErr := r.Fs.Remove(oldWrapper); removeErr != nil {
-			r.Log.Debug().Err(removeErr).Str("path", oldWrapper).Msg("failed to remove existing wrapper")
-		}
-		appsDbDir := r.Paths.GetAppsDir()
-		oldDesktop := filepath.Join(appsDbDir, normalizedName+".desktop")
-		if removeErr := r.Fs.Remove(oldDesktop); removeErr != nil {
-			r.Log.Debug().Err(removeErr).Str("desktop_file", oldDesktop).Msg("failed to remove existing desktop file")
+		if bErr := tx.BackupForReplace(r.Fs, desktopTarget); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing desktop file: %w", bErr)
 		}
 	}
 
+	// Create installation directory (rollback registered before mutation).
+	tx.Add("remove rpm installation directory", func() error {
+		return helpers.RemoveIfExists(r.Fs, installDir, true)
+	})
 	if mkdirErr := r.Fs.MkdirAll(installDir, 0755); mkdirErr != nil {
 		return nil, fmt.Errorf("failed to create installation directory: %w", mkdirErr)
-	}
-	if tx != nil {
-		dir := installDir
-		tx.Add("remove rpm installation directory", func() error {
-			return r.Fs.RemoveAll(dir)
-		})
 	}
 
 	// Move extracted content to installation directory
@@ -217,23 +235,18 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 		if _, statErr := r.Fs.Stat(srcDir); statErr == nil {
 			dstDir := filepath.Join(installDir, dir)
 			if renameErr := r.Fs.Rename(srcDir, dstDir); renameErr != nil {
-				// Try copying if rename fails
+				// Try copying if rename fails; a copy failure aborts so the
+				// transaction rolls back and restores any previous installation.
 				if copyErr := r.copyDir(srcDir, dstDir); copyErr != nil {
-					r.Log.Warn().
-						Err(copyErr).
-						Str("dir", dir).
-						Msg("failed to move directory")
+					return nil, fmt.Errorf("failed to move extracted directory %q: %w", dir, copyErr)
 				}
 			}
 		}
 	}
 
 	// Find executables
-	executables, err := heuristics.FindExecutables(installDir)
-	if err != nil || len(executables) == 0 {
-		if removeErr := r.Fs.RemoveAll(installDir); removeErr != nil {
-			r.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after no executables")
-		}
+	executables, execErr := heuristics.FindExecutables(installDir)
+	if execErr != nil || len(executables) == 0 {
 		return nil, fmt.Errorf("no executables found in RPM")
 	}
 
@@ -245,71 +258,48 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	primaryExec := r.scorer.ChooseBest(executables, normalizedName, installDir)
 
 	// Create wrapper script
-	binDir := r.Paths.GetBinDir()
 	if mkdirErr := r.Fs.MkdirAll(binDir, 0755); mkdirErr != nil {
-		if removeErr := r.Fs.RemoveAll(installDir); removeErr != nil {
-			r.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after mkdir error")
-		}
 		return nil, fmt.Errorf("failed to create bin directory: %w", mkdirErr)
 	}
 
-	wrapperPath := filepath.Join(binDir, normalizedName)
 	wrapperCfg := helpers.WrapperConfig{
 		WrapperPath:    wrapperPath,
 		ExecPath:       primaryExec,
 		DisableSandbox: r.Cfg.Desktop.ElectronDisableSandbox,
 	}
+	// Register wrapper removal before creating it.
+	tx.Add("remove rpm wrapper script", func() error {
+		return helpers.RemoveIfExists(r.Fs, wrapperPath, false)
+	})
 	if wrapperErr := helpers.CreateWrapper(r.Fs, wrapperCfg); wrapperErr != nil {
-		if removeErr := r.Fs.RemoveAll(installDir); removeErr != nil {
-			r.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after wrapper error")
-		}
 		return nil, fmt.Errorf("failed to create wrapper script: %w", wrapperErr)
-	}
-	if tx != nil {
-		path := wrapperPath
-		tx.Add("remove rpm wrapper script", func() error {
-			return r.Fs.Remove(path)
-		})
 	}
 
 	// Install icons
-	iconPaths, err := r.installIcons(installDir, normalizedName)
-	if err != nil {
-		r.Log.Warn().Err(err).Msg("failed to install icons")
+	iconPaths, iconErr := r.installIcons(installDir, normalizedName)
+	if iconErr != nil {
+		r.Log.Warn().Err(iconErr).Msg("failed to install icons")
 	}
-	if tx != nil && len(iconPaths) > 0 {
+	if len(iconPaths) > 0 {
 		paths := append([]string(nil), iconPaths...)
 		tx.Add("remove rpm icons", func() error {
-			r.removeIcons(paths)
-			return nil
+			return r.removeIcons(paths)
 		})
 	}
 
 	// Create .desktop file
 	var desktopPath string
 	if !opts.SkipDesktop {
+		// Register removal of the desktop target before it is written.
+		tx.Add("remove rpm desktop file", func() error {
+			return helpers.RemoveIfExists(r.Fs, desktopTarget, false)
+		})
 		desktopPath, err = r.createDesktopFile(installDir, normalizedName, wrapperPath, opts)
 		if err != nil {
-			// Clean up on failure
-			if removeErr := r.Fs.RemoveAll(installDir); removeErr != nil {
-				r.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after desktop error")
-			}
-			if removeErr := r.Fs.Remove(wrapperPath); removeErr != nil {
-				r.Log.Debug().Err(removeErr).Str("path", wrapperPath).Msg("failed to cleanup wrapper after desktop error")
-			}
-			r.removeIcons(iconPaths)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
-		if tx != nil && desktopPath != "" {
-			path := desktopPath
-			tx.Add("remove rpm desktop file", func() error {
-				return r.Fs.Remove(path)
-			})
-		}
-
-		// Update caches
-		appsDbDir := r.Paths.GetAppsDir()
+		// Update caches (best-effort)
 		if cacheErr := r.cacheManager.UpdateDesktopDatabase(appsDbDir, r.Log); cacheErr != nil {
 			r.Log.Warn().Err(cacheErr).Str("apps_dir", appsDbDir).Msg("failed to update desktop database")
 		}
@@ -321,7 +311,7 @@ func (r *RpmBackend) installWithExtract(ctx context.Context, packagePath, normal
 	}
 
 	// Create install record
-	record := &core.InstallRecord{
+	record = &core.InstallRecord{
 		InstallID:    installID,
 		PackageType:  core.PackageTypeRpm,
 		Name:         normalizedName,
@@ -407,18 +397,16 @@ func (r *RpmBackend) uninstallPacman(ctx context.Context, record *core.InstallRe
 
 // uninstallExtracted removes RPM installed via extraction
 func (r *RpmBackend) uninstallExtracted(_ context.Context, record *core.InstallRecord) error {
+	var errs []error
+
 	// Remove installation directory
-	if record.InstallPath != "" {
-		if err := r.Fs.RemoveAll(record.InstallPath); err != nil {
-			r.Log.Warn().Err(err).Msg("failed to remove installation directory")
-		}
+	if err := helpers.RemoveIfExists(r.Fs, record.InstallPath, true); err != nil {
+		errs = append(errs, err)
 	}
 
 	// Remove wrapper script
-	if record.Metadata.WrapperScript != "" {
-		if err := r.Fs.Remove(record.Metadata.WrapperScript); err != nil {
-			r.Log.Warn().Err(err).Msg("failed to remove wrapper script")
-		}
+	if err := helpers.RemoveIfExists(r.Fs, record.Metadata.WrapperScript, false); err != nil {
+		errs = append(errs, err)
 	}
 
 	// Remove desktop file(s)
@@ -426,15 +414,17 @@ func (r *RpmBackend) uninstallExtracted(_ context.Context, record *core.InstallR
 		if desktopPath == "" {
 			continue
 		}
-		if err := r.Fs.Remove(desktopPath); err != nil {
-			r.Log.Warn().Err(err).Str("path", desktopPath).Msg("failed to remove desktop file")
+		if err := helpers.RemoveIfExists(r.Fs, desktopPath, false); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
 	// Remove icons
-	r.removeIcons(record.Metadata.IconFiles)
+	if err := r.removeIcons(record.Metadata.IconFiles); err != nil {
+		errs = append(errs, err)
+	}
 
-	// Update caches
+	// Update caches (best-effort, runs even when removals failed).
 	appsDir := r.Paths.GetAppsDir()
 	if cacheErr := r.cacheManager.UpdateDesktopDatabase(appsDir, r.Log); cacheErr != nil {
 		r.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
@@ -445,10 +435,12 @@ func (r *RpmBackend) uninstallExtracted(_ context.Context, record *core.InstallR
 		r.Log.Warn().Err(cacheErr).Str("icons_dir", iconsDir).Msg("failed to update icon cache")
 	}
 
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
 	return nil
 }
-
-// Helper functions
 
 func (r *RpmBackend) installIcons(installDir, normalizedName string) ([]string, error) {
 	homeDir := r.Paths.HomeDir()
@@ -477,12 +469,14 @@ func (r *RpmBackend) installIcons(installDir, normalizedName string) ([]string, 
 	return installedIcons, nil
 }
 
-func (r *RpmBackend) removeIcons(iconPaths []string) {
+func (r *RpmBackend) removeIcons(iconPaths []string) error {
+	var errs []error
 	for _, iconPath := range iconPaths {
-		if removeErr := r.Fs.Remove(iconPath); removeErr != nil {
-			r.Log.Debug().Err(removeErr).Str("path", iconPath).Msg("failed to remove icon")
+		if removeErr := helpers.RemoveIfExists(r.Fs, iconPath, false); removeErr != nil {
+			errs = append(errs, removeErr)
 		}
 	}
+	return errors.Join(errs...)
 }
 
 func (r *RpmBackend) createDesktopFile(installDir, normalizedName, wrapperPath string, opts core.InstallOptions) (string, error) {

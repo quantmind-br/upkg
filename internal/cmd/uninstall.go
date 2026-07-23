@@ -66,6 +66,13 @@ Examples:
 }
 
 func runUninstallCmd(cfg *config.Config, log *zerolog.Logger, opts *uninstallOptions, args []string) error {
+	// Validate timeout before creating a context (a non-positive timeout yields
+	// an already-expired context).
+	if opts.timeoutSec <= 0 {
+		color.Red("Error: timeout must be greater than zero seconds")
+		return fmt.Errorf("timeout must be greater than zero seconds")
+	}
+
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(opts.timeoutSec)*time.Second)
 	defer cancel()
@@ -466,13 +473,14 @@ func performUninstall(ctx context.Context, registry *backends.Registry, database
 		return fmt.Errorf("uninstallation failed: %w", err)
 	}
 
-	if record.PackageType == core.PackageTypeFlatpak {
-		color.Green("✓ Package uninstalled: %s", record.Name)
-	} else if err := database.Delete(ctx, record.InstallID); err != nil {
-		color.Yellow("Warning: failed to remove %s from database: %v", record.Name, err)
-	} else {
-		color.Green("✓ Package uninstalled: %s", record.Name)
+	// Remove the database record for every package type. A successful
+	// Backend.Uninstall with a failed delete must NOT report success, otherwise
+	// the record lingers and later operations act on stale state.
+	if err := database.Delete(ctx, record.InstallID); err != nil {
+		color.Red("Error: failed to remove %s from database: %v", record.Name, err)
+		return fmt.Errorf("failed to remove install record: %w", err)
 	}
+	color.Green("✓ Package uninstalled: %s", record.Name)
 
 	log.Info().
 		Str("install_id", record.InstallID).

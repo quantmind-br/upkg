@@ -11,6 +11,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/paths"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
@@ -20,12 +21,9 @@ import (
 
 const desktopValidateCmd = "desktop-file-validate"
 
-func setTempHome(t *testing.T) (string, func()) {
+func setTempHome(t *testing.T) string {
 	t.Helper()
-	tmpDir := t.TempDir()
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	return tmpDir, func() { os.Setenv("HOME", origHomeDir) }
+	return t.TempDir()
 }
 
 func TestName(t *testing.T) {
@@ -145,8 +143,7 @@ func TestInstall_InvalidPackageName(t *testing.T) {
 
 func TestInstall_AlreadyInstalled(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir, restore := setTempHome(t)
-	defer restore()
+	tmpDir := setTempHome(t)
 
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(_ string) bool { return false },
@@ -154,6 +151,7 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 
 	cfg := &config.Config{}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	fakeBin := filepath.Join(tmpDir, "test-binary")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("fake binary"), 0755))
@@ -173,8 +171,7 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 
 func TestInstall_ForceReinstall(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir, restore := setTempHome(t)
-	defer restore()
+	tmpDir := setTempHome(t)
 
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
@@ -185,6 +182,7 @@ func TestInstall_ForceReinstall(t *testing.T) {
 
 	cfg := &config.Config{}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	fakeBin := filepath.Join(tmpDir, "test-binary")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("fake binary content"), 0755))
@@ -207,8 +205,7 @@ func TestInstall_ForceReinstall(t *testing.T) {
 
 func TestInstall_WithCustomName(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir, restore := setTempHome(t)
-	defer restore()
+	tmpDir := setTempHome(t)
 
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
@@ -219,6 +216,7 @@ func TestInstall_WithCustomName(t *testing.T) {
 
 	cfg := &config.Config{}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	fakeBin := filepath.Join(tmpDir, "original-name")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("binary content"), 0755))
@@ -236,8 +234,7 @@ func TestInstall_WithCustomName(t *testing.T) {
 
 func TestInstall_SkipDesktop(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir, restore := setTempHome(t)
-	defer restore()
+	tmpDir := setTempHome(t)
 
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(_ string) bool { return false },
@@ -245,6 +242,7 @@ func TestInstall_SkipDesktop(t *testing.T) {
 
 	cfg := &config.Config{}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	fakeBin := filepath.Join(tmpDir, "test-binary")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("binary content"), 0755))
@@ -262,8 +260,7 @@ func TestInstall_SkipDesktop(t *testing.T) {
 
 func TestInstall_WithTransaction(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir, restore := setTempHome(t)
-	defer restore()
+	tmpDir := setTempHome(t)
 
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
@@ -274,6 +271,7 @@ func TestInstall_WithTransaction(t *testing.T) {
 
 	cfg := &config.Config{}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	fakeBin := filepath.Join(tmpDir, "test-binary")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("binary content"), 0755))
@@ -304,10 +302,10 @@ func TestUninstall(t *testing.T) {
 	cfg := &config.Config{}
 
 	t.Run("uninstalls all files", func(t *testing.T) {
-		tmpDir, restore := setTempHome(t)
-		defer restore()
+		tmpDir := setTempHome(t)
 
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		binPath := filepath.Join(tmpDir, "bin", "test-app")
 		require.NoError(t, os.MkdirAll(filepath.Dir(binPath), 0755))
@@ -331,10 +329,10 @@ func TestUninstall(t *testing.T) {
 	})
 
 	t.Run("handles missing files gracefully", func(t *testing.T) {
-		_, restore := setTempHome(t)
-		defer restore()
+		home := setTempHome(t)
 
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, home)
 
 		record := &core.InstallRecord{
 			InstallID:   "test-id",
@@ -360,13 +358,13 @@ func TestCreateDesktopFile(t *testing.T) {
 	}
 
 	t.Run("creates desktop file successfully", func(t *testing.T) {
-		tmpDir, restore := setTempHome(t)
-		defer restore()
+		tmpDir := setTempHome(t)
 
 		cfg := &config.Config{
 			Desktop: config.DesktopConfig{WaylandEnvVars: false},
 		}
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		desktopPath, err := backend.createDesktopFile("Test App", "test-app", "/usr/bin/test-app", core.InstallOptions{})
 		require.NoError(t, err)
@@ -385,13 +383,13 @@ func TestCreateDesktopFile(t *testing.T) {
 	})
 
 	t.Run("injects wayland environment variables when enabled", func(t *testing.T) {
-		_, restore := setTempHome(t)
-		defer restore()
+		home := setTempHome(t)
 
 		cfg := &config.Config{
 			Desktop: config.DesktopConfig{WaylandEnvVars: true},
 		}
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, home)
 
 		desktopPath, err := backend.createDesktopFile("Test App", "test-app", "/usr/bin/test-app", core.InstallOptions{})
 		require.NoError(t, err)
@@ -402,13 +400,13 @@ func TestCreateDesktopFile(t *testing.T) {
 	})
 
 	t.Run("skips wayland when option set", func(t *testing.T) {
-		_, restore := setTempHome(t)
-		defer restore()
+		home := setTempHome(t)
 
 		cfg := &config.Config{
 			Desktop: config.DesktopConfig{WaylandEnvVars: true},
 		}
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, home)
 
 		desktopPath, err := backend.createDesktopFile("Test App", "test-app", "/usr/bin/test-app", core.InstallOptions{SkipWaylandEnv: true})
 		require.NoError(t, err)
@@ -421,8 +419,7 @@ func TestCreateDesktopFile(t *testing.T) {
 
 func TestInstallRecord(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir, restore := setTempHome(t)
-	defer restore()
+	tmpDir := setTempHome(t)
 
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(name string) bool { return name == desktopValidateCmd },
@@ -433,6 +430,7 @@ func TestInstallRecord(t *testing.T) {
 
 	cfg := &config.Config{}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	fakeBin := filepath.Join(tmpDir, "my-app-1.0")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("binary content"), 0755))

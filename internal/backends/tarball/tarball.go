@@ -3,6 +3,7 @@ package tarball
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -98,19 +99,40 @@ func (t *TarballBackend) Detect(_ context.Context, packagePath string) (bool, er
 // Install installs the tarball/zip package
 //
 //nolint:gocyclo // archive install handles multiple formats, icons, desktop and rollback.
-func (t *TarballBackend) Install(_ context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+func (t *TarballBackend) Install(_ context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (record *core.InstallRecord, err error) {
 	t.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
 		Msg("installing tarball/zip package")
 
-	// Validate package exists
-	if _, err := t.Fs.Stat(packagePath); err != nil {
-		return nil, fmt.Errorf("package not found: %w", err)
+	// Ensure a non-nil transaction before any filesystem mutation.
+	if tx == nil {
+		localTx := transaction.NewManager(t.Log)
+		tx = localTx
+		defer func() {
+			if err != nil {
+				if rbErr := localTx.Rollback(); rbErr != nil {
+					t.Log.Error().Err(rbErr).Msg("rollback failed")
+				}
+				return
+			}
+			if cErr := localTx.Commit(); cErr != nil {
+				t.Log.Warn().Err(cErr).Msg("transaction commit cleanup failed")
+			}
+		}()
 	}
 
-	// Detect archive type
-	archiveType := helpers.GetArchiveType(packagePath)
+	// Validate package exists
+	if _, statErr := t.Fs.Stat(packagePath); statErr != nil {
+		return nil, fmt.Errorf("package not found: %w", statErr)
+	}
+
+	// Detect archive type by content signature (never by extension).
+	fileType, err := helpers.DetectFileType(packagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect archive type: %w", err)
+	}
+	archiveType := archiveTypeForFileType(fileType)
 	if archiveType == "" {
 		return nil, fmt.Errorf("unsupported archive type: %s", packagePath)
 	}
@@ -141,8 +163,8 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 
 	// Normalize name
 	normalizedName := helpers.NormalizeFilename(appName)
-	if err := security.ValidatePackageName(normalizedName); err != nil {
-		return nil, fmt.Errorf("invalid normalized name %q: %w", normalizedName, err)
+	if nameErr := security.ValidatePackageName(normalizedName); nameErr != nil {
+		return nil, fmt.Errorf("invalid normalized name %q: %w", normalizedName, nameErr)
 	}
 	installID := helpers.GenerateInstallID(normalizedName)
 
@@ -150,40 +172,38 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 		return nil, fmt.Errorf("failed to get home directory")
 	}
 
-	// Create installation directory in ~/.local/share/upkg/apps/
+	// Resolve target paths.
 	appsDir := t.Paths.GetUpkgAppsDir()
 	installDir := filepath.Join(appsDir, normalizedName)
+	binDir := t.Paths.GetBinDir()
+	wrapperPath := filepath.Join(binDir, normalizedName)
+	appsDbDir := t.Paths.GetAppsDir()
+	desktopTarget := filepath.Join(appsDbDir, normalizedName+".desktop")
 
-	// Check if already exists
-	if _, err := t.Fs.Stat(installDir); err == nil {
-		if !opts.Force {
-			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", installDir)
+	// Reject an existing installation unless forced.
+	if _, statErr := t.Fs.Stat(installDir); statErr == nil && !opts.Force {
+		return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", installDir)
+	}
+
+	// With --force, back up the replaced artifacts BEFORE creating new ones.
+	if opts.Force {
+		if bErr := tx.BackupForReplace(t.Fs, installDir); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing installation: %w", bErr)
 		}
-		if err := t.Fs.RemoveAll(installDir); err != nil {
-			return nil, fmt.Errorf("remove existing installation directory: %w", err)
+		if bErr := tx.BackupForReplace(t.Fs, wrapperPath); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing wrapper: %w", bErr)
 		}
-		// Best-effort cleanup of expected wrapper/desktop paths
-		binDir := t.Paths.GetBinDir()
-		oldWrapper := filepath.Join(binDir, normalizedName)
-		if removeErr := t.Fs.Remove(oldWrapper); removeErr != nil {
-			t.Log.Debug().Err(removeErr).Str("path", oldWrapper).Msg("failed to remove existing wrapper")
-		}
-		appsDbDir := t.Paths.GetAppsDir()
-		oldDesktop := filepath.Join(appsDbDir, normalizedName+".desktop")
-		if removeErr := t.Fs.Remove(oldDesktop); removeErr != nil {
-			t.Log.Debug().Err(removeErr).Str("desktop_file", oldDesktop).Msg("failed to remove existing desktop file")
+		if bErr := tx.BackupForReplace(t.Fs, desktopTarget); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing desktop file: %w", bErr)
 		}
 	}
 
-	// Create installation directory
-	if err := t.Fs.MkdirAll(installDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create installation directory: %w", err)
-	}
-	if tx != nil {
-		dir := installDir
-		tx.Add("remove installation directory", func() error {
-			return t.Fs.RemoveAll(dir)
-		})
+	// Create installation directory (rollback registered before mutation).
+	tx.Add("remove installation directory", func() error {
+		return helpers.RemoveIfExists(t.Fs, installDir, true)
+	})
+	if mkErr := t.Fs.MkdirAll(installDir, 0755); mkErr != nil {
+		return nil, fmt.Errorf("failed to create installation directory: %w", mkErr)
 	}
 
 	// Extract archive
@@ -193,18 +213,12 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 		Msg("extracting archive")
 
 	if extractErr := t.extractArchive(packagePath, installDir, archiveType); extractErr != nil {
-		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
-			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after extract error")
-		}
 		return nil, fmt.Errorf("failed to extract archive: %w", extractErr)
 	}
 
 	// Find executable(s)
 	executables, err := heuristics.FindExecutables(installDir)
 	if err != nil || len(executables) == 0 {
-		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
-			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after no executables")
-		}
 		return nil, fmt.Errorf("no executables found in archive")
 	}
 
@@ -221,31 +235,21 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 		Msg("selected primary executable")
 
 	// Create wrapper script in ~/.local/bin/
-	binDir := t.Paths.GetBinDir()
 	if mkdirErr := t.Fs.MkdirAll(binDir, 0755); mkdirErr != nil {
-		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
-			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after mkdir error")
-		}
 		return nil, fmt.Errorf("failed to create bin directory: %w", mkdirErr)
 	}
 
-	wrapperPath := filepath.Join(binDir, normalizedName)
 	wrapperCfg := helpers.WrapperConfig{
 		WrapperPath:    wrapperPath,
 		ExecPath:       primaryExec,
 		DisableSandbox: t.Cfg.Desktop.ElectronDisableSandbox,
 	}
+	// Register wrapper removal before creating it.
+	tx.Add("remove wrapper script", func() error {
+		return helpers.RemoveIfExists(t.Fs, wrapperPath, false)
+	})
 	if wrapperErr := helpers.CreateWrapper(t.Fs, wrapperCfg); wrapperErr != nil {
-		if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
-			t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after wrapper error")
-		}
 		return nil, fmt.Errorf("failed to create wrapper script: %w", wrapperErr)
-	}
-	if tx != nil {
-		path := wrapperPath
-		tx.Add("remove wrapper script", func() error {
-			return t.Fs.Remove(path)
-		})
 	}
 
 	t.Log.Debug().
@@ -253,31 +257,26 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 		Msg("created wrapper script")
 
 	// Install icons (if any)
-	iconPaths, err := t.installIcons(installDir, normalizedName)
-	if err != nil {
-		t.Log.Warn().Err(err).Msg("failed to install icons")
+	iconPaths, iconErr := t.installIcons(installDir, normalizedName)
+	if iconErr != nil {
+		t.Log.Warn().Err(iconErr).Msg("failed to install icons")
 	}
-	if tx != nil && len(iconPaths) > 0 {
+	if len(iconPaths) > 0 {
 		paths := append([]string(nil), iconPaths...)
 		tx.Add("remove tarball icons", func() error {
-			t.removeIcons(paths)
-			return nil
+			return t.removeIcons(paths)
 		})
 	}
 
 	// Create .desktop file
 	var desktopPath string
 	if !opts.SkipDesktop {
+		// Register removal of the desktop target before it is written.
+		tx.Add("remove desktop file", func() error {
+			return helpers.RemoveIfExists(t.Fs, desktopTarget, false)
+		})
 		desktopPath, err = t.createDesktopFile(installDir, appName, normalizedName, wrapperPath, opts)
 		if err != nil {
-			// Clean up on failure
-			if removeErr := t.Fs.RemoveAll(installDir); removeErr != nil {
-				t.Log.Debug().Err(removeErr).Str("install_dir", installDir).Msg("failed to cleanup install dir after desktop error")
-			}
-			if removeErr := t.Fs.Remove(wrapperPath); removeErr != nil {
-				t.Log.Debug().Err(removeErr).Str("path", wrapperPath).Msg("failed to cleanup wrapper after desktop error")
-			}
-			t.removeIcons(iconPaths)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
@@ -285,15 +284,7 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 			Str("desktop_file", desktopPath).
 			Msg("desktop file created")
 
-		if tx != nil && desktopPath != "" {
-			path := desktopPath
-			tx.Add("remove desktop file", func() error {
-				return t.Fs.Remove(path)
-			})
-		}
-
-		// Update caches
-		appsDbDir := t.Paths.GetAppsDir()
+		// Update caches (best-effort)
 		if cacheErr := t.cacheManager.UpdateDesktopDatabase(appsDbDir, t.Log); cacheErr != nil {
 			t.Log.Warn().Err(cacheErr).Str("apps_dir", appsDbDir).Msg("failed to update desktop database")
 		}
@@ -305,7 +296,7 @@ func (t *TarballBackend) Install(_ context.Context, packagePath string, opts cor
 	}
 
 	// Create install record
-	record := &core.InstallRecord{
+	record = &core.InstallRecord{
 		InstallID:    installID,
 		PackageType:  core.PackageTypeTarball,
 		Name:         appName,
@@ -337,18 +328,16 @@ func (t *TarballBackend) Uninstall(_ context.Context, record *core.InstallRecord
 		Str("name", record.Name).
 		Msg("uninstalling tarball/zip package")
 
+	var errs []error
+
 	// Remove installation directory
-	if record.InstallPath != "" {
-		if err := t.Fs.RemoveAll(record.InstallPath); err != nil {
-			t.Log.Warn().Err(err).Str("path", record.InstallPath).Msg("failed to remove installation directory")
-		}
+	if err := helpers.RemoveIfExists(t.Fs, record.InstallPath, true); err != nil {
+		errs = append(errs, err)
 	}
 
 	// Remove wrapper script
-	if record.Metadata.WrapperScript != "" {
-		if err := t.Fs.Remove(record.Metadata.WrapperScript); err != nil {
-			t.Log.Warn().Err(err).Str("path", record.Metadata.WrapperScript).Msg("failed to remove wrapper script")
-		}
+	if err := helpers.RemoveIfExists(t.Fs, record.Metadata.WrapperScript, false); err != nil {
+		errs = append(errs, err)
 	}
 
 	// Remove .desktop file(s)
@@ -356,15 +345,17 @@ func (t *TarballBackend) Uninstall(_ context.Context, record *core.InstallRecord
 		if desktopPath == "" {
 			continue
 		}
-		if err := t.Fs.Remove(desktopPath); err != nil {
-			t.Log.Warn().Err(err).Str("path", desktopPath).Msg("failed to remove desktop file")
+		if err := helpers.RemoveIfExists(t.Fs, desktopPath, false); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
 	// Remove icons
-	t.removeIcons(record.Metadata.IconFiles)
+	if err := t.removeIcons(record.Metadata.IconFiles); err != nil {
+		errs = append(errs, err)
+	}
 
-	// Update caches
+	// Update caches (best-effort, runs even when removals failed).
 	appsDir := t.Paths.GetAppsDir()
 	if cacheErr := t.cacheManager.UpdateDesktopDatabase(appsDir, t.Log); cacheErr != nil {
 		t.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
@@ -373,6 +364,10 @@ func (t *TarballBackend) Uninstall(_ context.Context, record *core.InstallRecord
 	iconsDir := t.Paths.GetIconsDir()
 	if cacheErr := t.cacheManager.UpdateIconCache(iconsDir, t.Log); cacheErr != nil {
 		t.Log.Warn().Err(cacheErr).Str("icons_dir", iconsDir).Msg("failed to update icon cache")
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	t.Log.Info().
@@ -397,6 +392,25 @@ func (t *TarballBackend) extractArchive(archivePath, destDir, archiveType string
 		return helpers.ExtractZip(archivePath, destDir)
 	default:
 		return fmt.Errorf("unsupported archive type: %s", archiveType)
+	}
+}
+
+// archiveTypeForFileType maps a detected FileType to the archive type strings
+// accepted by extractArchive. Non-archive types map to "".
+func archiveTypeForFileType(fileType helpers.FileType) string {
+	switch fileType {
+	case helpers.FileTypeTarGz:
+		return "tar.gz"
+	case helpers.FileTypeTarXz:
+		return "tar.xz"
+	case helpers.FileTypeTarBz2:
+		return "tar.bz2"
+	case helpers.FileTypeTar:
+		return "tar"
+	case helpers.FileTypeZip:
+		return "zip"
+	default:
+		return ""
 	}
 }
 
@@ -768,16 +782,15 @@ func (t *TarballBackend) copyFile(src, dst string) (err error) {
 	return destFile.Sync()
 }
 
-// removeIcons removes installed icons
-func (t *TarballBackend) removeIcons(iconPaths []string) {
+// removeIcons removes installed icons, aggregating any removal failures.
+func (t *TarballBackend) removeIcons(iconPaths []string) error {
+	var errs []error
 	for _, iconPath := range iconPaths {
-		if err := t.Fs.Remove(iconPath); err != nil {
-			t.Log.Warn().
-				Err(err).
-				Str("path", iconPath).
-				Msg("failed to remove icon")
+		if err := helpers.RemoveIfExists(t.Fs, iconPath, false); err != nil {
+			errs = append(errs, err)
 		}
 	}
+	return errors.Join(errs...)
 }
 
 // createDesktopFile creates a .desktop file

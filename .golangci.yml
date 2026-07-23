@@ -1,7 +1,7 @@
+version: "2"
 run:
   modules-download-mode: readonly
   tests: true
-
 linters:
   enable:
     - goconst
@@ -11,63 +11,78 @@ linters:
     - revive
     - unconvert
     - unparam
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  gocyclo:
-    min-complexity: 15
-  goconst:
-    min-len: 8
-    min-occurrences: 5
-  gosec:
-    excludes:
-      - G204
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-  revive:
-    confidence: 0.8
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    goconst:
+      min-len: 8
+      min-occurrences: 5
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        - G204
+    govet:
+      disable:
+        - fieldalignment
+      enable-all: true
+    revive:
+      confidence: 0.8
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unreachable-code
+        - name: redefines-builtin-id
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unreachable-code
-      - name: redefines-builtin-id
-
+      - linters:
+          - errcheck
+          - goconst
+          - gocyclo
+          - gosec
+          - revive
+          - unparam
+        path: _test\.go
+      - path: _test\.go
+        text: 'G404:'
+    paths:
+      - third_party
+      - builtin
+      - examples
+      - third_party$
+      - builtin$
+      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gocyclo
-        - gosec
-        - unparam
-        - goconst
-        - revive
-    - path: _test\.go
-      text: 'G404:'
-  exclude-dirs:
-    - third_party
-    - builtin
-    - examples
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

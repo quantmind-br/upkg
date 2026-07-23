@@ -2,12 +2,14 @@ package helpers
 
 import (
 	"bytes"
+	"compress/bzip2"
+	"compress/gzip"
 	"debug/elf"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
+
+	"github.com/ulikunitz/xz"
 )
 
 // FileType represents the detected type of a package file
@@ -27,53 +29,19 @@ const (
 	FileTypeUnknown  FileType = "unknown"
 )
 
-// DetectFileType identifies the type of a file based on extension and magic numbers
+// DetectFileType identifies the type of a file purely from its content
+// signature. The file extension is never used to classify content. For the
+// compressed archive formats (gzip/xz/bzip2) the compressor signature alone is
+// insufficient, so the stream is decompressed far enough to require a "ustar"
+// TAR magic before the type is accepted.
 //
 //nolint:gocyclo // detection relies on multiple signature checks.
 func DetectFileType(filePath string) (FileType, error) {
-	// Check extension first for quick detection
-	ext := strings.ToLower(filepath.Ext(filePath))
-
-	switch ext {
-	case ".deb":
-		return FileTypeDEB, nil
-	case ".rpm":
-		return FileTypeRPM, nil
-	case ".zip":
-		return FileTypeZip, nil
-	case ".appimage":
-		// Verify it's actually an AppImage
-		if isAppImage, err := IsAppImage(filePath); err == nil && isAppImage {
-			return FileTypeAppImage, nil
-		}
-	}
-
-	// Check for compound extensions
-	if strings.HasSuffix(strings.ToLower(filePath), ".tar.gz") ||
-		strings.HasSuffix(strings.ToLower(filePath), ".tgz") {
-		return FileTypeTarGz, nil
-	}
-
-	if strings.HasSuffix(strings.ToLower(filePath), ".tar.xz") ||
-		strings.HasSuffix(strings.ToLower(filePath), ".txz") {
-		return FileTypeTarXz, nil
-	}
-
-	if strings.HasSuffix(strings.ToLower(filePath), ".tar.bz2") ||
-		strings.HasSuffix(strings.ToLower(filePath), ".tbz2") {
-		return FileTypeTarBz2, nil
-	}
-
-	if ext == ".tar" {
-		return FileTypeTar, nil
-	}
-
-	// Read magic numbers for more precise detection
 	f, err := os.Open(filePath)
 	if err != nil {
 		return FileTypeUnknown, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	header := make([]byte, 512)
 	n, err := f.Read(header)
@@ -96,8 +64,10 @@ func DetectFileType(filePath string) (FileType, error) {
 		return FileTypeScript, nil
 	}
 
-	// DEB magic: "!<arch>\ndebian"
-	if len(header) >= 16 && bytes.Contains(header[:60], []byte("debian")) {
+	// DEB: an ar archive ("!<arch>\n") whose first member is "debian-binary".
+	if len(header) >= 24 &&
+		bytes.Equal(header[:8], []byte("!<arch>\n")) &&
+		bytes.HasPrefix(header[8:24], []byte("debian-binary")) {
 		return FileTypeDEB, nil
 	}
 
@@ -106,25 +76,9 @@ func DetectFileType(filePath string) (FileType, error) {
 		return FileTypeRPM, nil
 	}
 
-	// Tar magic: "ustar" at offset 257
+	// Uncompressed tar magic: "ustar" at offset 257
 	if len(header) >= 262 && bytes.Equal(header[257:262], []byte("ustar")) {
 		return FileTypeTar, nil
-	}
-
-	// Gzip magic: 0x1F 0x8B
-	if len(header) >= 2 && bytes.Equal(header[:2], []byte{0x1F, 0x8B}) {
-		// Could be tar.gz, but we can't tell without extracting
-		return FileTypeTarGz, nil
-	}
-
-	// XZ magic: 0xFD '7' 'z' 'X' 'Z' 0x00
-	if len(header) >= 6 && bytes.Equal(header[:6], []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}) {
-		return FileTypeTarXz, nil
-	}
-
-	// BZ2 magic: 'B' 'Z' 'h'
-	if len(header) >= 3 && bytes.Equal(header[:3], []byte{'B', 'Z', 'h'}) {
-		return FileTypeTarBz2, nil
 	}
 
 	// ZIP magic: "PK"
@@ -132,7 +86,80 @@ func DetectFileType(filePath string) (FileType, error) {
 		return FileTypeZip, nil
 	}
 
+	// Compressed streams: the compressor signature is not enough. Decompress the
+	// first TAR block and require the "ustar" magic before accepting the type.
+	// Gzip magic: 0x1F 0x8B
+	if len(header) >= 2 && bytes.Equal(header[:2], []byte{0x1F, 0x8B}) {
+		if isCompressedTar(filePath, codecGzip) {
+			return FileTypeTarGz, nil
+		}
+		return FileTypeUnknown, nil
+	}
+
+	// XZ magic: 0xFD '7' 'z' 'X' 'Z' 0x00
+	if len(header) >= 6 && bytes.Equal(header[:6], []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}) {
+		if isCompressedTar(filePath, codecXz) {
+			return FileTypeTarXz, nil
+		}
+		return FileTypeUnknown, nil
+	}
+
+	// BZ2 magic: 'B' 'Z' 'h'
+	if len(header) >= 3 && bytes.Equal(header[:3], []byte{'B', 'Z', 'h'}) {
+		if isCompressedTar(filePath, codecBzip2) {
+			return FileTypeTarBz2, nil
+		}
+		return FileTypeUnknown, nil
+	}
+
 	return FileTypeUnknown, nil
+}
+
+type compressionCodec int
+
+const (
+	codecGzip compressionCodec = iota
+	codecXz
+	codecBzip2
+)
+
+// isCompressedTar decompresses the start of filePath with the given codec and
+// reports whether the first decompressed block carries the "ustar" TAR magic at
+// offset 257. Any open/decompress/read error, premature EOF, or missing magic
+// yields false.
+func isCompressedTar(filePath string, codec compressionCodec) bool {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+
+	var reader io.Reader
+	switch codec {
+	case codecGzip:
+		gz, gerr := gzip.NewReader(f)
+		if gerr != nil {
+			return false
+		}
+		defer func() { _ = gz.Close() }()
+		reader = gz
+	case codecXz:
+		xzr, xerr := xz.NewReader(f)
+		if xerr != nil {
+			return false
+		}
+		reader = xzr
+	case codecBzip2:
+		reader = bzip2.NewReader(f)
+	default:
+		return false
+	}
+
+	block := make([]byte, 512)
+	if _, err := io.ReadFull(reader, block); err != nil {
+		return false
+	}
+	return bytes.Equal(block[257:262], []byte("ustar"))
 }
 
 // IsELF checks if a file is a valid ELF executable
@@ -231,27 +258,4 @@ func hasSquashFS(f *os.File) bool {
 	}
 
 	return false
-}
-
-// GetArchiveType returns the archive type based on file extension
-func GetArchiveType(filePath string) string {
-	lower := strings.ToLower(filePath)
-
-	if strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz") {
-		return "tar.gz"
-	}
-	if strings.HasSuffix(lower, ".tar.bz2") || strings.HasSuffix(lower, ".tbz2") {
-		return "tar.bz2"
-	}
-	if strings.HasSuffix(lower, ".tar.xz") || strings.HasSuffix(lower, ".txz") {
-		return "tar.xz"
-	}
-	if strings.HasSuffix(lower, ".tar") {
-		return "tar"
-	}
-	if strings.HasSuffix(lower, ".zip") {
-		return "zip"
-	}
-
-	return ""
 }

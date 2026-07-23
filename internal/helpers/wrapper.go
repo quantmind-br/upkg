@@ -29,7 +29,8 @@ func CreateWrapper(fs afero.Fs, cfg WrapperConfig) error {
 		execDir := filepath.Dir(cfg.ExecPath)
 		execName := filepath.Base(cfg.ExecPath)
 
-		// Only add --no-sandbox if explicitly configured (security risk)
+		// Only add --no-sandbox if explicitly configured (security risk).
+		// The flag stays outside the quoted word.
 		sandboxFlag := ""
 		if cfg.DisableSandbox {
 			sandboxFlag = " --no-sandbox"
@@ -37,15 +38,15 @@ func CreateWrapper(fs afero.Fs, cfg WrapperConfig) error {
 
 		content = fmt.Sprintf(`#!/bin/bash
 # upkg wrapper script for Electron app
-cd "%s"
-exec "./%s"%s "$@"
-`, execDir, execName, sandboxFlag)
+cd %s
+exec %s%s "$@"
+`, ShellQuote(execDir), ShellQuote("./"+execName), sandboxFlag)
 	} else {
 		// Standard wrapper
 		content = fmt.Sprintf(`#!/bin/bash
 # upkg wrapper script
-exec "%s" "$@"
-`, cfg.ExecPath)
+exec %s "$@"
+`, ShellQuote(cfg.ExecPath))
 	}
 
 	return afero.WriteFile(fs, cfg.WrapperPath, []byte(content), 0755)
@@ -62,10 +63,14 @@ func IsElectronApp(fs afero.Fs, execPath string) bool {
 		return true
 	}
 
-	// Check for *.asar in parent directory and subdirectories
+	// Check for *.asar in parent directory and subdirectories using the injected
+	// filesystem (never the host) so detection is deterministic and testable.
 	parentDir := filepath.Dir(execDir)
 	var asarFound bool
-	if walkErr := filepath.Walk(parentDir, func(path string, info os.FileInfo, entryErr error) error {
+	// afero.Walk propagates filepath.SkipAll as a non-nil error (unlike
+	// filepath.Walk), so the walk result is ignored: detection is best-effort and
+	// asarFound already captures a positive match.
+	_ = afero.Walk(fs, parentDir, func(path string, info os.FileInfo, entryErr error) error { //nolint:errcheck // best-effort detection; SkipAll surfaces as non-nil and asarFound holds the result
 		if entryErr != nil {
 			return nil // Continue on errors
 		}
@@ -74,9 +79,13 @@ func IsElectronApp(fs afero.Fs, execPath string) bool {
 			return filepath.SkipAll // Found one, stop walking
 		}
 		return nil
-	}); walkErr != nil {
-		// Silently ignore walk errors - this is a best-effort detection
-		return false
-	}
+	})
 	return asarFound
+}
+
+// ShellQuote returns value as a single Bash word wrapped in single quotes,
+// replacing each embedded single quote with the '"'"' sequence so the result
+// is safe to interpolate into a generated shell script.
+func ShellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }

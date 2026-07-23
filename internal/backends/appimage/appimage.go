@@ -3,7 +3,10 @@ package appimage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -110,23 +113,36 @@ func (a *AppImageBackend) Detect(_ context.Context, packagePath string) (bool, e
 // Install installs the AppImage package
 //
 //nolint:gocyclo // install flow is inherently branching (metadata, icons, desktop, tx).
-func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (record *core.InstallRecord, err error) {
 	a.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
 		Msg("installing AppImage package")
 
+	// Ensure a non-nil transaction before any filesystem mutation.
+	if tx == nil {
+		localTx := transaction.NewManager(a.Log)
+		tx = localTx
+		defer func() {
+			if err != nil {
+				if rbErr := localTx.Rollback(); rbErr != nil {
+					a.Log.Error().Err(rbErr).Msg("rollback failed")
+				}
+				return
+			}
+			if cErr := localTx.Commit(); cErr != nil {
+				a.Log.Warn().Err(cErr).Msg("transaction commit cleanup failed")
+			}
+		}()
+	}
+
 	// Validate package exists
-	if _, err := a.Fs.Stat(packagePath); err != nil {
-		return nil, fmt.Errorf("package not found: %w", err)
+	if _, statErr := a.Fs.Stat(packagePath); statErr != nil {
+		return nil, fmt.Errorf("package not found: %w", statErr)
 	}
 
-	// Make AppImage executable first
-	if err := a.Fs.Chmod(packagePath, 0755); err != nil {
-		return nil, fmt.Errorf("failed to make AppImage executable: %w", err)
-	}
-
-	// Create temp directory for extraction
+	// Create temp directory for extraction (not part of the replacement, so it is
+	// cleaned up unconditionally via defer rather than a transaction hook).
 	tmpDir, err := afero.TempDir(a.Fs, "", "upkg-appimage-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
@@ -137,7 +153,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 		}
 	}()
 
-	// Extract AppImage
+	// Extract AppImage (the user's source file is never chmod'd or written to).
 	if extractErr := a.extractAppImage(ctx, packagePath, tmpDir); extractErr != nil {
 		return nil, fmt.Errorf("failed to extract AppImage: %w", extractErr)
 	}
@@ -188,35 +204,29 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	}
 
 	destPath := filepath.Join(binDir, binName+".appimage")
-	if _, statErr := a.Fs.Stat(destPath); statErr == nil {
-		if !opts.Force {
-			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", destPath)
+	if _, statErr := a.Fs.Stat(destPath); statErr == nil && !opts.Force {
+		return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", destPath)
+	}
+
+	appsDir := a.Paths.GetAppsDir()
+	desktopTarget := filepath.Join(appsDir, binName+".desktop")
+
+	// With --force, back up the replaced artifacts BEFORE writing new ones.
+	if opts.Force {
+		if bErr := tx.BackupForReplace(a.Fs, destPath); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing AppImage: %w", bErr)
 		}
-		if removeErr := a.Fs.Remove(destPath); removeErr != nil {
-			return nil, fmt.Errorf("remove existing AppImage: %w", removeErr)
+		if bErr := tx.BackupForReplace(a.Fs, desktopTarget); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing desktop file: %w", bErr)
 		}
 	}
 
-	content, err := afero.ReadFile(a.Fs, packagePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read AppImage: %w", err)
-	}
-	if writeErr := afero.WriteFile(a.Fs, destPath, content, 0755); writeErr != nil {
-		return nil, fmt.Errorf("failed to copy AppImage: %w", writeErr)
-	}
-
-	if chmodErr := a.Fs.Chmod(destPath, 0755); chmodErr != nil {
-		if removeErr := a.Fs.Remove(destPath); removeErr != nil {
-			a.Log.Warn().Err(removeErr).Str("path", destPath).Msg("failed to remove AppImage after chmod error")
-		}
-		return nil, fmt.Errorf("failed to make AppImage executable: %w", chmodErr)
-	}
-
-	if tx != nil {
-		path := destPath
-		tx.Add("remove appimage binary", func() error {
-			return a.Fs.Remove(path)
-		})
+	// Register removal BEFORE writing the destination.
+	tx.Add("remove appimage binary", func() error {
+		return helpers.RemoveIfExists(a.Fs, destPath, false)
+	})
+	if copyErr := a.copyExecutable(packagePath, destPath); copyErr != nil {
+		return nil, fmt.Errorf("failed to copy AppImage: %w", copyErr)
 	}
 
 	a.Log.Debug().
@@ -229,43 +239,27 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	a.Log.Debug().
 		Int("count", len(discoveredIcons)).
 		Msg("discovered icons in AppImage")
-	for i, icon := range discoveredIcons {
-		a.Log.Debug().
-			Int("index", i).
-			Str("path", icon.Path).
-			Str("size", icon.Size).
-			Msg("icon discovered")
-	}
 
-	iconPaths, err := a.installIcons(squashfsRoot, binName, metadata)
-	if err != nil {
-		a.Log.Warn().Err(err).Msg("failed to install icons")
+	iconPaths, iconErr := a.installIcons(squashfsRoot, binName, metadata)
+	if iconErr != nil {
+		a.Log.Warn().Err(iconErr).Msg("failed to install icons")
 	}
-	if tx != nil && len(iconPaths) > 0 {
+	if len(iconPaths) > 0 {
 		paths := append([]string(nil), iconPaths...)
 		tx.Add("remove appimage icons", func() error {
-			a.removeIcons(paths)
-			return nil
+			return a.removeIcons(paths)
 		})
 	}
 
 	// Create/update desktop file
 	var desktopPath string
 	if !opts.SkipDesktop {
-		if opts.Force {
-			appsDir := a.Paths.GetAppsDir()
-			oldDesktopPath := filepath.Join(appsDir, binName+".desktop")
-			if removeErr := a.Fs.Remove(oldDesktopPath); removeErr != nil {
-				a.Log.Debug().Err(removeErr).Str("desktop_file", oldDesktopPath).Msg("failed to remove existing desktop file")
-			}
-		}
+		// Register removal of the desktop target before it is written.
+		tx.Add("remove desktop file", func() error {
+			return helpers.RemoveIfExists(a.Fs, desktopTarget, false)
+		})
 		desktopPath, err = a.createDesktopFile(squashfsRoot, appName, binName, destPath, metadata, opts)
 		if err != nil {
-			// Clean up on failure
-			if removeErr := a.Fs.Remove(destPath); removeErr != nil {
-				a.Log.Warn().Err(removeErr).Str("path", destPath).Msg("failed to remove AppImage after desktop file error")
-			}
-			a.removeIcons(iconPaths)
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
@@ -273,15 +267,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 			Str("desktop_file", desktopPath).
 			Msg("desktop file created")
 
-		if tx != nil && desktopPath != "" {
-			path := desktopPath
-			tx.Add("remove desktop file", func() error {
-				return a.Fs.Remove(path)
-			})
-		}
-
-		// Update caches
-		appsDir := a.Paths.GetAppsDir()
+		// Update caches (best-effort)
 		if cacheErr := a.cacheManager.UpdateDesktopDatabase(appsDir, a.Log); cacheErr != nil {
 			a.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
 		}
@@ -293,7 +279,7 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	}
 
 	// Create install record
-	record := &core.InstallRecord{
+	record = &core.InstallRecord{
 		InstallID:    installID,
 		PackageType:  core.PackageTypeAppImage,
 		Name:         appName,
@@ -322,6 +308,38 @@ func (a *AppImageBackend) Install(ctx context.Context, packagePath string, opts 
 	return record, nil
 }
 
+// copyExecutable streams src to dst with 0755 permissions without loading the
+// whole file into memory.
+func (a *AppImageBackend) copyExecutable(src, dst string) (err error) {
+	in, err := a.Fs.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source: %w", err)
+	}
+	defer func() {
+		if cerr := in.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close source: %w", cerr)
+		}
+	}()
+
+	out, err := a.Fs.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		return fmt.Errorf("create destination: %w", err)
+	}
+	defer func() {
+		if cerr := out.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("close destination: %w", cerr)
+		}
+	}()
+
+	if _, err = io.Copy(out, in); err != nil {
+		return fmt.Errorf("copy contents: %w", err)
+	}
+	if err = out.Sync(); err != nil {
+		return fmt.Errorf("sync destination: %w", err)
+	}
+	return nil
+}
+
 // Uninstall removes the installed AppImage package
 func (a *AppImageBackend) Uninstall(_ context.Context, record *core.InstallRecord) error {
 	a.Log.Info().
@@ -329,11 +347,11 @@ func (a *AppImageBackend) Uninstall(_ context.Context, record *core.InstallRecor
 		Str("name", record.Name).
 		Msg("uninstalling AppImage package")
 
+	var errs []error
+
 	// Remove AppImage
-	if record.InstallPath != "" {
-		if err := a.Fs.Remove(record.InstallPath); err != nil {
-			a.Log.Warn().Err(err).Str("path", record.InstallPath).Msg("failed to remove AppImage")
-		}
+	if err := helpers.RemoveIfExists(a.Fs, record.InstallPath, false); err != nil {
+		errs = append(errs, err)
 	}
 
 	// Remove .desktop file(s)
@@ -341,15 +359,17 @@ func (a *AppImageBackend) Uninstall(_ context.Context, record *core.InstallRecor
 		if desktopPath == "" {
 			continue
 		}
-		if err := a.Fs.Remove(desktopPath); err != nil {
-			a.Log.Warn().Err(err).Str("path", desktopPath).Msg("failed to remove desktop file")
+		if err := helpers.RemoveIfExists(a.Fs, desktopPath, false); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
 	// Remove icons
-	a.removeIcons(record.Metadata.IconFiles)
+	if err := a.removeIcons(record.Metadata.IconFiles); err != nil {
+		errs = append(errs, err)
+	}
 
-	// Update caches
+	// Update caches (best-effort, runs even when removals failed).
 	appsDir := a.Paths.GetAppsDir()
 	if cacheErr := a.cacheManager.UpdateDesktopDatabase(appsDir, a.Log); cacheErr != nil {
 		a.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
@@ -360,6 +380,10 @@ func (a *AppImageBackend) Uninstall(_ context.Context, record *core.InstallRecor
 		a.Log.Warn().Err(cacheErr).Str("icons_dir", iconsDir).Msg("failed to update icon cache")
 	}
 
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
 	a.Log.Info().
 		Str("install_id", record.InstallID).
 		Msg("AppImage package uninstalled successfully")
@@ -367,7 +391,10 @@ func (a *AppImageBackend) Uninstall(_ context.Context, record *core.InstallRecor
 	return nil
 }
 
-// extractAppImage extracts an AppImage to a directory
+// extractAppImage extracts an AppImage to destDir. The user's source file is
+// never made executable or written to: a temporary executable copy is created
+// inside destDir for the primary --appimage-extract attempt, and the unsquashfs
+// fallback reads the original 0644 source directly.
 func (a *AppImageBackend) extractAppImage(ctx context.Context, appImagePath, destDir string) error {
 	a.Log.Debug().
 		Str("appimage", appImagePath).
@@ -379,25 +406,37 @@ func (a *AppImageBackend) extractAppImage(ctx context.Context, appImagePath, des
 		return fmt.Errorf("failed to resolve AppImage path: %w", err)
 	}
 
-	// Try --appimage-extract first (runs in destDir)
 	extractCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	_, err = a.Runner.RunCommandInDir(extractCtx, destDir, absAppImagePath, "--appimage-extract")
-	if err == nil {
-		return nil
+	// Primary attempt: stream an executable copy into destDir and run it there.
+	// Register cleanup before the copy so a partial/failed copy is also removed.
+	executableCopy := filepath.Join(destDir, ".upkg-extract.AppImage")
+	defer func() {
+		if removeErr := helpers.RemoveIfExists(a.Fs, executableCopy, false); removeErr != nil {
+			a.Log.Debug().Err(removeErr).Str("path", executableCopy).Msg("failed to remove extraction copy")
+		}
+	}()
+	copyErr := a.copyExecutable(appImagePath, executableCopy)
+	if copyErr == nil {
+		_, err = a.Runner.RunCommandInDir(extractCtx, destDir, executableCopy, "--appimage-extract")
+		if err == nil {
+			return nil
+		}
+		a.Log.Warn().Err(err).Msg("--appimage-extract failed, trying unsquashfs")
+	} else {
+		err = copyErr
+		a.Log.Warn().Err(copyErr).Msg("failed to create extraction copy, trying unsquashfs")
 	}
 
-	a.Log.Warn().Err(err).Msg("--appimage-extract failed, trying unsquashfs")
-
-	// Fallback to unsquashfs
+	// Fallback: unsquashfs reads the original source (0644) without executing it,
+	// extracting into destDir.
 	if !a.Runner.CommandExists("unsquashfs") {
 		return fmt.Errorf("extraction failed and unsquashfs not found: %w", err)
 	}
 
-	_, err = a.Runner.RunCommand(extractCtx, "unsquashfs", "-d", "squashfs-root", absAppImagePath)
-	if err != nil {
-		return fmt.Errorf("unsquashfs extraction failed: %w", err)
+	if _, sqErr := a.Runner.RunCommandInDir(extractCtx, destDir, "unsquashfs", "-d", "squashfs-root", absAppImagePath); sqErr != nil {
+		return fmt.Errorf("unsquashfs extraction failed: %w", sqErr)
 	}
 
 	return nil
@@ -504,16 +543,15 @@ func (a *AppImageBackend) installIcons(squashfsRoot, binName string, metadata *a
 	return installedIcons, nil
 }
 
-// removeIcons removes installed icons
-func (a *AppImageBackend) removeIcons(iconPaths []string) {
+// removeIcons removes installed icons, aggregating any removal failures.
+func (a *AppImageBackend) removeIcons(iconPaths []string) error {
+	var errs []error
 	for _, iconPath := range iconPaths {
-		if err := a.Fs.Remove(iconPath); err != nil {
-			a.Log.Warn().
-				Err(err).
-				Str("path", iconPath).
-				Msg("failed to remove icon")
+		if err := helpers.RemoveIfExists(a.Fs, iconPath, false); err != nil {
+			errs = append(errs, err)
 		}
 	}
+	return errors.Join(errs...)
 }
 
 // createDesktopFile creates or updates the .desktop file

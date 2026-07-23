@@ -3,6 +3,7 @@ package binary
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -79,15 +80,34 @@ func (b *BinaryBackend) Detect(_ context.Context, packagePath string) (bool, err
 // Install installs the binary package
 //
 //nolint:gocyclo // install flow includes optional desktop integration and rollback hooks.
-func (b *BinaryBackend) Install(_ context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (*core.InstallRecord, error) {
+func (b *BinaryBackend) Install(_ context.Context, packagePath string, opts core.InstallOptions, tx *transaction.Manager) (record *core.InstallRecord, err error) {
 	b.Log.Info().
 		Str("package_path", packagePath).
 		Str("custom_name", opts.CustomName).
 		Msg("installing binary package")
 
+	// Ensure a non-nil transaction: when none is supplied, manage a local one and
+	// finalize it before returning (rollback on error, commit on success). Set up
+	// before any filesystem mutation so every mutation is covered.
+	if tx == nil {
+		localTx := transaction.NewManager(b.Log)
+		tx = localTx
+		defer func() {
+			if err != nil {
+				if rbErr := localTx.Rollback(); rbErr != nil {
+					b.Log.Error().Err(rbErr).Msg("rollback failed")
+				}
+				return
+			}
+			if cErr := localTx.Commit(); cErr != nil {
+				b.Log.Warn().Err(cErr).Msg("transaction commit cleanup failed")
+			}
+		}()
+	}
+
 	// Validate package exists
-	if _, err := b.Fs.Stat(packagePath); err != nil {
-		return nil, fmt.Errorf("package not found: %w", err)
+	if _, statErr := b.Fs.Stat(packagePath); statErr != nil {
+		return nil, fmt.Errorf("package not found: %w", statErr)
 	}
 
 	// Determine application name
@@ -100,42 +120,49 @@ func (b *BinaryBackend) Install(_ context.Context, packagePath string, opts core
 
 	// Normalize name for filesystem
 	binName := helpers.NormalizeFilename(appName)
-	if err := security.ValidatePackageName(binName); err != nil {
-		return nil, fmt.Errorf("invalid normalized name %q: %w", binName, err)
+	if nameErr := security.ValidatePackageName(binName); nameErr != nil {
+		return nil, fmt.Errorf("invalid normalized name %q: %w", binName, nameErr)
 	}
 	installID := helpers.GenerateInstallID(binName)
 
-	// Create ~/.local/bin directory
+	// Create ~/.local/bin directory (shared, not rolled back)
 	binDir := b.Paths.GetBinDir()
-	if err := b.Fs.MkdirAll(binDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create bin directory: %w", err)
+	if mkErr := b.Fs.MkdirAll(binDir, 0755); mkErr != nil {
+		return nil, fmt.Errorf("failed to create bin directory: %w", mkErr)
 	}
 
-	// Copy binary to ~/.local/bin/
 	destPath := filepath.Join(binDir, binName)
-	if _, err := b.Fs.Stat(destPath); err == nil {
-		if !opts.Force {
-			return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", destPath)
+
+	// Reject an existing installation unless forced.
+	if _, statErr := b.Fs.Stat(destPath); statErr == nil && !opts.Force {
+		return nil, fmt.Errorf("package already installed at: %s (use --force to reinstall)", destPath)
+	}
+
+	appsDir := b.Paths.GetAppsDir()
+	desktopTarget := filepath.Join(appsDir, binName+".desktop")
+
+	// With --force, back up the artifacts being replaced BEFORE creating the new
+	// ones so a failure restores the previous installation.
+	if opts.Force {
+		if bErr := tx.BackupForReplace(b.Fs, destPath); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing binary: %w", bErr)
 		}
-		if err := b.Fs.Remove(destPath); err != nil {
-			return nil, fmt.Errorf("remove existing binary: %w", err)
+		if bErr := tx.BackupForReplace(b.Fs, desktopTarget); bErr != nil {
+			return nil, fmt.Errorf("failed to back up existing desktop file: %w", bErr)
 		}
 	}
 
-	if err := b.copyBinary(packagePath, destPath); err != nil {
-		return nil, fmt.Errorf("failed to copy binary: %w", err)
+	// Register removal BEFORE the copy so a partial copy is cleaned up.
+	tx.Add("remove binary", func() error {
+		return helpers.RemoveIfExists(b.Fs, destPath, false)
+	})
+	if cpErr := b.copyBinary(packagePath, destPath); cpErr != nil {
+		return nil, fmt.Errorf("failed to copy binary: %w", cpErr)
 	}
 
 	// Make executable
-	if err := b.Fs.Chmod(destPath, 0755); err != nil {
-		return nil, fmt.Errorf("failed to make executable: %w", err)
-	}
-
-	if tx != nil {
-		path := destPath
-		tx.Add("remove binary", func() error {
-			return b.Fs.Remove(path)
-		})
+	if chErr := b.Fs.Chmod(destPath, 0755); chErr != nil {
+		return nil, fmt.Errorf("failed to make executable: %w", chErr)
 	}
 
 	b.Log.Debug().
@@ -144,24 +171,14 @@ func (b *BinaryBackend) Install(_ context.Context, packagePath string, opts core
 		Msg("binary copied and made executable")
 
 	// Create .desktop file if not skipped
-	var (
-		desktopPath string
-		err         error
-	)
+	var desktopPath string
 	if !opts.SkipDesktop {
-		if opts.Force {
-			appsDir := b.Paths.GetAppsDir()
-			oldDesktopPath := filepath.Join(appsDir, binName+".desktop")
-			if removeErr := b.Fs.Remove(oldDesktopPath); removeErr != nil {
-				b.Log.Debug().Err(removeErr).Str("desktop_file", oldDesktopPath).Msg("failed to remove existing desktop file")
-			}
-		}
+		// Register removal of the desktop target before it is written.
+		tx.Add("remove desktop file", func() error {
+			return helpers.RemoveIfExists(b.Fs, desktopTarget, false)
+		})
 		desktopPath, err = b.createDesktopFile(appName, binName, destPath, opts)
 		if err != nil {
-			// Clean up binary on desktop file creation failure
-			if removeErr := b.Fs.Remove(destPath); removeErr != nil {
-				b.Log.Warn().Err(removeErr).Str("path", destPath).Msg("failed to remove binary after desktop file error")
-			}
 			return nil, fmt.Errorf("failed to create desktop file: %w", err)
 		}
 
@@ -169,22 +186,14 @@ func (b *BinaryBackend) Install(_ context.Context, packagePath string, opts core
 			Str("desktop_file", desktopPath).
 			Msg("desktop file created")
 
-		if tx != nil && desktopPath != "" {
-			path := desktopPath
-			tx.Add("remove desktop file", func() error {
-				return b.Fs.Remove(path)
-			})
-		}
-
-		// Update desktop database
-		appsDir := b.Paths.GetAppsDir()
+		// Update desktop database (best-effort)
 		if cacheErr := b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log); cacheErr != nil {
 			b.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
 		}
 	}
 
 	// Create install record
-	record := &core.InstallRecord{
+	record = &core.InstallRecord{
 		InstallID:    installID,
 		PackageType:  core.PackageTypeBinary,
 		Name:         appName,
@@ -242,18 +251,13 @@ func (b *BinaryBackend) Uninstall(_ context.Context, record *core.InstallRecord)
 		Str("name", record.Name).
 		Msg("uninstalling binary package")
 
+	var errs []error
+
 	// Remove binary
-	if record.InstallPath != "" {
-		if err := b.Fs.Remove(record.InstallPath); err != nil {
-			b.Log.Warn().
-				Err(err).
-				Str("path", record.InstallPath).
-				Msg("failed to remove binary")
-		} else {
-			b.Log.Debug().
-				Str("path", record.InstallPath).
-				Msg("binary removed")
-		}
+	if err := helpers.RemoveIfExists(b.Fs, record.InstallPath, false); err != nil {
+		errs = append(errs, err)
+	} else if record.InstallPath != "" {
+		b.Log.Debug().Str("path", record.InstallPath).Msg("binary removed")
 	}
 
 	// Remove .desktop file(s)
@@ -261,22 +265,21 @@ func (b *BinaryBackend) Uninstall(_ context.Context, record *core.InstallRecord)
 		if desktopPath == "" {
 			continue
 		}
-		if err := b.Fs.Remove(desktopPath); err != nil {
-			b.Log.Warn().
-				Err(err).
-				Str("path", desktopPath).
-				Msg("failed to remove desktop file")
+		if err := helpers.RemoveIfExists(b.Fs, desktopPath, false); err != nil {
+			errs = append(errs, err)
 		} else {
-			b.Log.Debug().
-				Str("path", desktopPath).
-				Msg("desktop file removed")
+			b.Log.Debug().Str("path", desktopPath).Msg("desktop file removed")
 		}
 	}
 
-	// Update desktop database
+	// Update desktop database (best-effort, runs even when removals failed).
 	appsDir := b.Paths.GetAppsDir()
 	if cacheErr := b.cacheManager.UpdateDesktopDatabase(appsDir, b.Log); cacheErr != nil {
 		b.Log.Warn().Err(cacheErr).Str("apps_dir", appsDir).Msg("failed to update desktop database")
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 
 	b.Log.Info().

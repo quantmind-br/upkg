@@ -40,7 +40,81 @@ func TestCommit(t *testing.T) {
 	manager.Add("test-operation", rollbackFunc)
 	assert.Equal(t, 1, len(manager.rollbacks))
 
-	manager.Commit()
+	err := manager.Commit()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(manager.rollbacks))
+}
+
+func TestCommitRunsFinalizersLIFO(t *testing.T) {
+	logger := zerolog.Nop()
+	manager := NewManager(&logger)
+
+	var order []string
+	manager.AddCommit("c1", func() error {
+		order = append(order, "c1")
+		return nil
+	})
+	manager.AddCommit("c2", func() error {
+		order = append(order, "c2")
+		return nil
+	})
+	manager.Add("rollback-should-not-run", func() error {
+		order = append(order, "rollback")
+		return nil
+	})
+
+	err := manager.Commit()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"c2", "c1"}, order)
+	assert.Equal(t, 0, len(manager.rollbacks))
+	assert.Equal(t, 0, len(manager.commits))
+}
+
+func TestCommitAggregatesFinalizerErrors(t *testing.T) {
+	logger := zerolog.Nop()
+	manager := NewManager(&logger)
+
+	err1 := errors.New("finalizer 1 failed")
+	err2 := errors.New("finalizer 2 failed")
+	var ran []string
+	manager.AddCommit("c1", func() error {
+		ran = append(ran, "c1")
+		return err1
+	})
+	manager.AddCommit("c2", func() error {
+		ran = append(ran, "c2")
+		return err2
+	})
+
+	err := manager.Commit()
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, err1)
+	assert.ErrorIs(t, err, err2)
+	// Both finalizers ran despite errors, and stacks are cleared.
+	assert.Equal(t, []string{"c2", "c1"}, ran)
+	assert.Equal(t, 0, len(manager.commits))
+}
+
+func TestRollbackDiscardsFinalizers(t *testing.T) {
+	logger := zerolog.Nop()
+	manager := NewManager(&logger)
+
+	finalizerRan := false
+	manager.AddCommit("c1", func() error {
+		finalizerRan = true
+		return nil
+	})
+	rollbackRan := false
+	manager.Add("r1", func() error {
+		rollbackRan = true
+		return nil
+	})
+
+	err := manager.Rollback()
+	assert.NoError(t, err)
+	assert.True(t, rollbackRan)
+	assert.False(t, finalizerRan)
+	assert.Equal(t, 0, len(manager.commits))
 	assert.Equal(t, 0, len(manager.rollbacks))
 }
 

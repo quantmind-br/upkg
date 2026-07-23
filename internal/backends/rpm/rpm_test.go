@@ -100,7 +100,7 @@ func TestDetect(t *testing.T) {
 			name:     "file with .rpm extension but wrong content",
 			filename: "fake.rpm",
 			content:  []byte("not an rpm"),
-			expected: true, // Detection is by extension, not content validation
+			expected: false, // Detection is by content signature, not extension
 		},
 	}
 
@@ -378,11 +378,8 @@ func TestUninstall_ExtractedMethod(t *testing.T) {
 	t.Run("uninstalls all files", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
-
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Create fake installation
 		installDir := filepath.Join(tmpDir, "install")
@@ -424,11 +421,8 @@ func TestUninstall_ExtractedMethod(t *testing.T) {
 	t.Run("handles missing files gracefully", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
-
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		record := &core.InstallRecord{
 			InstallID:   "test-id",
@@ -856,10 +850,7 @@ func TestInstallIcons(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installedIcons, err := backend.installIcons(installDir, "test-app")
 		assert.NoError(t, err)
@@ -880,11 +871,6 @@ func TestInstallIcons(t *testing.T) {
 		backendWithEmptyHome := New(cfg, &logger)
 		backendWithEmptyHome.Paths = paths
 
-		// Mock missing home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Unsetenv("HOME")
-		defer os.Setenv("HOME", origHomeDir)
-
 		installedIcons, err := backendWithEmptyHome.installIcons(installDir, "test-app")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "home directory")
@@ -900,10 +886,7 @@ func TestInstallIcons(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Test should complete without panic even if icon installation fails
 		installedIcons, err := backend.installIcons(installDir, "test-app")

@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const shellPowerShell = "powershell"
+
 // NewCompletionCmd creates the completion command
 func NewCompletionCmd(_ *config.Config, log *zerolog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
@@ -52,7 +54,7 @@ PowerShell:
   # and source this file from your PowerShell profile.
 `,
 		DisableFlagsInUseLine: true,
-		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
+		ValidArgs:             []string{"bash", "zsh", "fish", shellPowerShell},
 		Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			shell := args[0]
@@ -73,7 +75,7 @@ PowerShell:
 					ui.PrintError("Failed to generate fish completion: %v", err)
 					return err
 				}
-			case "powershell":
+			case shellPowerShell:
 				if err := cmd.Root().GenPowerShellCompletionWithDesc(os.Stdout); err != nil {
 					ui.PrintError("Failed to generate powershell completion: %v", err)
 					return err

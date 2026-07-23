@@ -13,6 +13,7 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/paths"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
@@ -75,40 +76,65 @@ func TestAppImageBackend_Install_AlreadyInstalled(t *testing.T) {
 	t.Skip("requires valid AppImage for extraction - tested in integration")
 }
 
-// TestAppImageBackend_Install_WithForce tests Install with force option
+// TestAppImageBackend_Install_WithForce proves the forced-reinstall backup
+// contract end to end: a successful Install replaces the previous binary, and a
+// later transaction rollback (as the install command performs when DB
+// persistence fails) restores the exact previous bytes. See BUG-001.
 func TestAppImageBackend_Install_WithForce(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfg := &config.Config{
-		Paths: config.PathsConfig{
-			DataDir: tmpDir,
-			DBFile:  filepath.Join(tmpDir, "test.db"),
-		},
-	}
+	home := t.TempDir()
+	cfg := &config.Config{Paths: config.PathsConfig{DataDir: filepath.Join(home, "data")}}
 	logger := zerolog.New(io.Discard)
 	fs := afero.NewOsFs()
-	backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
 
-	// Create fake installation directory
-	appsDir := filepath.Join(tmpDir, ".local", "share", "upkg", "apps")
-	require.NoError(t, fs.MkdirAll(appsDir, 0755))
-	installDir := filepath.Join(appsDir, "testapp")
-	require.NoError(t, fs.MkdirAll(installDir, 0755))
+	// Mock extraction: the primary --appimage-extract populates squashfs-root.
+	mockRunner := &helpers.MockCommandRunner{
+		CommandExistsFunc: func(cmd string) bool { return cmd == "unsquashfs" },
+		RunCommandInDirFunc: func(_ context.Context, dir, _ string, _ ...string) (string, error) {
+			return "", os.MkdirAll(filepath.Join(dir, "squashfs-root"), 0755)
+		},
+	}
+	backend := NewWithDeps(cfg, &logger, fs, mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, home)
 
-	// Create fake AppImage
-	fakeAppImage := filepath.Join(tmpDir, "testapp.AppImage")
-	require.NoError(t, os.WriteFile(fakeAppImage, []byte("fake appimage"), 0755))
+	// A previous install already occupies the destination binary path.
+	binDir := filepath.Join(home, ".local", "bin")
+	require.NoError(t, os.MkdirAll(binDir, 0755))
+	installedPath := filepath.Join(binDir, "testapp.appimage")
+	oldBytes := []byte("OLD INSTALLED APPIMAGE")
+	require.NoError(t, os.WriteFile(installedPath, oldBytes, 0755))
+
+	// The replacement source carries different content.
+	newBytes := []byte("NEW APPIMAGE PAYLOAD")
+	srcPath := filepath.Join(home, "testapp.AppImage")
+	require.NoError(t, os.WriteFile(srcPath, newBytes, 0644))
 
 	ctx := context.Background()
 	tx := transaction.NewManager(&logger)
 
-	// With force, should try to remove existing dir
-	record, err := backend.Install(ctx, fakeAppImage, core.InstallOptions{Force: true}, tx)
+	record, err := backend.Install(ctx, srcPath, core.InstallOptions{Force: true, SkipDesktop: true}, tx)
+	require.NoError(t, err)
+	require.NotNil(t, record)
 
-	// Will fail during extraction but should attempt removal
-	assert.Error(t, err)
-	assert.Nil(t, record)
+	// The forced install replaced the previous binary with the new payload.
+	got, readErr := os.ReadFile(installedPath)
+	require.NoError(t, readErr)
+	assert.Equal(t, newBytes, got, "force install must write the new payload")
+
+	// Simulate the install command's DB-failure path: rollback must restore the
+	// exact previous binary rather than leave the destination destroyed.
+	require.NoError(t, tx.Rollback())
+	restored, readErr := os.ReadFile(installedPath)
+	require.NoError(t, readErr)
+	assert.Equal(t, oldBytes, restored, "rollback must restore the previous install byte-for-byte")
+
+	// No backup siblings should remain in the bin directory after rollback.
+	entries, dErr := os.ReadDir(binDir)
+	require.NoError(t, dErr)
+	for _, e := range entries {
+		assert.NotContains(t, e.Name(), "upkg-backup-", "no backup artifact should linger")
+	}
 }
 
 // TestAppImageBackend_Install_SkipDesktop tests Install with SkipDesktop option
@@ -231,11 +257,6 @@ func TestAppImageBackend_Install_InvalidCustomName(t *testing.T) {
 func TestAppImageBackend_Install_NoHomeDirectory(t *testing.T) {
 	t.Parallel()
 
-	// Unset HOME
-	origHome := os.Getenv("HOME")
-	os.Unsetenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -245,6 +266,7 @@ func TestAppImageBackend_Install_NoHomeDirectory(t *testing.T) {
 	}
 	logger := zerolog.New(io.Discard)
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, "")
 
 	// Create fake AppImage
 	fakeAppImage := filepath.Join(tmpDir, "test.AppImage")
@@ -265,9 +287,6 @@ func TestAppImageBackend_Install_NilTransaction(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -277,6 +296,7 @@ func TestAppImageBackend_Install_NilTransaction(t *testing.T) {
 	}
 	logger := zerolog.New(io.Discard)
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake AppImage
 	fakeAppImage := filepath.Join(tmpDir, "test.AppImage")
@@ -297,9 +317,6 @@ func TestAppImageBackend_Install_MkdirFailure(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -315,6 +332,7 @@ func TestAppImageBackend_Install_MkdirFailure(t *testing.T) {
 		failMkdirAll: true,
 	}
 	backend := NewWithDeps(cfg, &logger, errorFs, helpers.NewOSCommandRunner())
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake AppImage
 	fakeAppImage := filepath.Join(tmpDir, "test.AppImage")
@@ -334,9 +352,6 @@ func TestAppImageBackend_Install_ExtractFailure(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{
 		Paths: config.PathsConfig{
@@ -357,6 +372,7 @@ func TestAppImageBackend_Install_ExtractFailure(t *testing.T) {
 	}
 	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
 	backend := NewWithCacheManager(cfg, &logger, cacheManager)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake AppImage
 	fakeAppImage := filepath.Join(tmpDir, "test.AppImage")
@@ -437,11 +453,9 @@ func TestAppImageBackend_Uninstall_WithDesktopFile(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-	err := backend.Uninstall(ctx, record)
-
-	// May succeed or fail gracefully
-	_ = err
+	require.NoError(t, backend.Uninstall(context.Background(), record))
+	// The desktop file registered on the record must be removed.
+	assert.NoFileExists(t, desktopPath)
 }
 
 // TestAppImageBackend_Uninstall_WithIconFiles tests uninstall with icon files

@@ -46,34 +46,104 @@ func TestTarballBackend_Install_InvalidArchive(t *testing.T) {
 	record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to extract archive")
+	assert.Contains(t, err.Error(), "unsupported archive type")
 	assert.Nil(t, record)
+}
+
+func newTarballBackend(t *testing.T, home string) *TarballBackend {
+	t.Helper()
+	logger := zerolog.New(io.Discard)
+	cfg := &config.Config{}
+	b := NewWithDeps(cfg, &logger, afero.NewOsFs(), helpers.NewOSCommandRunner())
+	b.Paths = paths.NewResolverWithHome(cfg, home)
+	return b
 }
 
 func TestTarballBackend_Install_NoExecutables(t *testing.T) {
 	t.Parallel()
-	// Create a tar.gz with no executables
-	// This would require creating a real archive
-	t.Skip("Requires creating a real tar.gz archive")
+	home := t.TempDir()
+	backend := newTarballBackend(t, home)
+
+	// A valid archive whose only entry is a non-executable data file.
+	archivePath := filepath.Join(home, "app.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, makeTarGz(t, "data.txt", []byte("just data")), 0644))
+
+	tx := transaction.NewManager(zerologNop())
+	record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no executables found")
+	assert.Nil(t, record)
 }
 
 func TestTarballBackend_Install_AlreadyInstalled(t *testing.T) {
 	t.Parallel()
-	// Test that force flag allows reinstallation
-	// This would require creating a real archive
-	t.Skip("Requires creating a real archive")
+	home := t.TempDir()
+	backend := newTarballBackend(t, home)
+
+	archivePath := filepath.Join(home, "app.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, makeTarGzWithELF(t, "app"), 0644))
+
+	// First install succeeds.
+	tx := transaction.NewManager(zerologNop())
+	rec, err := backend.Install(context.Background(), archivePath, core.InstallOptions{SkipDesktop: true}, tx)
+	require.NoError(t, err)
+	require.NotNil(t, rec)
+
+	// Second install without force is rejected.
+	tx2 := transaction.NewManager(zerologNop())
+	rec2, err2 := backend.Install(context.Background(), archivePath, core.InstallOptions{SkipDesktop: true}, tx2)
+	require.Error(t, err2)
+	assert.Contains(t, err2.Error(), "already installed")
+	assert.Nil(t, rec2)
 }
 
 func TestTarballBackend_Install_WithForce(t *testing.T) {
 	t.Parallel()
-	// Test that force flag allows reinstallation
-	t.Skip("Requires creating a real archive")
+	home := t.TempDir()
+	backend := newTarballBackend(t, home)
+
+	archivePath := filepath.Join(home, "app.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, makeTarGzWithELF(t, "app"), 0644))
+
+	tx := transaction.NewManager(zerologNop())
+	_, err := backend.Install(context.Background(), archivePath, core.InstallOptions{SkipDesktop: true}, tx)
+	require.NoError(t, err)
+
+	// Force reinstall over the existing installation succeeds and commits.
+	tx2 := transaction.NewManager(zerologNop())
+	rec, err := backend.Install(context.Background(), archivePath, core.InstallOptions{SkipDesktop: true, Force: true}, tx2)
+	require.NoError(t, err)
+	require.NotNil(t, rec)
+	require.NoError(t, tx2.Commit())
+
+	// The installation directory still exists and no backup leaked.
+	installDir := filepath.Join(home, ".local", "share", "upkg", "apps", "app")
+	_, statErr := os.Stat(installDir)
+	require.NoError(t, statErr)
+	entries, _ := os.ReadDir(filepath.Dir(installDir))
+	for _, e := range entries {
+		assert.NotContains(t, e.Name(), "upkg-backup-")
+	}
 }
 
 func TestTarballBackend_Install_SkipDesktop(t *testing.T) {
 	t.Parallel()
-	// Test that skip-desktop flag prevents desktop file creation
-	t.Skip("Requires creating a real archive")
+	home := t.TempDir()
+	backend := newTarballBackend(t, home)
+
+	archivePath := filepath.Join(home, "app.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, makeTarGzWithELF(t, "app"), 0644))
+
+	tx := transaction.NewManager(zerologNop())
+	rec, err := backend.Install(context.Background(), archivePath, core.InstallOptions{SkipDesktop: true}, tx)
+	require.NoError(t, err)
+	require.NotNil(t, rec)
+
+	// No .desktop file is created when SkipDesktop is set.
+	assert.Empty(t, rec.DesktopFile)
+	desktopPath := filepath.Join(home, ".local", "share", "applications", "app.desktop")
+	_, statErr := os.Stat(desktopPath)
+	assert.True(t, os.IsNotExist(statErr), "desktop file must not be created")
 }
 
 func TestTarballBackend_Uninstall(t *testing.T) {
@@ -86,9 +156,7 @@ func TestTarballBackend_Uninstall(t *testing.T) {
 		backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
 
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Create fake installation files
 		installDir := filepath.Join(tmpDir, ".local", "share", "apps", "test-app")
@@ -178,32 +246,32 @@ func TestTarballBackend_Detect(t *testing.T) {
 		{
 			name:     "tar.gz file",
 			filename: "test.tar.gz",
-			content:  []byte{0x1F, 0x8B, 0x08}, // gzip magic
+			content:  makeTarGz(t, "app", []byte("#!/bin/sh\necho hi\n")),
 			expected: true,
 		},
 		{
 			name:     "tar.xz file",
 			filename: "test.tar.xz",
-			content:  []byte{0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00}, // xz magic
-			expected: true,
-		},
-		{
-			name:     "tar.bz2 file",
-			filename: "test.tar.bz2",
-			content:  []byte{0x42, 0x5A, 0x68}, // bz2 magic
+			content:  makeTarXz(t, "app", []byte("#!/bin/sh\necho hi\n")),
 			expected: true,
 		},
 		{
 			name:     "tar file",
 			filename: "test.tar",
-			content:  []byte{0x75, 0x73, 0x74, 0x61, 0x72}, // tar magic at offset 257
+			content:  makeTar(t, "app", []byte("#!/bin/sh\necho hi\n")),
 			expected: true,
 		},
 		{
 			name:     "zip file",
 			filename: "test.zip",
-			content:  []byte{0x50, 0x4B, 0x03, 0x04}, // zip magic
+			content:  makeZip(t, "app", []byte("#!/bin/sh\necho hi\n")),
 			expected: true,
+		},
+		{
+			name:     "renamed text file is not an archive",
+			filename: "fake.tar.gz",
+			content:  []byte("plain text pretending to be an archive"),
+			expected: false,
 		},
 		{
 			name:     "text file",
@@ -427,13 +495,7 @@ func TestTarballBackend_InstallIcons(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("icon"), 0644))
 
-		// Unset HOME
-		origHome := os.Getenv("HOME")
-		os.Unsetenv("HOME")
-		defer os.Setenv("HOME", origHome)
-
-		// Force the backend to use an empty home directory
-		// by creating a new resolver with empty home dir
+		// Force the backend to use an empty home directory.
 		backend.Paths = paths.NewResolverWithHome(cfg, "")
 
 		icons, err := backend.installIcons(installDir, "test-app")
@@ -448,16 +510,14 @@ func TestTarballBackend_InstallIcons(t *testing.T) {
 		cfg := &config.Config{}
 		backend := New(cfg, &logger)
 
-		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+		home := t.TempDir()
+		backend.Paths = paths.NewResolverWithHome(cfg, home)
 
 		// Create necessary directory structure for icons
-		iconsDir := filepath.Join(tmpDir, ".local", "share", "icons", "hicolor", "256x256", "apps")
+		iconsDir := filepath.Join(home, ".local", "share", "icons", "hicolor", "256x256", "apps")
 		require.NoError(t, os.MkdirAll(iconsDir, 0755))
 
-		installDir := filepath.Join(tmpDir, "install")
+		installDir := filepath.Join(home, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
 
 		// Create an icon file
@@ -481,10 +541,6 @@ func TestTarballBackend_CreateDesktopFile(t *testing.T) {
 		backend := New(cfg, &logger)
 
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
-
 		// Update the backend's paths resolver to use the new home
 		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
@@ -515,10 +571,6 @@ func TestTarballBackend_CreateDesktopFile(t *testing.T) {
 		backend := New(cfg, &logger)
 
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
-
 		// Update the backend's paths resolver to use the new home
 		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
@@ -550,9 +602,7 @@ func TestTarballBackend_CreateDesktopFile(t *testing.T) {
 		backend := New(cfg, &logger)
 
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -705,9 +755,6 @@ func TestTarballBackend_CreateDesktopFile_Additional(t *testing.T) {
 		backend := New(cfg, &logger)
 
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
 
 		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
@@ -749,9 +796,6 @@ func TestTarballBackend_CreateDesktopFile_Additional(t *testing.T) {
 		backend := New(cfg, &logger)
 
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
 
 		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
@@ -796,9 +840,7 @@ func TestTarballBackend_InstallIcons_Additional(t *testing.T) {
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
 
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -917,12 +959,10 @@ func TestTarballBackend_Install_WithCustomName(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake tar.gz (will fail extraction)
 	archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -940,12 +980,10 @@ func TestTarballBackend_Install_WithForce_NotSkipped(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake tar.gz (will fail extraction)
 	archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -963,12 +1001,10 @@ func TestTarballBackend_Install_SkipDesktop_NotSkipped(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake tar.gz (will fail extraction)
 	archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -986,12 +1022,10 @@ func TestTarballBackend_createDesktopFile_EdgeCases(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	t.Run("basic desktop file creation", func(t *testing.T) {
 		installDir := tmpDir
@@ -1024,6 +1058,7 @@ func TestTarballBackend_createDesktopFile_EdgeCases(t *testing.T) {
 			},
 		}
 		backendElectron := New(cfgElectron, &logger)
+		backendElectron.Paths = paths.NewResolverWithHome(cfgElectron, electronTmpDir)
 
 		desktopPath, err := backendElectron.createDesktopFile(installDir, appName, normalizedName, execPath, opts)
 		// Desktop file should be created successfully
@@ -1072,12 +1107,10 @@ func TestTarballBackend_installIcons_EdgeCases(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	t.Run("empty install directory", func(t *testing.T) {
 		installDir := ""
@@ -1301,24 +1334,25 @@ func TestTarballBackend_Install_MorePaths(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
 
-	t.Run("already installed without force", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+	newBackend := func(fs afero.Fs, home string) *TarballBackend {
+		b := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
+		b.Paths = paths.NewResolverWithHome(cfg, home)
+		return b
+	}
 
+	t.Run("already installed without force", func(t *testing.T) {
+		home := t.TempDir()
 		fs := afero.NewOsFs()
-		backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
+		backend := newBackend(fs, home)
 
 		// Create fake installation directory
-		appsDir := filepath.Join(tmpDir, ".local", "share", "upkg", "apps")
+		appsDir := filepath.Join(home, ".local", "share", "upkg", "apps")
 		require.NoError(t, fs.MkdirAll(appsDir, 0755))
 		installDir := filepath.Join(appsDir, "testapp")
 		require.NoError(t, fs.MkdirAll(installDir, 0755))
 
-		// Create fake archive
-		archivePath := filepath.Join(tmpDir, "testapp.tar.gz")
-		require.NoError(t, os.WriteFile(archivePath, []byte("fake archive"), 0644))
+		archivePath := filepath.Join(home, "testapp.tar.gz")
+		require.NoError(t, os.WriteFile(archivePath, makeTarGz(t, "app", []byte("#!/bin/sh\n")), 0644))
 
 		tx := transaction.NewManager(&logger)
 		record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
@@ -1328,74 +1362,78 @@ func TestTarballBackend_Install_MorePaths(t *testing.T) {
 		assert.Nil(t, record)
 	})
 
-	t.Run("already installed with force", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
-
+	t.Run("force reinstall failure restores previous install", func(t *testing.T) {
+		home := t.TempDir()
 		fs := afero.NewOsFs()
-		backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
+		backend := newBackend(fs, home)
 
-		// Create fake installation directory
-		appsDir := filepath.Join(tmpDir, ".local", "share", "upkg", "apps")
-		require.NoError(t, fs.MkdirAll(appsDir, 0755))
+		// Seed an existing installation with a recognizable marker file.
+		appsDir := filepath.Join(home, ".local", "share", "upkg", "apps")
 		installDir := filepath.Join(appsDir, "testapp")
 		require.NoError(t, fs.MkdirAll(installDir, 0755))
+		marker := filepath.Join(installDir, "OLD_MARKER")
+		require.NoError(t, os.WriteFile(marker, []byte("previous"), 0644))
 
-		// Create fake archive (will fail extraction but force should remove existing dir)
-		archivePath := filepath.Join(tmpDir, "testapp.tar.gz")
-		require.NoError(t, os.WriteFile(archivePath, []byte("fake archive"), 0644))
+		// A valid archive with no executable payload: install proceeds past
+		// backup, then fails on "no executables", triggering rollback.
+		archivePath := filepath.Join(home, "testapp.tar.gz")
+		require.NoError(t, os.WriteFile(archivePath, makeTarGz(t, "data.txt", []byte("just data")), 0644))
 
 		tx := transaction.NewManager(&logger)
 		record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{Force: true}, tx)
-
-		// Should fail during extraction, but existing dir should be removed
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, record)
-		// Verify the directory was removed
-		_, err = fs.Stat(installDir)
-		assert.True(t, os.IsNotExist(err))
+
+		// Rollback must restore the previous installation and its marker.
+		require.NoError(t, tx.Rollback())
+		data, readErr := os.ReadFile(marker)
+		require.NoError(t, readErr)
+		assert.Equal(t, "previous", string(data))
+
+		// No residual backup directories remain in appsDir.
+		entries, dirErr := os.ReadDir(appsDir)
+		require.NoError(t, dirErr)
+		for _, e := range entries {
+			assert.NotContains(t, e.Name(), "upkg-backup-")
+		}
 	})
 
 	t.Run("create bin dir failure", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+		home := t.TempDir()
+		binDir := filepath.Join(home, ".local", "bin")
+		// Delegate to the real filesystem (extraction reads the real disk) but
+		// fail MkdirAll for the bin directory to hit that specific branch.
+		fs := &binDirFailFs{Fs: afero.NewOsFs(), failPrefix: binDir}
+		backend := newBackend(fs, home)
 
-		// Use a mock filesystem that fails MkdirAll for bin dir
-		fs := afero.NewMemMapFs()
-		backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
-
-		// Create a fake tar.gz file (content doesn't matter since we'll fail extraction)
-		archivePath := filepath.Join(tmpDir, "test.tar.gz")
-		require.NoError(t, afero.WriteFile(fs, archivePath, []byte("fake"), 0644))
+		// A real ELF payload so detection, extraction and FindExecutables all
+		// succeed, leaving the bin-dir creation as the failing step.
+		archivePath := filepath.Join(home, "test.tar.gz")
+		require.NoError(t, os.WriteFile(archivePath, makeTarGzWithELF(t, "app"), 0644))
 
 		tx := transaction.NewManager(&logger)
 		_, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
-
-		// Should fail during extraction or bin dir creation
-		assert.Error(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "bin directory")
 	})
 
-	t.Run("nil transaction manager", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+	t.Run("nil transaction manager rolls back on failure", func(t *testing.T) {
+		home := t.TempDir()
+		fs := afero.NewOsFs()
+		backend := newBackend(fs, home)
 
-		backend := New(cfg, &logger)
+		// Valid archive without executables fails after the install dir is made;
+		// the backend's local transaction must roll the directory back.
+		archivePath := filepath.Join(home, "testapp.tar.gz")
+		require.NoError(t, os.WriteFile(archivePath, makeTarGz(t, "data.txt", []byte("data")), 0644))
 
-		// Create fake archive (will fail extraction)
-		archivePath := filepath.Join(tmpDir, "testapp.tar.gz")
-		require.NoError(t, os.WriteFile(archivePath, []byte("fake archive"), 0644))
-
-		// Pass nil transaction manager
 		record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, nil)
-
 		assert.Error(t, err)
 		assert.Nil(t, record)
+
+		installDir := filepath.Join(home, ".local", "share", "upkg", "apps", "testapp")
+		_, statErr := fs.Stat(installDir)
+		assert.True(t, os.IsNotExist(statErr), "install dir should be rolled back")
 	})
 }
 
@@ -1407,11 +1445,9 @@ func TestTarballBackend_installIcons_MoreCoverage(t *testing.T) {
 
 	t.Run("various icon formats", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
 
 		backend := New(cfg, &logger)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -1439,11 +1475,9 @@ func TestTarballBackend_installIcons_MoreCoverage(t *testing.T) {
 
 	t.Run("hidden icon files", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
 
 		backend := New(cfg, &logger)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))

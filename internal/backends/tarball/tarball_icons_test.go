@@ -8,6 +8,7 @@ import (
 
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/helpers"
+	"github.com/quantmind-br/upkg/internal/paths"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,9 +142,7 @@ func TestTarballBackend_InstallIcons_HomeDirFailure(t *testing.T) {
 	log := zerolog.Nop()
 	backend := New(cfg, &log)
 
-	origHome := os.Getenv("HOME")
-	os.Unsetenv("HOME")
-	defer os.Setenv("HOME", origHome)
+	backend.Paths = paths.NewResolverWithHome(cfg, "")
 
 	iconDir := filepath.Join(tmpDir, "icons")
 	require.NoError(t, os.MkdirAll(iconDir, 0755))
@@ -152,29 +151,10 @@ func TestTarballBackend_InstallIcons_HomeDirFailure(t *testing.T) {
 
 	icons, err := backend.installIcons(iconDir, "test")
 
-	_ = icons
-	_ = err
-}
-
-func TestTarballBackend_CreateDesktopFile_DirFailure(t *testing.T) {
-	// This test is covered by the existing tarball_test_extra.go
-	// which tests the full Install flow including desktop file creation
-	t.Skip("Covered by existing tests")
-}
-
-func TestTarballBackend_CreateDesktopFile_ParseFailure(t *testing.T) {
-	// This test is covered by existing tests
-	t.Skip("Covered by existing tests")
-}
-
-func TestTarballBackend_CreateDesktopFile_WriteFailure(t *testing.T) {
-	// This test is covered by existing tests
-	t.Skip("Covered by existing tests")
-}
-
-func TestTarballBackend_CreateDesktopFile_ValidationFailure(t *testing.T) {
-	// This test is covered by existing tests
-	t.Skip("Covered by existing tests")
+	// An empty home directory must surface an error and no installed icons.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "home directory")
+	assert.Empty(t, icons)
 }
 
 func TestTarballBackend_ExtractArchive_Unsupported(t *testing.T) {

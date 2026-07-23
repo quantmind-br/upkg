@@ -15,6 +15,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+const (
+	flatpakNonInteractive = "--noninteractive"
+	flatpakOrUpdate       = "--or-update"
+)
+
 // FlatpakBackend handles Flatpak package installation and management
 type FlatpakBackend struct {
 	*backendbase.BaseBackend
@@ -68,7 +73,7 @@ func (f *FlatpakBackend) Install(ctx context.Context, input string, opts core.In
 	// Get list of installed apps before installation
 	appsBeforeInstall := f.getInstalledAppIDs(ctx)
 
-	args = []string{"install", "--user", "--noninteractive", "--or-update"}
+	args = []string{"install", "--user", flatpakNonInteractive, flatpakOrUpdate}
 
 	if remote != "" {
 		args = append(args, remote, appID)
@@ -158,7 +163,7 @@ func (f *FlatpakBackend) Uninstall(ctx context.Context, record *core.InstallReco
 		return err
 	}
 
-	args := []string{"uninstall", "--user", "--noninteractive", "-y"}
+	args := []string{"uninstall", "--user", flatpakNonInteractive, "-y"}
 
 	if record.Metadata.InstallMethod == "delete-data" {
 		args = append(args, "--delete-data")

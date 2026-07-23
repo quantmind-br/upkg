@@ -323,3 +323,106 @@ func (db *DB) Delete(ctx context.Context, installID string) error {
 
 	return nil
 }
+
+// ReplaceByPath atomically persists a forced local reinstall. Within a single
+// SQLite transaction it looks up every row matching the record's package type
+// and install path (most recent first). With no match it inserts the record.
+// With one or more matches it preserves the canonical (first) row's ID and
+// install date, updates its remaining fields with the new values, deletes any
+// additional legacy duplicates, and returns the canonical record. Any error
+// rolls back the SQL transaction and leaves the caller's struct untouched.
+func (db *DB) ReplaceByPath(ctx context.Context, install *Install) (*Install, error) {
+	metadataJSON, err := json.Marshal(install.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("marshal metadata: %w", err)
+	}
+
+	tx, err := db.write.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback() //nolint:errcheck // best-effort rollback in defer; commit path returns the real error
+		}
+	}()
+
+	rows, err := tx.QueryContext(ctx, `
+SELECT install_id, install_date
+FROM installs
+WHERE package_type = ? AND install_path = ?
+ORDER BY install_date DESC, install_id DESC
+	`, install.PackageType, install.InstallPath)
+	if err != nil {
+		return nil, fmt.Errorf("query existing installs: %w", err)
+	}
+
+	type existing struct {
+		id   string
+		date time.Time
+	}
+	var matches []existing
+	for rows.Next() {
+		var e existing
+		if scanErr := rows.Scan(&e.id, &e.date); scanErr != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan existing install: %w", scanErr)
+		}
+		matches = append(matches, e)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf("rows error: %w", rowsErr)
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, fmt.Errorf("close rows: %w", closeErr)
+	}
+
+	result := *install
+
+	if len(matches) == 0 {
+		if _, err = tx.ExecContext(ctx, `
+INSERT INTO installs (install_id, package_type, name, version, install_date, original_file, install_path, desktop_file, metadata)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+			result.InstallID, result.PackageType, result.Name, result.Version,
+			result.InstallDate, result.OriginalFile, result.InstallPath,
+			result.DesktopFile, string(metadataJSON),
+		); err != nil {
+			return nil, fmt.Errorf("insert install: %w", err)
+		}
+	} else {
+		canonical := matches[0]
+		result.InstallID = canonical.id
+		result.InstallDate = canonical.date
+
+		if _, err = tx.ExecContext(ctx, `
+UPDATE installs SET
+    name = ?,
+    version = ?,
+    original_file = ?,
+    desktop_file = ?,
+    metadata = ?
+WHERE install_id = ?
+		`,
+			result.Name, result.Version, result.OriginalFile,
+			result.DesktopFile, string(metadataJSON), canonical.id,
+		); err != nil {
+			return nil, fmt.Errorf("update install: %w", err)
+		}
+
+		for _, dup := range matches[1:] {
+			if _, err = tx.ExecContext(ctx, `DELETE FROM installs WHERE install_id = ?`, dup.id); err != nil {
+				return nil, fmt.Errorf("delete duplicate install %s: %w", dup.id, err)
+			}
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+	committed = true
+
+	return &result, nil
+}

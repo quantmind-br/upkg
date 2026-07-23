@@ -78,19 +78,13 @@ func TestDetect(t *testing.T) {
 		{
 			name:     "tar.gz file",
 			filename: "test.tar.gz",
-			content:  []byte{0x1F, 0x8B, 0x08, 0x00}, // gzip magic
+			content:  makeTarGz(t, "app", []byte("#!/bin/sh\necho hi\n")),
 			expected: true,
 		},
 		{
 			name:     "tar.xz file",
 			filename: "test.tar.xz",
-			content:  []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}, // xz magic
-			expected: true,
-		},
-		{
-			name:     "tar.bz2 file",
-			filename: "test.tar.bz2",
-			content:  []byte{'B', 'Z', 'h', '9'}, // bzip2 magic
+			content:  makeTarXz(t, "app", []byte("#!/bin/sh\necho hi\n")),
 			expected: true,
 		},
 		{
@@ -225,14 +219,14 @@ func TestExtractArchive(t *testing.T) {
 func TestInstall_Validation(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
-	backend := New(cfg, &logger)
+	newBackend := func(home string) *TarballBackend {
+		b := New(cfg, &logger)
+		b.Paths = paths.NewResolverWithHome(cfg, home)
+		return b
+	}
 
 	t.Run("fails when package not found", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
-
+		backend := newBackend(t.TempDir())
 		// Try to install non-existent package
 		tx := transaction.NewManager(&logger)
 		record, err := backend.Install(context.Background(), "/nonexistent/package.tar.gz", core.InstallOptions{}, tx)
@@ -244,9 +238,7 @@ func TestInstall_Validation(t *testing.T) {
 
 	t.Run("fails when archive type is unsupported", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+		backend := newBackend(tmpDir)
 
 		// Create a file with unsupported extension
 		archivePath := filepath.Join(tmpDir, "test.unknown")
@@ -262,9 +254,7 @@ func TestInstall_Validation(t *testing.T) {
 
 	t.Run("fails when archive contains invalid path", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		origHome := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHome)
+		backend := newBackend(tmpDir)
 
 		// Create a tar.gz with invalid path (contains path traversal)
 		archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -317,13 +307,7 @@ func TestInstall_Validation(t *testing.T) {
 		require.NoError(t, gw.Close())
 		require.NoError(t, os.WriteFile(archivePath, buf.Bytes(), 0644))
 
-		// Unset HOME to force error
-		origHome := os.Getenv("HOME")
-		os.Unsetenv("HOME")
-		defer os.Setenv("HOME", origHome)
-
-		backendWithNoHome := New(cfg, &logger)
-		backendWithNoHome.Paths = paths.NewResolverWithHome(cfg, "")
+		backendWithNoHome := newBackend("")
 
 		tx := transaction.NewManager(&logger)
 		record, err := backendWithNoHome.Install(context.Background(), archivePath, core.InstallOptions{}, tx)
@@ -545,7 +529,7 @@ func TestInstall_InvalidPackageName(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Create a tar.gz with an invalid custom name
 	fakePkg := filepath.Join(tmpDir, "test.tar.gz")
-	require.NoError(t, os.WriteFile(fakePkg, []byte{0x1F, 0x8B, 0x08, 0x00}, 0644))
+	require.NoError(t, os.WriteFile(fakePkg, makeTarGz(t, "app", []byte("#!/bin/sh\n")), 0644))
 
 	// Try to install with an empty custom name after normalization
 	// Using a name that normalizes to empty string (all invalid chars)
@@ -691,12 +675,6 @@ func TestCreateDesktopFile(t *testing.T) {
 
 	t.Run("creates desktop file without existing template", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		homeDir := tmpDir
-
-		// Temporarily override UserHomeDir
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", homeDir)
-		defer os.Setenv("HOME", origHomeDir)
 
 		cfg := &config.Config{
 			Desktop: config.DesktopConfig{
@@ -705,6 +683,7 @@ func TestCreateDesktopFile(t *testing.T) {
 		}
 
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -726,11 +705,6 @@ func TestCreateDesktopFile(t *testing.T) {
 
 	t.Run("uses existing desktop template from archive", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		homeDir := tmpDir
-
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", homeDir)
-		defer os.Setenv("HOME", origHomeDir)
 
 		cfg := &config.Config{
 			Desktop: config.DesktopConfig{
@@ -739,6 +713,7 @@ func TestCreateDesktopFile(t *testing.T) {
 		}
 
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -769,11 +744,6 @@ Categories=Development;IDE;
 
 	t.Run("injects wayland environment variables when enabled", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		homeDir := tmpDir
-
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", homeDir)
-		defer os.Setenv("HOME", origHomeDir)
 
 		cfg := &config.Config{
 			Desktop: config.DesktopConfig{
@@ -782,6 +752,7 @@ Categories=Development;IDE;
 		}
 
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -799,11 +770,6 @@ Categories=Development;IDE;
 
 	t.Run("skips wayland injection when option is set", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		homeDir := tmpDir
-
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", homeDir)
-		defer os.Setenv("HOME", origHomeDir)
 
 		cfg := &config.Config{
 			Desktop: config.DesktopConfig{
@@ -812,6 +778,7 @@ Categories=Development;IDE;
 		}
 
 		backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -844,10 +811,7 @@ func TestTransactionRollback(t *testing.T) {
 	fakePkg := filepath.Join(tmpDir, "test.tar.gz")
 	require.NoError(t, os.WriteFile(fakePkg, []byte{0x1F, 0x8B, 0x08, 0x00}, 0644))
 
-	// Override HOME to use tmpDir
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	_, err := backend.Install(context.Background(), fakePkg, core.InstallOptions{}, tx)
 	assert.Error(t, err) // Should fail during extraction
@@ -1008,10 +972,7 @@ func TestExtractIconsFromAsarNative(t *testing.T) {
 		asarFile := filepath.Join(installDir, "app.asar")
 		require.NoError(t, os.WriteFile(asarFile, []byte("fake asar content"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Note: This will fail due to malformed ASAR, but should not panic
 		icons, err := backend.extractIconsFromAsarNative(asarFile, installDir, "test-app")
@@ -1024,10 +985,7 @@ func TestExtractIconsFromAsarNative(t *testing.T) {
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		icons, err := backend.extractIconsFromAsarNative("/nonexistent/app.asar", installDir, "test-app")
 		assert.Error(t, err) // Expect error when ASAR file doesn't exist
@@ -1047,11 +1005,6 @@ func TestExtractIconsFromAsarNative(t *testing.T) {
 		paths := paths.NewResolverWithHome(cfg, "")
 		backendWithEmptyHome := New(cfg, &logger)
 		backendWithEmptyHome.Paths = paths
-
-		// Mock missing home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Unsetenv("HOME")
-		defer os.Setenv("HOME", origHomeDir)
 
 		// Note: This will fail due to malformed ASAR, not home directory
 		// The test ensures the function doesn't panic
@@ -1076,10 +1029,7 @@ func TestExtractIconsFromAsar(t *testing.T) {
 		iconFile := filepath.Join(installDir, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Note: This will return error "no asar files found" which is expected
 		// when there are no actual ASAR files in the directory
@@ -1093,10 +1043,7 @@ func TestExtractIconsFromAsar(t *testing.T) {
 		installDir := filepath.Join(tmpDir, "install")
 		require.NoError(t, os.MkdirAll(installDir, 0755))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Note: This will return error "no asar files found" which is expected
 		icons, err := backend.extractIconsFromAsar(installDir, "test-app")
@@ -1117,11 +1064,6 @@ func TestExtractIconsFromAsar(t *testing.T) {
 		paths := paths.NewResolverWithHome(cfg, "")
 		backendWithEmptyHome := New(cfg, &logger)
 		backendWithEmptyHome.Paths = paths
-
-		// Mock missing home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Unsetenv("HOME")
-		defer os.Setenv("HOME", origHomeDir)
 
 		// Note: This will return error "no asar files found" before checking home directory
 		// The test ensures the function doesn't panic

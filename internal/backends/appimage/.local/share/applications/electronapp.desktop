@@ -1,6 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=ElectronApp
-Exec=/opt/electronapp.AppImage --no-sandbox %U
-Icon=testapp
-Categories=Utility;

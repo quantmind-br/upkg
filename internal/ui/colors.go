@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+
+	"github.com/quantmind-br/upkg/internal/core"
 )
 
 // Color scheme for upkg
@@ -111,7 +113,7 @@ func ColorizePackageType(pkgType string) string {
 	}
 
 	switch pkgType {
-	case "appimage":
+	case string(core.PackageTypeAppImage):
 		return TypeAppImage.Sprintf("%s", pkgType)
 	case "binary":
 		return TypeBinary.Sprintf("%s", pkgType)

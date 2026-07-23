@@ -92,7 +92,7 @@ func TestDetectBackend(t *testing.T) {
 		registry := NewRegistry(cfg, &logger)
 		tmpDir := t.TempDir()
 		debPath := filepath.Join(tmpDir, "test.deb")
-		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary"), 0644))
+		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary   "), 0644))
 
 		backend, err := registry.DetectBackend(context.Background(), debPath)
 		require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestDetectFileType(t *testing.T) {
 	t.Run("detects DEB file type", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		debPath := filepath.Join(tmpDir, "test.deb")
-		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary"), 0644))
+		require.NoError(t, os.WriteFile(debPath, []byte("!<arch>\ndebian-binary   "), 0644))
 
 		fileType, err := registry.detectFileType(debPath)
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestDetectFileType(t *testing.T) {
 	t.Run("detects tarball file type", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tarPath := filepath.Join(tmpDir, "test.tar.gz")
-		require.NoError(t, os.WriteFile(tarPath, []byte{0x1F, 0x8B}, 0644))
+		require.NoError(t, os.WriteFile(tarPath, makeTarGz(t), 0644))
 
 		fileType, err := registry.detectFileType(tarPath)
 		require.NoError(t, err)
@@ -274,8 +274,7 @@ func TestDetectFileType_AdditionalTypes(t *testing.T) {
 	t.Run("detects tar.bz2", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tarPath := filepath.Join(tmpDir, "test.tar.bz2")
-		// BZ magic: 'B' 'Z' 'h'
-		require.NoError(t, os.WriteFile(tarPath, []byte{'B', 'Z', 'h', '9'}, 0644))
+		require.NoError(t, os.WriteFile(tarPath, tarBz2Fixture, 0644))
 
 		fileType, err := registry.detectFileType(tarPath)
 		require.NoError(t, err)
@@ -285,8 +284,7 @@ func TestDetectFileType_AdditionalTypes(t *testing.T) {
 	t.Run("detects tar.xz", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		tarPath := filepath.Join(tmpDir, "test.tar.xz")
-		// XZ magic: 0xFD '7' 'z' 'X' 'Z' 0x00
-		require.NoError(t, os.WriteFile(tarPath, []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}, 0644))
+		require.NoError(t, os.WriteFile(tarPath, makeTarXz(t), 0644))
 
 		fileType, err := registry.detectFileType(tarPath)
 		require.NoError(t, err)

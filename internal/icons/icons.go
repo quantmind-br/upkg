@@ -30,6 +30,9 @@ const (
 	extPNG = ".png"
 	extSVG = ".svg"
 	extXPM = ".xpm"
+
+	// scalableSize is the XDG directory name for resolution-independent icons.
+	scalableSize = "scalable"
 )
 
 // Manager handles icon operations
@@ -279,8 +282,8 @@ func DetectIconSize(iconPath string) string {
 	}
 
 	// Check for "scalable"
-	if strings.Contains(strings.ToLower(iconPath), "scalable") || strings.HasSuffix(strings.ToLower(iconPath), ".svg") {
-		return "scalable"
+	if strings.Contains(strings.ToLower(iconPath), scalableSize) || strings.HasSuffix(strings.ToLower(iconPath), ".svg") {
+		return scalableSize
 	}
 
 	// Try to read actual image dimensions for PNG/JPEG/GIF
@@ -605,7 +608,7 @@ func containsString(items []string, target string) bool {
 
 func buildDirectorySection(dirName, size string) []string {
 	header := "[" + dirName + "]"
-	if size == "scalable" {
+	if size == scalableSize {
 		return []string{
 			header,
 			"MinSize=1",

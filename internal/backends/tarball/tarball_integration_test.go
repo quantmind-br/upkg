@@ -27,12 +27,10 @@ func TestTarballBackend_Install_InvalidPackageName_Full(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create a tar.gz with a name that normalizes to invalid characters
 	archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -54,13 +52,9 @@ func TestTarballBackend_Install_NoHomeDir(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
 
-	// Unset HOME
-	origHome := os.Getenv("HOME")
-	os.Unsetenv("HOME")
-	defer os.Setenv("HOME", origHome)
-
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, "")
 
 	// Create a tar.gz
 	archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -80,13 +74,11 @@ func TestTarballBackend_Install_EmptyArchive(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	fs := afero.NewOsFs()
 	backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create a minimal tar.gz (will fail extraction, not no executables)
 	archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -106,9 +98,6 @@ func TestTarballBackend_Install_MkdirFailure(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	// Use a mock filesystem that fails MkdirAll
@@ -122,6 +111,7 @@ func TestTarballBackend_Install_MkdirFailure(t *testing.T) {
 		},
 	}
 	backend := NewWithDeps(cfg, &logger, fs, runner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create a minimal tar.gz
 	archivePath := filepath.Join(tmpDir, "test.tar.gz")
@@ -140,13 +130,11 @@ func TestTarballBackend_Install_ForceRemovalFailure(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	fs := afero.NewOsFs()
 	backend := NewWithDeps(cfg, &logger, fs, helpers.NewOSCommandRunner())
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake installation directory
 	appsDir := filepath.Join(tmpDir, ".local", "share", "upkg", "apps")
@@ -175,9 +163,6 @@ func TestTarballBackend_installIcons_CacheUpdateFailure(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	mockRunner := &helpers.MockCommandRunner{
@@ -195,6 +180,7 @@ func TestTarballBackend_installIcons_CacheUpdateFailure(t *testing.T) {
 	}
 	cacheManager := cache.NewCacheManagerWithRunner(mockRunner)
 	backend := NewWithCacheManager(cfg, &logger, cacheManager)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	installDir := filepath.Join(tmpDir, "install")
 	require.NoError(t, os.MkdirAll(installDir, 0755))
@@ -230,9 +216,6 @@ func TestTarballBackend_createDesktopFile_MissingAppsDir(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{}
 	fs := afero.NewOsFs()
@@ -383,9 +366,6 @@ func TestTarballBackend_Install_SkipWaylandEnv_Full(t *testing.T) {
 
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	cfg := &config.Config{
 		Desktop: config.DesktopConfig{
@@ -409,6 +389,7 @@ func TestTarballBackend_Install_SkipWaylandEnv_Full(t *testing.T) {
 		},
 	}
 	backend := NewWithDeps(cfg, &logger, fs, runner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create a minimal tar.gz
 	archivePath := filepath.Join(tmpDir, "testapp.tar.gz")
@@ -461,9 +442,6 @@ func TestTarballBackend_Install_WithRealTar(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
 
 	// Create a real tar.gz with an executable
 	srcDir := filepath.Join(tmpDir, "src")
@@ -484,6 +462,7 @@ func TestTarballBackend_Install_WithRealTar(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	tx := transaction.NewManager(&logger)
 	record, err := backend.Install(context.Background(), archivePath, core.InstallOptions{}, tx)

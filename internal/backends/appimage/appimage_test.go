@@ -195,9 +195,7 @@ func TestUninstall(t *testing.T) {
 	t.Run("uninstalls all files", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Create fake installation files
 		appImagePath := filepath.Join(tmpDir, "test.AppImage")
@@ -231,9 +229,7 @@ func TestUninstall(t *testing.T) {
 	t.Run("handles missing files gracefully", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		record := &core.InstallRecord{
 			InstallID:   "missing-id",
@@ -253,9 +249,7 @@ func TestUninstall(t *testing.T) {
 	t.Run("handles empty record", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		record := &core.InstallRecord{
 			InstallID:   "empty-id",
@@ -360,16 +354,13 @@ func TestInstall_AlreadyInstalled(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
 	mockRunner := &helpers.MockCommandRunner{
 		CommandExistsFunc: func(_ string) bool { return false },
 	}
 
 	cfg := &config.Config{}
 	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create source AppImage
 	sourceAppImage := filepath.Join(tmpDir, "source", "test.AppImage")
@@ -420,12 +411,10 @@ func TestTransactionRollback(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
 
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
+
 	tx := transaction.NewManager(&logger)
 
 	// Create a fake AppImage
@@ -741,10 +730,7 @@ func TestInstallIcons(t *testing.T) {
 		iconFile := filepath.Join(squashfsRoot, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		installedIcons, err := backend.installIcons(squashfsRoot, "test-app", &appImageMetadata{})
 		assert.NoError(t, err)
@@ -761,18 +747,12 @@ func TestInstallIcons(t *testing.T) {
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
 		// Mock missing home directory by creating backend with empty home
-		cfg := &config.Config{}
-		paths := paths.NewResolverWithHome(cfg, "")
+		emptyHomePaths := paths.NewResolverWithHome(cfg, "")
 		runner := helpers.NewOSCommandRunner()
 		fs := afero.NewOsFs()
 
 		backendWithEmptyHome := NewWithDeps(cfg, &logger, fs, runner)
-		backendWithEmptyHome.Paths = paths
-
-		// Mock missing home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Unsetenv("HOME")
-		defer os.Setenv("HOME", origHomeDir)
+		backendWithEmptyHome.Paths = emptyHomePaths
 
 		installedIcons, err := backendWithEmptyHome.installIcons(squashfsRoot, "test-app", &appImageMetadata{})
 		assert.Error(t, err)
@@ -789,10 +769,7 @@ func TestInstallIcons(t *testing.T) {
 		iconFile := filepath.Join(squashfsRoot, "test-icon.png")
 		require.NoError(t, os.WriteFile(iconFile, []byte("fake icon"), 0644))
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Test should complete without panic even if icon installation fails
 		installedIcons, err := backend.installIcons(squashfsRoot, "test-app", &appImageMetadata{})
@@ -962,13 +939,9 @@ func TestIconExtraction(t *testing.T) {
 	t.Run("extracts icons from mock AppImage with embedded .desktop", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
-
-		// Create backend after setting HOME so it picks up the mock home directory
+		// Create backend and inject an explicit home resolver
 		backend := New(cfg, &logger)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Create mock AppImage directory structure (simulating extracted squashfs-root)
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
@@ -1048,13 +1021,9 @@ Categories=Utility;`
 	t.Run("handles AppImage without .desktop file", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Mock home directory
-		origHomeDir := os.Getenv("HOME")
-		os.Setenv("HOME", tmpDir)
-		defer os.Setenv("HOME", origHomeDir)
-
-		// Create backend after setting HOME so it picks up the mock home directory
+		// Create backend and inject an explicit home resolver
 		backend := New(cfg, &logger)
+		backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 		// Create mock AppImage directory structure without .desktop file
 		squashfsRoot := filepath.Join(tmpDir, "squashfs-root")
@@ -1212,13 +1181,9 @@ func TestInstall_AlreadyInstalledWithoutForce(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
 
-	// Mock home directory
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Pre-create bin directory and fake installed AppImage
 	binDir := filepath.Join(tmpDir, ".local", "bin")
@@ -1232,22 +1197,17 @@ func TestInstall_AlreadyInstalledWithoutForce(t *testing.T) {
 
 	tx := transaction.NewManager(&logger)
 	_, err := backend.Install(context.Background(), appImagePath, core.InstallOptions{}, tx)
-	// Will fail during extraction, not the "already installed" check because extraction happens first
-	// But we're testing the flow
-	_ = err
+	// Fake (non-ELF) content fails during extraction; the call must error.
+	require.Error(t, err)
 }
 
 func TestInstall_WithForce(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
 
-	// Mock home directory
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Pre-create bin directory and fake installed AppImage
 	binDir := filepath.Join(tmpDir, ".local", "bin")
@@ -1261,21 +1221,17 @@ func TestInstall_WithForce(t *testing.T) {
 
 	tx := transaction.NewManager(&logger)
 	_, err := backend.Install(context.Background(), appImagePath, core.InstallOptions{Force: true}, tx)
-	// Will fail during extraction, but the force flag is set
-	_ = err
+	// Fake (non-ELF) content fails during extraction even with force set.
+	require.Error(t, err)
 }
 
 func TestInstall_SkipDesktop(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
 
-	// Mock home directory
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake AppImage
 	appImagePath := filepath.Join(tmpDir, "test.AppImage")
@@ -1283,22 +1239,17 @@ func TestInstall_SkipDesktop(t *testing.T) {
 
 	tx := transaction.NewManager(&logger)
 	_, err := backend.Install(context.Background(), appImagePath, core.InstallOptions{SkipDesktop: true}, tx)
-	// Will fail during extraction
-	_ = err
+	// Fake (non-ELF) content fails during extraction.
+	require.Error(t, err)
 }
 
 func TestInstall_MissingHomeDirectory(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	tmpDir := t.TempDir()
 
-	// Mock home directory
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
-	// Create backend with real home (empty home check happens after extraction)
 	cfg := &config.Config{}
 	backend := New(cfg, &logger)
+	backend.Paths = paths.NewResolverWithHome(cfg, tmpDir)
 
 	// Create fake AppImage - extraction will fail first
 	appImagePath := filepath.Join(tmpDir, "test.AppImage")
@@ -1310,47 +1261,62 @@ func TestInstall_MissingHomeDirectory(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestInstall_ParsingMetadataFailure verifies that when the extracted AppImage
+// has no parseable .desktop metadata, Install still succeeds by falling back to
+// a name derived from the package filename.
 func TestInstall_ParsingMetadataFailure(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir := t.TempDir()
-
-	// Mock home directory
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
+	home := t.TempDir()
 	cfg := &config.Config{}
-	backend := New(cfg, &logger)
 
-	// Create fake AppImage - will fail at extraction step
-	// So we won't reach the metadata parsing failure case
-	appImagePath := filepath.Join(tmpDir, "test.AppImage")
+	// Extraction succeeds but produces an empty squashfs-root (no .desktop).
+	mockRunner := &helpers.MockCommandRunner{
+		CommandExistsFunc: func(cmd string) bool { return cmd == "unsquashfs" },
+		RunCommandInDirFunc: func(_ context.Context, dir, _ string, _ ...string) (string, error) {
+			return "", os.MkdirAll(filepath.Join(dir, "squashfs-root"), 0755)
+		},
+	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, home)
+
+	appImagePath := filepath.Join(home, "test.AppImage")
 	require.NoError(t, os.WriteFile(appImagePath, []byte("fake appimage"), 0755))
 
 	tx := transaction.NewManager(&logger)
-	_, err := backend.Install(context.Background(), appImagePath, core.InstallOptions{}, tx)
-	// Will fail during extraction
-	_ = err
+	record, err := backend.Install(context.Background(), appImagePath, core.InstallOptions{SkipDesktop: true}, tx)
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	// Name falls back to the formatted package filename ("test" -> "Test").
+	assert.Equal(t, "Test", record.Name)
+	assert.FileExists(t, filepath.Join(home, ".local", "bin", "test.appimage"))
 }
 
+// TestInstall_WithCustomName verifies the CustomName option overrides the
+// derived application name for the installed binary and record.
 func TestInstall_WithCustomName(t *testing.T) {
 	logger := zerolog.New(io.Discard)
-	tmpDir := t.TempDir()
-
-	// Mock home directory
-	origHomeDir := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHomeDir)
-
+	home := t.TempDir()
 	cfg := &config.Config{}
-	backend := New(cfg, &logger)
 
-	// Create fake AppImage
-	appImagePath := filepath.Join(tmpDir, "test.AppImage")
+	mockRunner := &helpers.MockCommandRunner{
+		CommandExistsFunc: func(cmd string) bool { return cmd == "unsquashfs" },
+		RunCommandInDirFunc: func(_ context.Context, dir, _ string, _ ...string) (string, error) {
+			return "", os.MkdirAll(filepath.Join(dir, "squashfs-root"), 0755)
+		},
+	}
+	backend := NewWithDeps(cfg, &logger, afero.NewOsFs(), mockRunner)
+	backend.Paths = paths.NewResolverWithHome(cfg, home)
+
+	appImagePath := filepath.Join(home, "test.AppImage")
 	require.NoError(t, os.WriteFile(appImagePath, []byte("fake appimage"), 0755))
 
 	tx := transaction.NewManager(&logger)
-	_, err := backend.Install(context.Background(), appImagePath, core.InstallOptions{CustomName: "MyCustomApp"}, tx)
-	// Will fail during extraction
-	_ = err
+	record, err := backend.Install(context.Background(), appImagePath, core.InstallOptions{CustomName: "MyCustomApp", SkipDesktop: true}, tx)
+	require.NoError(t, err)
+	require.NotNil(t, record)
+	// The custom name drives both the record name and the normalized binary path.
+	binPath := filepath.Join(home, ".local", "bin", "mycustomapp.appimage")
+	assert.Equal(t, "MyCustomApp", record.Name)
+	assert.Equal(t, binPath, record.InstallPath)
+	assert.FileExists(t, binPath)
 }

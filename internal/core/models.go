@@ -52,6 +52,31 @@ type Metadata struct {
 	ExtractedMeta       ExtractedMetadata `json:"extracted_metadata,omitempty"`
 	OriginalDesktopFile string            `json:"original_desktop_file,omitempty"` // Original .desktop path before rename for dock compatibility
 	DesktopFiles        []string          `json:"desktop_files,omitempty"`
+	// Source records remote origin (e.g. GitHub) for upkg update. Optional;
+	// legacy rows without this field continue to load.
+	Source *SourceRef `json:"source,omitempty"`
+}
+
+// SourceRef pins a remote package origin inside Metadata JSON (no schema migration).
+type SourceRef struct {
+	Kind        string    `json:"kind"` // "github"
+	Owner       string    `json:"owner"`
+	Repo        string    `json:"repo"`
+	RepoID      int64     `json:"repo_id"` // immutable anti-takeover pin
+	Tag         string    `json:"tag"`     // raw tag e.g. desktop-v0.5.5
+	Version     string    `json:"version"` // normalized display version
+	AssetName   string    `json:"asset_name"`
+	AssetDigest string    `json:"asset_digest,omitempty"` // sha256:…
+	DownloadURL string    `json:"download_url"`
+	PublishedAt time.Time `json:"published_at"`
+	Prerelease  bool      `json:"prerelease"`
+	ETag        string    `json:"etag,omitempty"`
+	CompareMode string    `json:"compare_mode"` // semver|date|natural|published
+	Hold        bool      `json:"hold,omitempty"`
+	// AssetPattern is an optional regex the user chose (--asset) reused on update.
+	AssetPattern string `json:"asset_pattern,omitempty"`
+	// ComponentPrefix pins monorepo tag prefixes (e.g. "desktop" from desktop-v0.5.5).
+	ComponentPrefix string `json:"component_prefix,omitempty"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling to handle legacy formats

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
@@ -154,6 +155,15 @@ func NewDoctorCmd(cfg *config.Config, _ *zerolog.Logger) *cobra.Command {
 			// 6. Check environment
 			ui.PrintSubheader("Environment")
 			checkEnvironment()
+
+			fmt.Println()
+
+			// 7. GitHub API rate limit / token presence (best-effort, network optional)
+			ui.PrintSubheader("GitHub")
+			ghCtx, ghCancel := context.WithTimeout(ctx, 10*time.Second)
+			ghWarnings := checkGitHub(ghCtx)
+			ghCancel()
+			warnings = append(warnings, ghWarnings...)
 
 			fmt.Println()
 
@@ -436,4 +446,41 @@ func checkEnvironment() {
 			}
 		}
 	}
+}
+
+// checkGitHub reports token presence and best-effort rate-limit remaining.
+func checkGitHub(ctx context.Context) []string {
+	var warnings []string
+
+	token := ""
+	for _, key := range []string{"UPKG_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			token = v
+			ui.PrintSuccess("GitHub token: present (%s)", key)
+			break
+		}
+	}
+	if token == "" {
+		// Try gh without printing token
+		if _, err := exec.LookPath("gh"); err == nil {
+			ui.PrintInfo("GitHub token: not in env; `gh` CLI available (used as fallback)")
+		} else {
+			ui.PrintWarning("GitHub token: none (anonymous API limit is 60 req/h)")
+			ui.PrintInfo("  Suggestion: export UPKG_GITHUB_TOKEN or GH_TOKEN, or run gh auth login")
+			warnings = append(warnings, "No GitHub token configured (rate limit 60/h)")
+		}
+	}
+
+	// Best-effort rate limit probe; failures are informational only.
+	client := newGitHubClient(ctx)
+	remaining, limit, reset, err := client.RateLimit(ctx)
+	if err != nil {
+		ui.PrintInfo("GitHub rate limit: unavailable (%v)", err)
+		return warnings
+	}
+	ui.PrintSuccess("GitHub rate limit: %d/%d remaining (resets %s)", remaining, limit, reset.Format(time.RFC3339))
+	if remaining < 10 {
+		warnings = append(warnings, fmt.Sprintf("GitHub API rate limit low: %d remaining", remaining))
+	}
+	return warnings
 }

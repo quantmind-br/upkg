@@ -39,6 +39,18 @@ func ValidatePackageName(name string) error {
 		return fmt.Errorf("package name too long (max 255 characters)")
 	}
 
+	// Reject path navigation and option-like names before the charset check so
+	// remote-derived names cannot slip through as "." / ".." / "-rf".
+	if name == "." || name == ".." {
+		return fmt.Errorf("invalid package name: %q is not allowed", name)
+	}
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("invalid package name: must not start with '-'")
+	}
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "\x00") {
+		return fmt.Errorf("invalid package name: path separators and null bytes are not allowed")
+	}
+
 	if !ValidPackageNameRegex.MatchString(name) {
 		return fmt.Errorf("invalid package name: must contain only alphanumeric, dash, underscore, or dot characters")
 	}
@@ -60,6 +72,11 @@ func ValidatePackageName(name string) error {
 		if strings.Contains(lowerName, pattern) {
 			return fmt.Errorf("package name contains suspicious pattern: %s", pattern)
 		}
+	}
+
+	// Lone ".." already rejected; also reject names that are only dots.
+	if strings.Trim(name, ".") == "" {
+		return fmt.Errorf("invalid package name: %q is not allowed", name)
 	}
 
 	return nil

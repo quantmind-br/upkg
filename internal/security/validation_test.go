@@ -66,6 +66,26 @@ func TestValidatePackageName(t *testing.T) {
 			pkgName: string(make([]byte, 300)),
 			wantErr: true,
 		},
+		{
+			name:    "dot only",
+			pkgName: ".",
+			wantErr: true,
+		},
+		{
+			name:    "dotdot only",
+			pkgName: "..",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash",
+			pkgName: "-rf",
+			wantErr: true,
+		},
+		{
+			name:    "only dots",
+			pkgName: "...",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

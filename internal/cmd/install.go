@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,8 +16,10 @@ import (
 	"github.com/quantmind-br/upkg/internal/config"
 	"github.com/quantmind-br/upkg/internal/core"
 	"github.com/quantmind-br/upkg/internal/db"
+	"github.com/quantmind-br/upkg/internal/helpers"
 	"github.com/quantmind-br/upkg/internal/hyprland"
 	"github.com/quantmind-br/upkg/internal/security"
+	"github.com/quantmind-br/upkg/internal/source/github"
 	"github.com/quantmind-br/upkg/internal/transaction"
 	"github.com/quantmind-br/upkg/internal/ui"
 	"github.com/rs/zerolog"
@@ -30,6 +33,7 @@ const (
 	metaKeyWaylandSupport = "wayland_support"
 	metaKeyInstallMethod  = "install_method"
 	metaKeyDesktopFiles   = "desktop_files"
+	metaKeySource         = "source"
 )
 
 // NewInstallCmd creates the install command
@@ -44,13 +48,25 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		skipWaylandEnv bool
 		skipIconFix    bool
 		overwrite      bool
+		yes            bool
+		ghTag          string
+		ghPrerelease   bool
+		ghFormat       string
+		ghAsset        string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "install [package]",
+		Use:   "install [package|url|owner/repo]",
 		Short: "Install a package",
-		Long:  `Install a package from the specified file (AppImage, DEB, RPM, Tarball, or Binary).`,
-		Args:  cobra.ExactArgs(1),
+		Long: `Install a package from a local file (AppImage, DEB, RPM, Tarball, or Binary),
+a Flatpak app ID, or a GitHub release URL / owner/repo reference.
+
+Examples:
+  upkg install ./app.AppImage
+  upkg install https://github.com/block/buzz
+  upkg install block/buzz --yes
+  upkg install block/buzz --format appimage --tag desktop-v0.5.5`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			// Validate the timeout flag first: it is independent of the package
 			// path, and a non-positive value yields an already-expired context.
@@ -60,10 +76,48 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 			}
 
 			packagePath := args[0]
+			var sourceRef *core.SourceRef
+			var githubCleanup func()
 
 			isFlatpakAppID := flatpak.IsFlatpakAppID(packagePath) || flatpak.IsFlatpakRemoteRef(packagePath)
+			// A bare "owner/repo" is ambiguous with a relative path such as
+			// "dist/app.AppImage"; an existing local file always wins.
+			isGitHub := !isFlatpakAppID && github.IsGitHubURL(packagePath)
 
-			if !isFlatpakAppID {
+			// Create context with timeout early so GitHub resolution is bounded.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSecs)*time.Second)
+			defer cancel()
+
+			if isGitHub {
+				if overwrite {
+					color.Red("Error: --overwrite is not allowed for remote (GitHub) installs")
+					return fmt.Errorf("--overwrite forbidden for remote origin")
+				}
+				resolved, resErr := resolveGitHubPackage(ctx, packagePath, githubResolveOpts{
+					Tag:        ghTag,
+					Prerelease: ghPrerelease,
+					Yes:        yes,
+					Format:     ghFormat,
+					AssetRegex: ghAsset,
+					DataDir:    cfg.Paths.DataDir,
+					AppName:    customName,
+				}, log)
+				if resErr != nil {
+					color.Red("Error: %v", resErr)
+					return resErr
+				}
+				packagePath = resolved.LocalPath
+				sourceRef = resolved.Source
+				githubCleanup = resolved.Cleanup
+				defer func() {
+					if githubCleanup != nil {
+						githubCleanup()
+					}
+				}()
+				if confErr := confirmRemoteSudo(resolved.Format, yes); confErr != nil {
+					return confErr
+				}
+			} else if !isFlatpakAppID {
 				absPath, err := filepath.Abs(packagePath)
 				if err != nil {
 					color.Red("Error: invalid package path: %v", err)
@@ -76,6 +130,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				Str("package", packagePath).
 				Bool("force", force).
 				Bool("skip_desktop", skipDesktop).
+				Bool("github", isGitHub).
 				Msg("starting installation")
 
 			if !isFlatpakAppID {
@@ -100,9 +155,20 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				}
 			}
 
-			// Create context with timeout
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSecs)*time.Second)
-			defer cancel()
+			// PATH shadowing check on the name that will actually be installed:
+			// backends derive it from --name or from the asset filename, never
+			// from the repository name.
+			if isGitHub && sourceRef != nil {
+				derived := customName
+				if derived == "" {
+					base := filepath.Base(packagePath)
+					derived = helpers.NormalizeFilename(helpers.CleanAppName(strings.TrimSuffix(base, filepath.Ext(base))))
+				}
+				if shErr := confirmPathShadow(derived, yes); shErr != nil {
+					color.Red("Error: %v", shErr)
+					return shErr
+				}
+			}
 
 			// Initialize database
 			database, err := db.New(ctx, cfg.Paths.DBFile)
@@ -127,6 +193,14 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 
 			// Initialize transaction manager
 			tx := transaction.NewManager(log)
+			if githubCleanup != nil {
+				// Ensure unverified/temp download is removed on rollback too.
+				cleanup := githubCleanup
+				tx.Add("remove_github_download", func() error {
+					cleanup()
+					return nil
+				})
+			}
 			defer func() {
 				if rollbackErr := tx.Rollback(); rollbackErr != nil {
 					log.Warn().Err(rollbackErr).Msg("transaction rollback failed")
@@ -141,13 +215,26 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				SkipDesktop:    skipDesktop,
 				CustomName:     customName,
 				SkipWaylandEnv: skipWaylandEnv,
-				Overwrite:      overwrite,
+				// Remote origin never gets pacman --overwrite '*'.
+				Overwrite: overwrite && sourceRef == nil,
 			}
 
 			record, err := backend.Install(ctx, packagePath, installOpts, tx)
 			if err != nil {
 				color.Red("Error: installation failed: %v", err)
 				return fmt.Errorf("installation failed: %w", err)
+			}
+
+			if sourceRef != nil {
+				record.Metadata.Source = sourceRef
+				if record.Version == "" && sourceRef.Version != "" {
+					record.Version = sourceRef.Version
+				}
+				// The downloaded artifact is deleted after commit; keep the
+				// remote URL instead of a dangling cache path.
+				if sourceRef.DownloadURL != "" {
+					record.OriginalFile = sourceRef.DownloadURL
+				}
 			}
 
 			// Convert to db.Install format
@@ -160,13 +247,7 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				OriginalFile: record.OriginalFile,
 				InstallPath:  record.InstallPath,
 				DesktopFile:  record.DesktopFile,
-				Metadata: map[string]interface{}{
-					metaKeyIconFiles:      record.Metadata.IconFiles,
-					metaKeyWrapperScript:  record.Metadata.WrapperScript,
-					metaKeyWaylandSupport: record.Metadata.WaylandSupport,
-					metaKeyInstallMethod:  record.Metadata.InstallMethod,
-					metaKeyDesktopFiles:   record.Metadata.DesktopFiles,
-				},
+				Metadata:     buildDBMetadata(record),
 			}
 
 			// Persist the record. A forced local reinstall replaces any prior row
@@ -210,16 +291,27 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 				}
 			}
 
-			// Success!
+			// Success! Download cleanup is safe after commit (file already consumed).
+			if githubCleanup != nil {
+				githubCleanup()
+				githubCleanup = nil
+			}
+
 			color.Green("✓ Package installed successfully")
 			color.Green("  Name: %s", record.Name)
 			color.Green("  Type: %s", record.PackageType)
 			color.Green("  Install ID: %s", record.InstallID)
+			if record.Version != "" {
+				color.Cyan("  Version: %s", record.Version)
+			}
 			if record.InstallPath != "" {
 				color.Cyan("  Path: %s", record.InstallPath)
 			}
 			if record.DesktopFile != "" {
 				color.Cyan("  Desktop file: %s", record.DesktopFile)
+			}
+			if sourceRef != nil {
+				color.Cyan("  Source: github.com/%s/%s@%s", sourceRef.Owner, sourceRef.Repo, sourceRef.Tag)
 			}
 
 			log.Info().
@@ -238,9 +330,29 @@ func NewInstallCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 	cmd.Flags().IntVar(&timeoutSecs, "timeout", 600, "installation timeout in seconds")
 	cmd.Flags().BoolVar(&skipWaylandEnv, "skip-wayland-env", false, "skip Wayland environment variable injection (recommended for Tauri apps)")
 	cmd.Flags().BoolVar(&skipIconFix, "skip-icon-fix", false, "skip dock icon fix (Hyprland initialClass detection)")
-	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "overwrite conflicting files from other packages (DEB/RPM only)")
+	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "overwrite conflicting files from other packages (DEB/RPM only; forbidden for GitHub installs)")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "non-interactive: pick best GitHub asset / confirm remote sudo")
+	cmd.Flags().StringVar(&ghTag, "tag", "", "GitHub release tag (default: latest stable)")
+	cmd.Flags().BoolVar(&ghPrerelease, "prerelease", false, "include GitHub prerelease when resolving latest")
+	cmd.Flags().StringVar(&ghFormat, "format", "", "filter GitHub assets by format (appimage, deb, rpm, tarball, zip)")
+	cmd.Flags().StringVar(&ghAsset, "asset", "", "regex matched against GitHub asset names")
 
 	return cmd
+}
+
+// buildDBMetadata flattens core.Metadata into the map stored in SQLite.
+func buildDBMetadata(record *core.InstallRecord) map[string]interface{} {
+	m := map[string]interface{}{
+		metaKeyIconFiles:      record.Metadata.IconFiles,
+		metaKeyWrapperScript:  record.Metadata.WrapperScript,
+		metaKeyWaylandSupport: record.Metadata.WaylandSupport,
+		metaKeyInstallMethod:  record.Metadata.InstallMethod,
+		metaKeyDesktopFiles:   record.Metadata.DesktopFiles,
+	}
+	if record.Metadata.Source != nil {
+		m[metaKeySource] = record.Metadata.Source
+	}
+	return m
 }
 
 // isLocalPackageType reports whether a package type installs into the user's

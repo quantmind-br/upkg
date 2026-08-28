@@ -86,6 +86,8 @@ func NewInfoCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 }
 
 // printPackageInfo displays detailed package information
+//
+//nolint:gocyclo // many optional metadata fields
 func printPackageInfo(record *core.InstallRecord) {
 	ui.PrintHeader(fmt.Sprintf("Package Information: %s", record.Name))
 	fmt.Println()
@@ -149,6 +151,32 @@ func printPackageInfo(record *core.InstallRecord) {
 	// Install method
 	if record.Metadata.InstallMethod != "" {
 		ui.PrintKeyValue("Install Method", record.Metadata.InstallMethod)
+	}
+
+	// Remote origin (GitHub)
+	if src := record.Metadata.Source; src != nil && src.Kind != "" {
+		fmt.Println()
+		ui.PrintSubheader("Source")
+		ui.PrintKeyValue("Kind", src.Kind)
+		if src.Kind == "github" {
+			ui.PrintKeyValue("Repository", fmt.Sprintf("github.com/%s/%s", src.Owner, src.Repo))
+			if src.RepoID != 0 {
+				ui.PrintKeyValue("Repo ID", fmt.Sprintf("%d", src.RepoID))
+			}
+			ui.PrintKeyValue("Tag", src.Tag)
+			if src.AssetName != "" {
+				ui.PrintKeyValue("Asset", src.AssetName)
+			}
+			if src.AssetDigest != "" {
+				ui.PrintKeyValue("Digest", src.AssetDigest)
+			}
+			if src.CompareMode != "" {
+				ui.PrintKeyValue("Compare Mode", src.CompareMode)
+			}
+			if src.Hold {
+				ui.PrintKeyValue("Hold", "true (skipped by upkg update)")
+			}
+		}
 	}
 
 	fmt.Println()

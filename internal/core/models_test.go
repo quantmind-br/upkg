@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -332,5 +333,45 @@ func TestInstallOptions(t *testing.T) {
 	}
 	if !options.SkipWaylandEnv {
 		t.Errorf("SkipWaylandEnv = %v, want %v", options.SkipWaylandEnv, true)
+	}
+}
+
+func TestSourceRef_JSONRoundTrip(t *testing.T) {
+	src := &SourceRef{
+		Kind:        "github",
+		Owner:       "block",
+		Repo:        "buzz",
+		RepoID:      12345,
+		Tag:         "desktop-v0.5.5",
+		Version:     "0.5.5",
+		AssetName:   "Buzz.AppImage",
+		AssetDigest: "sha256:abc",
+		CompareMode: "semver",
+	}
+	meta := Metadata{Source: src, InstallMethod: "appimage"}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out Metadata
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Source == nil || out.Source.Owner != "block" || out.Source.RepoID != 12345 {
+		t.Fatalf("round-trip failed: %+v", out.Source)
+	}
+}
+
+func TestMetadata_LegacyWithoutSource(t *testing.T) {
+	raw := []byte(`{"install_method":"appimage","icon_files":["a.png"]}`)
+	var m Metadata
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m.Source != nil {
+		t.Fatalf("expected nil Source, got %+v", m.Source)
+	}
+	if m.InstallMethod != "appimage" {
+		t.Fatalf("install_method: %q", m.InstallMethod)
 	}
 }

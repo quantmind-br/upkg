@@ -366,3 +366,47 @@ func createTestTarXz(t *testing.T, path string, files map[string]string) {
 		require.NoError(t, err)
 	}
 }
+
+func TestSanitizeFileMode(t *testing.T) {
+	t.Parallel()
+	// setuid + world-writable executable -> 0755
+	assert.Equal(t, os.FileMode(0o755), sanitizeFileMode(0o4755|os.ModeSetuid))
+	assert.Equal(t, os.FileMode(0o644), sanitizeFileMode(0o666))
+	assert.Equal(t, os.FileMode(0o644), sanitizeFileMode(0o644))
+	assert.Equal(t, os.FileMode(0o755), sanitizeFileMode(0o777))
+	assert.Equal(t, os.FileMode(0o755), sanitizeDirMode(0o777|os.ModeDir))
+	assert.Equal(t, os.FileMode(0o755), sanitizeDirMode(0o755))
+}
+
+func TestExtractTarGz_StripsSetuid(t *testing.T) {
+	tmpDir := t.TempDir()
+	tarPath := filepath.Join(tmpDir, "setuid.tar.gz")
+
+	f, err := os.Create(tarPath)
+	require.NoError(t, err)
+	gw := gzip.NewWriter(f)
+	tw := tar.NewWriter(gw)
+
+	content := []byte("#!/bin/sh\necho hi\n")
+	hdr := &tar.Header{
+		Name: "evil.sh",
+		Mode: 0o4755, // setuid
+		Size: int64(len(content)),
+	}
+	require.NoError(t, tw.WriteHeader(hdr))
+	_, err = tw.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, tw.Close())
+	require.NoError(t, gw.Close())
+	require.NoError(t, f.Close())
+
+	dest := filepath.Join(tmpDir, "out")
+	require.NoError(t, os.MkdirAll(dest, 0o755))
+	require.NoError(t, ExtractTarGz(tarPath, dest))
+
+	info, err := os.Stat(filepath.Join(dest, "evil.sh"))
+	require.NoError(t, err)
+	perm := info.Mode().Perm()
+	assert.Equal(t, os.FileMode(0o755), perm)
+	assert.Zero(t, info.Mode()&os.ModeSetuid)
+}

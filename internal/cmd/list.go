@@ -261,8 +261,8 @@ func printSummary(all, filtered []db.Install, filterType, filterName string) {
 // printCompactTable prints a compact table view
 func printCompactTable(cmd *cobra.Command, installs []db.Install) error {
 	table := tablewriter.NewTable(cmd.OutOrStdout(),
-		tablewriter.WithHeader([]string{"Name", "Type", "Version", "Install Date"}),
-		tablewriter.WithAlignment(tw.MakeAlign(4, tw.AlignLeft)),
+		tablewriter.WithHeader([]string{"Name", "Type", "Version", "Source", "Install Date"}),
+		tablewriter.WithAlignment(tw.MakeAlign(5, tw.AlignLeft)),
 		tablewriter.WithSymbols(tw.NewSymbols(tw.StyleNone)),
 	)
 
@@ -281,6 +281,7 @@ func printCompactTable(cmd *cobra.Command, installs []db.Install) error {
 			install.Name,
 			ui.ColorizePackageType(install.PackageType),
 			version,
+			formatSourceShort(&install),
 			installDate,
 		); err != nil {
 			return fmt.Errorf("append table row: %w", err)
@@ -296,8 +297,8 @@ func printCompactTable(cmd *cobra.Command, installs []db.Install) error {
 // printDetailedTable prints a detailed table view
 func printDetailedTable(cmd *cobra.Command, installs []db.Install) error {
 	table := tablewriter.NewTable(cmd.OutOrStdout(),
-		tablewriter.WithHeader([]string{"Name", "Type", "Version", "Install Date", "Install ID", "Path"}),
-		tablewriter.WithAlignment(tw.MakeAlign(6, tw.AlignLeft)),
+		tablewriter.WithHeader([]string{"Name", "Type", "Version", "Source", "Install Date", "Install ID", "Path"}),
+		tablewriter.WithAlignment(tw.MakeAlign(7, tw.AlignLeft)),
 		tablewriter.WithSymbols(tw.NewSymbols(tw.StyleLight)),
 	)
 
@@ -330,6 +331,7 @@ func printDetailedTable(cmd *cobra.Command, installs []db.Install) error {
 			install.Name,
 			ui.ColorizePackageType(install.PackageType),
 			version,
+			formatSourceShort(&install),
 			installDate,
 			installID,
 			path,
@@ -342,4 +344,27 @@ func printDetailedTable(cmd *cobra.Command, installs []db.Install) error {
 		return fmt.Errorf("render table: %w", err)
 	}
 	return nil
+}
+
+// formatSourceShort returns a compact origin label for list tables.
+func formatSourceShort(install *db.Install) string {
+	if install == nil {
+		return "-"
+	}
+	rec := db.ToInstallRecord(install)
+	src := rec.Metadata.Source
+	if src == nil || src.Kind == "" {
+		return "-"
+	}
+	if src.Kind == "github" && src.Owner != "" && src.Repo != "" {
+		tag := src.Tag
+		if tag == "" {
+			tag = src.Version
+		}
+		if tag != "" {
+			return fmt.Sprintf("%s/%s@%s", src.Owner, src.Repo, tag)
+		}
+		return fmt.Sprintf("%s/%s", src.Owner, src.Repo)
+	}
+	return src.Kind
 }

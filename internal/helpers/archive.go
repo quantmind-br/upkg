@@ -167,7 +167,7 @@ func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
+			if err := os.MkdirAll(target, sanitizeDirMode(header.FileInfo().Mode())); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
 
@@ -177,7 +177,7 @@ func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 				return fmt.Errorf("archive bomb protection triggered: %w", err)
 			}
 
-			if err := extractFile(tr, target, header.FileInfo().Mode()); err != nil {
+			if err := extractFile(tr, target, sanitizeFileMode(header.FileInfo().Mode())); err != nil {
 				return fmt.Errorf("failed to extract file %s: %w", header.Name, err)
 			}
 
@@ -210,6 +210,23 @@ func extractTar(r io.Reader, destDir string, limiter *extractionLimiter) error {
 	}
 
 	return nil
+}
+
+// sanitizeDirMode masks archive directory modes to at most 0755 and clears
+// setuid/setgid/sticky (Perm() already drops those high bits). Owner rwx is
+// always granted so the extractor can traverse and populate the directory.
+func sanitizeDirMode(mode os.FileMode) os.FileMode {
+	return (mode.Perm() & 0o755) | 0o700
+}
+
+// sanitizeFileMode masks regular file modes: executables at most 0755,
+// non-executables at most 0644. setuid/setgid/sticky never survive Perm().
+func sanitizeFileMode(mode os.FileMode) os.FileMode {
+	perm := mode.Perm()
+	if perm&0o111 != 0 {
+		return perm & 0o755
+	}
+	return perm & 0o644
 }
 
 func extractFile(r io.Reader, target string, mode os.FileMode) error {
@@ -257,7 +274,7 @@ func ExtractZip(archivePath, destDir string) error {
 		target := filepath.Join(destDir, f.Name)
 
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(target, f.Mode()); err != nil {
+			if err := os.MkdirAll(target, sanitizeDirMode(f.Mode())); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
 			continue
@@ -293,7 +310,7 @@ func extractZipFile(f *zip.File, target string, expectedSize int64) error {
 	}
 	defer rc.Close()
 
-	outFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode())
+	outFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, sanitizeFileMode(f.Mode()))
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}

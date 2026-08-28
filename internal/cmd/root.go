@@ -18,6 +18,7 @@ func NewRootCmd(cfg *config.Config, log *zerolog.Logger, version string) *cobra.
 	// Add subcommands
 	cmd.AddCommand(NewInstallCmd(cfg, log))
 	cmd.AddCommand(NewUninstallCmd(cfg, log))
+	cmd.AddCommand(NewUpdateCmd(cfg, log))
 	cmd.AddCommand(NewListCmd(cfg, log))
 	cmd.AddCommand(NewInfoCmd(cfg, log))
 	cmd.AddCommand(NewDoctorCmd(cfg, log))

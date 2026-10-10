@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/quantmind-br/upkg/internal/cache"
@@ -140,6 +141,13 @@ func TestFixDependencyLine(t *testing.T) {
 		{"depend = libssl", "depend = openssl"},
 		{"depend = libssl1.1", "depend = openssl-1.1"},
 		{"depend = zlib1g", "depend = zlib"},
+		{"depend = gbm", "depend = mesa"},
+		{"depend = libgbm", "depend = mesa"},
+		{"depend = libgbm1", "depend = mesa"},
+		{"depend = uuid", "depend = util-linux-libs"},
+		{"depend = libuuid1", "depend = util-linux-libs"},
+		{"depend = libasound2", "depend = alsa-lib"},
+		{"depend = libcups2", "depend = libcups"},
 
 		// Version constraints preservation
 		{"depend = gtk>=3.0", "depend = gtk3>=3.0"},
@@ -876,5 +884,42 @@ depend = anaconda
 
 		err := fixMalformedDependencies(pkgPath, &logger)
 		assert.Error(t, err)
+	})
+
+	t.Run("fixes gbm and deduplicates dependencies", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		pkgPath := filepath.Join(tmpDir, "test-dedup.pkg.tar.zst")
+
+		pkginfoContent := `pkgname = test-dedup
+pkgver = 1.0.0-1
+depend = gbm
+depend = mesa
+depend = gtk3
+depend = gtk3
+depend = uuid
+`
+		pkgDir := filepath.Join(tmpDir, "pkg")
+		require.NoError(t, os.MkdirAll(pkgDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".PKGINFO"), []byte(pkginfoContent), 0644))
+
+		cmd := exec.Command("bsdtar", "--zstd", "-cf", pkgPath, "-C", pkgDir, ".PKGINFO")
+		require.NoError(t, cmd.Run())
+
+		err := fixMalformedDependencies(pkgPath, &logger)
+		assert.NoError(t, err)
+
+		// Read back .PKGINFO and check contents
+		cmdExtract := exec.Command("bsdtar", "-xOf", pkgPath, ".PKGINFO")
+		out, err := cmdExtract.Output()
+		assert.NoError(t, err)
+
+		outStr := string(out)
+		assert.Contains(t, outStr, "depend = mesa")
+		assert.Contains(t, outStr, "depend = util-linux-libs")
+		assert.NotContains(t, outStr, "depend = gbm")
+		assert.NotContains(t, outStr, "depend = uuid\n")
+		// Verify mesa and gtk3 only appear once
+		assert.Equal(t, 1, strings.Count(outStr, "depend = mesa"))
+		assert.Equal(t, 1, strings.Count(outStr, "depend = gtk3"))
 	})
 }

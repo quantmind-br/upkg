@@ -44,6 +44,7 @@ func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 	// Fix malformed dependencies
 	lines := strings.Split(string(content), "\n")
 	var fixed []string
+	seenDeps := make(map[string]bool)
 	hasChanges := false
 
 	for _, line := range lines {
@@ -57,6 +58,14 @@ func fixMalformedDependencies(pkgPath string, logger *zerolog.Logger) error {
 				hasChanges = true
 				continue
 			}
+			if seenDeps[fixedLine] {
+				logger.Debug().
+					Str("duplicate_dependency", strings.TrimPrefix(fixedLine, "depend = ")).
+					Msg("removing duplicate dependency")
+				hasChanges = true
+				continue
+			}
+			seenDeps[fixedLine] = true
 			if fixedLine != line {
 				logger.Debug().
 					Str("original", strings.TrimPrefix(line, "depend = ")).
@@ -146,22 +155,30 @@ func fixDependencyLine(line string, _ *zerolog.Logger) string {
 	// Debian/Ubuntu → Arch package name mapping
 	// Many Debian packages have different names in Arch repos
 	debianToArchMap := map[string]string{
-		"gtk":        "gtk3",          // Generic GTK → GTK3 (most compatible)
-		"gtk2.0":     "gtk2",          // Debian GTK2 naming
-		"gtk-3.0":    "gtk3",          // Debian GTK3 naming variant
-		"python3":    "python",        // Arch uses "python" for Python 3
-		"nodejs":     "nodejs",        // Same but good to document
-		"libssl":     "openssl",       // SSL library naming (v3)
-		"libssl1.1":  "openssl-1.1",   // Specific SSL 1.1 version (legacy package)
-		"libssl3":    "openssl",       // OpenSSL 3.x
-		"libjpeg":    "libjpeg-turbo", // JPEG library
-		"libpng":     "libpng",        // Same but documented
-		"libpng16":   "libpng",        // Specific version to generic
-		"zlib1g":     "zlib",          // Debian zlib naming
-		"libcurl":    "curl",          // Curl library
-		"libcurl4":   "curl",          // Curl 4.x
-		"libglib2.0": "glib2",         // GLib naming difference
-		"libnotify4": "libnotify",     // Remove version suffix
+		"gbm":        "mesa",            // GBM library is provided by mesa on Arch
+		"libgbm":     "mesa",            // Debian libgbm naming
+		"libgbm1":    "mesa",            // Debian libgbm1
+		"uuid":       "util-linux-libs", // UUID library is provided by util-linux-libs on Arch
+		"libuuid":    "util-linux-libs", // Alternative naming
+		"libuuid1":   "util-linux-libs", // Debian libuuid1 naming
+		"libasound2": "alsa-lib",        // ALSA sound library
+		"libcups2":   "libcups",         // CUPS printing library
+		"gtk":        "gtk3",            // Generic GTK → GTK3 (most compatible)
+		"gtk2.0":     "gtk2",            // Debian GTK2 naming
+		"gtk-3.0":    "gtk3",            // Debian GTK3 naming variant
+		"python3":    "python",          // Arch uses "python" for Python 3
+		"nodejs":     "nodejs",          // Same but good to document
+		"libssl":     "openssl",         // SSL library naming (v3)
+		"libssl1.1":  "openssl-1.1",     // Specific SSL 1.1 version (legacy package)
+		"libssl3":    "openssl",         // OpenSSL 3.x
+		"libjpeg":    "libjpeg-turbo",   // JPEG library
+		"libpng":     "libpng",          // Same but documented
+		"libpng16":   "libpng",          // Specific version to generic
+		"zlib1g":     "zlib",            // Debian zlib naming
+		"libcurl":    "curl",            // Curl library
+		"libcurl4":   "curl",            // Curl 4.x
+		"libglib2.0": "glib2",           // GLib naming difference
+		"libnotify4": "libnotify",       // Remove version suffix
 	}
 
 	// Apply Debian→Arch mapping if needed

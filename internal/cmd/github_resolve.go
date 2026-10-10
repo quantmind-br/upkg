@@ -286,7 +286,9 @@ func pickAndDownload(ctx context.Context, info *githubReleaseInfo, opts githubRe
 
 // resolveGitHubPackage turns a GitHub URL / owner/repo into a local file path.
 func resolveGitHubPackage(ctx context.Context, input string, opts githubResolveOpts, log *zerolog.Logger) (*githubResolved, error) {
-	color.Cyan("→ Fetching %s from GitHub…", input)
+	if !opts.MetadataOnly {
+		color.Cyan("→ Fetching %s from GitHub…", input)
+	}
 	info, err := fetchGitHubRelease(ctx, input, opts)
 	if err != nil {
 		return nil, err

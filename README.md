@@ -45,11 +45,14 @@ upkg update                # all GitHub-sourced packages
 upkg update buzz           # one package
 upkg update --check        # exit 1 if any update is available
 upkg update --dry-run
+upkg update --parallel 8   # up to eight simultaneous release checks
 upkg update --yes          # non-interactive (includes remote deb/rpm via sudo)
 upkg update --hold buzz
 upkg update --unhold buzz
 upkg update --allow-downgrade
 ```
+
+Release checks run in parallel with a default limit of four. Use `--parallel 1` for sequential checks. Downloads and installations remain sequential. The command timeout applies to the entire update.
 
 **Auth / rate limits:** set `UPKG_GITHUB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN`, or use `gh auth login`. Tokens are never written to config.toml. Anonymous API limit is 60 req/h; with a token, conditional requests (ETag / 304) keep `upkg update` cheap. `upkg doctor` shows token presence and rate-limit remaining.
 

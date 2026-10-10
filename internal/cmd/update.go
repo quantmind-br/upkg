@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -20,9 +21,14 @@ import (
 )
 
 // NewUpdateCmd creates the update command for GitHub-sourced packages.
-//
-//nolint:gocyclo // batch update flow branches on hold/check/dry-run/errors per package.
 func NewUpdateCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
+	return newUpdateCmd(cfg, log, resolveGitHubPackage)
+}
+
+type githubPackageResolver func(context.Context, string, githubResolveOpts, *zerolog.Logger) (*githubResolved, error)
+
+//nolint:gocyclo // batch update flow branches on hold/check/dry-run/errors per package.
+func newUpdateCmd(cfg *config.Config, log *zerolog.Logger, resolve githubPackageResolver) *cobra.Command {
 	var (
 		dryRun         bool
 		checkOnly      bool
@@ -31,6 +37,7 @@ func NewUpdateCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		holdNames      []string
 		unholdNames    []string
 		timeoutSecs    int
+		parallel       int
 	)
 
 	cmd := &cobra.Command{
@@ -38,6 +45,7 @@ func NewUpdateCmd(cfg *config.Config, log *zerolog.Logger) *cobra.Command {
 		Short: "Update packages installed from GitHub",
 		Long: `Check GitHub releases for newer versions of packages installed from a
 GitHub URL or owner/repo reference, and reinstall them in place.
+Release checks run in parallel (default: 4); downloads and installs run sequentially.
 
   upkg update              # all GitHub-sourced packages
   upkg update buzz         # one package by name
@@ -47,11 +55,14 @@ GitHub URL or owner/repo reference, and reinstall them in place.
   upkg update --hold NAME  # freeze a package
   upkg update --unhold NAME`,
 		Args: cobra.MaximumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if timeoutSecs <= 0 {
 				return fmt.Errorf("timeout must be greater than zero seconds")
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSecs)*time.Second)
+			if parallel <= 0 {
+				return fmt.Errorf("parallel must be greater than zero")
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeoutSecs)*time.Second)
 			defer cancel()
 
 			database, err := db.New(ctx, cfg.Paths.DBFile)
@@ -110,7 +121,12 @@ GitHub URL or owner/repo reference, and reinstall them in place.
 			var jobs []updateJob
 			available := 0
 
-			for _, rec := range targets {
+			checks, err := checkUpdateReleases(ctx, targets, parallel, cfg.Paths.DataDir, log, resolve)
+			if err != nil {
+				return fmt.Errorf("check updates: %w", err)
+			}
+
+			for i, rec := range targets {
 				src := rec.Metadata.Source
 				job := updateJob{rec: rec}
 
@@ -121,17 +137,7 @@ GitHub URL or owner/repo reference, and reinstall them in place.
 					continue
 				}
 
-				input := src.Owner + "/" + src.Repo
-				meta, metaErr := resolveGitHubPackage(ctx, input, githubResolveOpts{
-					Prerelease:      src.Prerelease,
-					Yes:             true,
-					AssetRegex:      src.AssetPattern,
-					PreferAssetName: src.AssetName,
-					Existing:        src,
-					DataDir:         cfg.Paths.DataDir,
-					AppName:         rec.Name,
-					MetadataOnly:    true,
-				}, log)
+				meta, metaErr := checks[i].meta, checks[i].err
 
 				if errors.Is(metaErr, errNotModified) {
 					job.skip = "up to date"
@@ -214,7 +220,7 @@ GitHub URL or owner/repo reference, and reinstall them in place.
 				input := src.Owner + "/" + src.Repo
 
 				color.Cyan("→ Updating %s…", rec.Name)
-				resolved, resErr := resolveGitHubPackage(ctx, input, githubResolveOpts{
+				resolved, resErr := resolve(ctx, input, githubResolveOpts{
 					// Pin to the tag we already decided is newer when possible.
 					Tag:             job.newTag,
 					Prerelease:      src.Prerelease || strings.Contains(job.newTag, "-"),
@@ -335,9 +341,71 @@ GitHub URL or owner/repo reference, and reinstall them in place.
 	cmd.Flags().BoolVar(&allowDowngrade, "allow-downgrade", false, "allow installing an older release")
 	cmd.Flags().StringArrayVar(&holdNames, "hold", nil, "mark package(s) as held (skip updates)")
 	cmd.Flags().StringArrayVar(&unholdNames, "unhold", nil, "clear hold on package(s)")
+	cmd.Flags().IntVar(&parallel, "parallel", 4, "maximum simultaneous release checks (downloads and installs remain sequential)")
 	cmd.Flags().IntVar(&timeoutSecs, "timeout", 600, "timeout in seconds")
 
 	return cmd
+}
+
+type updateReleaseCheck struct {
+	meta *githubResolved
+	err  error
+}
+
+// checkUpdateReleases writes each result to its own slot; only the caller renders output.
+func checkUpdateReleases(ctx context.Context, targets []*core.InstallRecord, parallel int, dataDir string, log *zerolog.Logger, resolve githubPackageResolver) ([]updateReleaseCheck, error) {
+	if parallel <= 0 {
+		return nil, fmt.Errorf("parallel must be greater than zero")
+	}
+	checks := make([]updateReleaseCheck, len(targets))
+	eligible := 0
+	for _, rec := range targets {
+		if !rec.Metadata.Source.Hold {
+			eligible++
+		}
+	}
+	work := make(chan int)
+	var workers sync.WaitGroup
+	for range min(parallel, eligible) {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for i := range work {
+				if ctx.Err() != nil {
+					return
+				}
+				rec := targets[i]
+				src := rec.Metadata.Source
+				checks[i].meta, checks[i].err = resolve(ctx, src.Owner+"/"+src.Repo, githubResolveOpts{
+					Prerelease:      src.Prerelease,
+					Yes:             true,
+					AssetRegex:      src.AssetPattern,
+					PreferAssetName: src.AssetName,
+					Existing:        src,
+					DataDir:         dataDir,
+					AppName:         rec.Name,
+					MetadataOnly:    true,
+				}, log)
+			}
+		}()
+	}
+dispatch:
+	for i, rec := range targets {
+		if ctx.Err() != nil {
+			break
+		}
+		if rec.Metadata.Source.Hold {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			break dispatch
+		case work <- i:
+		}
+	}
+	close(work)
+	workers.Wait()
+	return checks, ctx.Err()
 }
 
 func displayVer(src *core.SourceRef) string {
